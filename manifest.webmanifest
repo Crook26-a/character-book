@@ -1,0 +1,16 @@
+{
+  "name": "Character Book",
+  "short_name": "Character Book",
+  "description": "The sheet you play from: rolls, hit points, spells, what you carry, and who you've met.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e5d7b4",
+  "theme_color": "#3a2e1e",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

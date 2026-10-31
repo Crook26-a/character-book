@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Character Book</title>
+<meta name="description" content="A character sheet you play from: rolls, hit points, spells, what you carry, and who you've met.">
+<meta name="theme-color" content="#3a2e1e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Character Book">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  /* the same aged plat sheet as Ordinate Survey and the Field Book: rag paper, iron-gall ink, red lead for the marks */
+  :root {
+    --paper: #e5d7b4; --paper-lit: #eee3c7; --paper-deep: #d6c49c; --card: #f3eacf;
+    --ink: #3a2e1e; --ink-soft: #6d5c43; --ink-faint: #9b8968; --rule: #bfab84; --rule-soft: #cdbb98;
+    --lead: #a8331f; --lead-soft: #f0d9c8; --good: #5e7a4e; --good-soft: #dfe6cf; --gold: #9a7417;
+  }
+  body.dark {
+    --paper: #1d1912; --paper-lit: #272118; --paper-deep: #15120d; --card: #2a2419;
+    --ink: #eadfc4; --ink-soft: #bba985; --ink-faint: #8a7a5c; --rule: #4a3f2d; --rule-soft: #3a3124;
+    --lead: #e0785f; --lead-soft: #3d2620; --good: #93b07f; --good-soft: #26301f; --gold: #d8b25a;
+  }
+  * { box-sizing: border-box; }
+  button, .tab { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  input, textarea, select { -webkit-user-select: text; user-select: text; }
+  html, body { overscroll-behavior-y: none; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--paper); color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif; font-size: 16px; line-height: 1.35;
+    background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 27px, rgba(191,171,132,.28) 27px, rgba(191,171,132,.28) 28px);
+  }
+  body.dark { background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 27px, rgba(74,63,45,.45) 27px, rgba(74,63,45,.45) 28px); }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 16px 14px calc(96px + env(safe-area-inset-bottom)); }
+  .mono, .caps { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  .caps { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; color: var(--ink-soft); }
+
+  header { border-bottom: 3px double var(--ink); padding-bottom: 10px; margin-bottom: 0; }
+  .headrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #who { background: none; border: 0; padding: 0; color: var(--ink); font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+  #who b { display: block; font-size: 26px; line-height: 1.05; font-weight: normal; overflow-wrap: anywhere; }
+  #who b::after { content: " ▾"; font-size: 15px; color: var(--ink-faint); }
+  #who small { display: block; margin-top: 3px; }
+  #themeBtn { flex: none; background: none; border: 1px solid var(--rule); color: var(--ink); border-radius: 3px; padding: 6px 10px; font: inherit; font-size: 14px; }
+
+  /* the strip: hit points, concentration and the next roll's advantage, always in sight */
+  #strip { position: sticky; top: 0; z-index: 8; background: var(--paper); margin: 0 -14px 12px; padding: calc(8px + env(safe-area-inset-top)) 14px 8px;
+    border-bottom: 1px solid var(--rule); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #strip .hp { font-size: 19px; white-space: nowrap; }
+  #strip .hp small { font-size: 13px; color: var(--ink-soft); }
+  #strip .tmp { color: var(--good); font-size: 14px; }
+  #strip .sp { flex: 1; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--rule); background: var(--card); border-radius: 14px; padding: 3px 10px;
+    font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; min-height: 30px; }
+  .chip.on { background: var(--ink); color: var(--paper-lit); border-color: var(--ink); }
+  .chip.lead { border-color: var(--lead); color: var(--lead); }
+  .chip.goodc { border-color: var(--good); color: var(--good); }
+  .chip.off { opacity: .5; text-decoration: line-through; }
+  .chip .x { color: var(--ink-faint); margin-left: 2px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--paper-lit); color: var(--ink); border: 1px solid var(--rule);
+    border-radius: 3px; padding: 10px 12px; font: inherit; font-size: 15px; cursor: pointer; min-height: 44px; }
+  .btn:active { background: var(--paper-deep); }
+  .btn[disabled] { opacity: .45; cursor: default; }
+  .btn.wide { width: 100%; margin: 0 0 10px; }
+  .btn.main { background: var(--ink); color: var(--paper-lit); border-color: var(--ink); }
+  .btn.danger { color: var(--lead); border-color: var(--lead); }
+  .btn.good { color: var(--good); border-color: var(--good); }
+  .btn.small { min-height: 36px; padding: 6px 10px; font-size: 14px; }
+  .btn.tiny { min-height: 30px; padding: 3px 8px; font-size: 13px; }
+  .row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .row > * { min-width: 0; }
+  .grow { flex: 1; }
+
+  input[type=text], input[type=number], input[type=date], input:not([type]), select, textarea {
+    width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--card); border: 1px solid var(--rule); border-radius: 3px; padding: 9px 10px; }
+  textarea { resize: vertical; min-height: 70px; }
+  select { padding: 8px 6px; }
+  .fld { display: block; margin: 0 0 10px; flex: 1; }
+  .fld > span { display: block; margin: 0 0 3px; }
+  .fld > span, .lab { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; text-transform: uppercase; letter-spacing: .1em; font-size: 10.5px; color: var(--ink-soft); }
+  .fld.n { flex: 0 0 84px; }
+  .check { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; font-size: 15px; }
+  .check input { width: 22px; height: 22px; flex: none; }
+  .note { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 10px; }
+  .warn { color: var(--lead); font-size: 13.5px; margin: 0 0 10px; }
+  .empty { text-align: center; color: var(--ink-soft); padding: 22px 10px; font-style: italic; }
+
+  .panel { background: var(--card); border: 1px solid var(--rule); border-radius: 3px; padding: 12px 12px 4px; margin: 0 0 14px; }
+  .panel.artifact { border: 2px solid var(--gold); }
+  .panel h2 { margin: 0 0 8px; font-size: 19px; font-weight: normal; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .panel h2 small { font-size: 12px; color: var(--ink-soft); font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  .panel h3 { margin: 10px 0 6px; font-size: 16px; font-weight: normal; border-bottom: 1px solid var(--rule-soft); padding-bottom: 3px; }
+  details.sec { border-top: 1px solid var(--rule); padding: 6px 0 2px; margin: 4px 0 6px; }
+  details.sec > summary { cursor: pointer; list-style: none; padding: 6px 0; font-size: 17px; }
+  details.sec > summary::-webkit-details-marker { display: none; }
+  details.sec > summary::before { content: "▸ "; color: var(--ink-faint); }
+  details.sec[open] > summary::before { content: "▾ "; }
+  details.sec > summary small { color: var(--ink-soft); font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; margin-left: 4px; }
+
+  /* hit points */
+  .hpbig { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .hpbig .cur { font-size: 40px; line-height: 1; }
+  .hpbig .max { font-size: 20px; color: var(--ink-soft); }
+  .hpbar { height: 8px; border-radius: 4px; background: var(--paper-deep); overflow: hidden; margin: 0 0 10px; display: flex; }
+  .hpbar i { display: block; background: var(--good); }
+  .hpbar i.t { background: var(--gold); }
+  .hpbar.low i:first-child { background: var(--lead); }
+
+  /* numbers you tap to roll */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 12px; }
+  .stat { background: var(--card); border: 1px solid var(--rule); border-radius: 3px; padding: 6px 4px; text-align: center; font: inherit; color: var(--ink); }
+  button.stat { cursor: pointer; }
+  .stat b { display: block; font-size: 21px; font-weight: normal; line-height: 1.1; }
+  .stat small { display: block; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-soft); }
+  .stat em { display: block; font-style: normal; font-size: 11px; color: var(--good); }
+  .abil { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin: 0 0 12px; }
+  .abil .stat b { font-size: 22px; }
+  .abil .stat .sc { font-size: 12px; color: var(--ink-soft); }
+  .lines { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; margin: 0 0 10px; }
+  .line { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; border-bottom: 1px dotted var(--rule); color: var(--ink); font: inherit;
+    padding: 7px 2px; text-align: left; cursor: pointer; min-height: 38px; }
+  .line .v { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; min-width: 30px; text-align: right; }
+  .line .nm { flex: 1; }
+  .line .pf { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--ink-soft); flex: none; }
+  .line .pf.on { background: var(--ink); }
+  .line .pf.ex { background: var(--lead); border-color: var(--lead); }
+  .line small { color: var(--ink-soft); font-size: 12px; }
+
+  /* attacks, spells, items as rows */
+  .card { display: block; width: 100%; text-align: left; background: var(--card); color: var(--ink); border: 1px solid var(--rule); border-radius: 3px;
+    padding: 10px 12px; margin: 0 0 8px; font: inherit; position: relative; }
+  .card.tap { cursor: pointer; }
+  .card.gone { opacity: .55; }
+  .card .nm { font-size: 17px; overflow-wrap: anywhere; }
+  .card .sub { display: block; margin-top: 3px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11.5px; color: var(--ink-soft); }
+  .card .txt { margin: 6px 0 4px; font-size: 14.5px; }
+  .card .txt p { margin: 0 0 6px; }
+  .card .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .card .tag { display: inline-block; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 10.5px; border: 1px solid var(--rule); border-radius: 3px; padding: 0 4px; margin-left: 4px; color: var(--ink-soft); vertical-align: middle; }
+  .card .tag.c { border-color: var(--lead); color: var(--lead); }
+  .card .tag.g { border-color: var(--gold); color: var(--gold); }
+  .atkrow { display: flex; align-items: center; gap: 8px; }
+  .atkrow .nm { flex: 1; }
+  .big { font-size: 20px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+
+  /* pips: slots, luck, points */
+  .res { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px dotted var(--rule); flex-wrap: wrap; }
+  .res .nm { flex: 1; min-width: 130px; }
+  .res .nm small { display: block; color: var(--ink-soft); font-size: 12px; }
+  .pips { display: flex; gap: 5px; flex-wrap: wrap; }
+  .pip { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ink); background: var(--ink); cursor: pointer; padding: 0; }
+  .pip.used { background: transparent; border-color: var(--ink-faint); }
+  .pip.sq { border-radius: 4px; }
+  .death { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; }
+  .death .pip { background: transparent; border-color: var(--ink-faint); }
+  .death .ok .pip.f { background: var(--good); border-color: var(--good); }
+  .death .bad .pip.f { background: var(--lead); border-color: var(--lead); }
+
+  .thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+  .thumbs img { width: 76px; height: 76px; object-fit: cover; border: 1px solid var(--rule); border-radius: 3px; cursor: zoom-in; background: var(--paper-deep); }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 4px 0 10px; }
+  .tbl td, .tbl th { border: 1px solid var(--rule); padding: 4px 6px; vertical-align: top; text-align: left; }
+  .tbl th { background: var(--paper-deep); font-weight: normal; }
+  .tbl tr.hit td { background: var(--lead-soft); }
+  .logl { font-size: 14px; padding: 5px 0; border-bottom: 1px dotted var(--rule); display: flex; gap: 8px; }
+  .logl .d { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11.5px; color: var(--ink-soft); flex: none; width: 82px; padding-top: 2px; }
+  .logl .t { flex: 1; overflow-wrap: anywhere; }
+  .purse { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 0 0 10px; }
+  .purse label { text-align: center; }
+  .purse input { text-align: center; padding: 8px 2px; }
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+  .seg button { background: var(--paper-lit); border: 0; border-right: 1px solid var(--rule); font: inherit; font-size: 14px; color: var(--ink); padding: 7px 11px; cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--ink); color: var(--paper-lit); }
+
+  /* bottom tabs */
+  nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; background: var(--paper-lit); border-top: 3px double var(--ink);
+    padding-bottom: env(safe-area-inset-bottom); }
+  nav.tabs button { flex: 1 1 0; min-width: 0; background: none; border: 0; color: var(--ink-soft); font: inherit; font-size: 14px; padding: 10px 1px 12px; min-height: 58px; position: relative; cursor: pointer; }
+  nav.tabs button.on { color: var(--ink); }
+  nav.tabs button.on::after { content: ""; position: absolute; left: 22%; right: 22%; top: 0; height: 3px; background: var(--lead); }
+  nav.tabs small { display: block; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* the roll, and anything else that comes up over the page */
+  #ov { position: fixed; inset: 0; z-index: 40; background: rgba(20,15,8,.6); display: flex; align-items: flex-end; justify-content: center; }
+  #ov[hidden] { display: none; }
+  #ov .box { background: var(--paper); width: min(680px, 100%); max-height: 92vh; overflow: auto; border-top: 3px double var(--ink); border-radius: 6px 6px 0 0;
+    padding: 14px 14px calc(16px + env(safe-area-inset-bottom)); }
+  #ov .box.pic { background: #000; padding: 8px; text-align: center; }
+  #ov .box.pic img { max-width: 100%; max-height: 80vh; }
+  .rr-h { font-size: 19px; margin: 0 0 8px; display: flex; gap: 8px; align-items: baseline; }
+  .rr-h small { color: var(--ink-soft); font-size: 13px; }
+  .dice { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
+  .die { min-width: 46px; height: 46px; border: 2px solid var(--ink-faint); border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 20px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; background: var(--card); color: var(--ink-faint); cursor: pointer; padding: 0 6px; }
+  .die.use { border-color: var(--ink); color: var(--ink); }
+  .die.n20 { border-color: var(--good); color: var(--good); }
+  .die.n1 { border-color: var(--lead); color: var(--lead); }
+  .die.luck { border-style: dashed; }
+  .total { font-size: 50px; line-height: 1; margin: 2px 0 6px; }
+  .total small { font-size: 16px; color: var(--ink-soft); }
+  .brk { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12.5px; color: var(--ink-soft); margin: 0 0 10px; overflow-wrap: anywhere; }
+  .verdict { font-size: 17px; margin: 0 0 10px; }
+  .verdict.ok { color: var(--good); } .verdict.bad { color: var(--lead); }
+
+  #ver { position: fixed; top: calc(3px + env(safe-area-inset-top)); right: 7px; z-index: 30; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 10.5px; color: var(--ink-faint); pointer-events: none; }
+  #toast { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 50; max-width: 92vw;
+    background: var(--ink); color: var(--paper-lit); padding: 10px 14px; border-radius: 3px; font-size: 14.5px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  #toast.on { opacity: 1; }
+  @media (max-width: 420px) {
+    .lines { grid-template-columns: 1fr; }
+    .abil { grid-template-columns: repeat(3, 1fr); }
+    .stats { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="headrow"><button id="who" data-act="menu"></button><button id="themeBtn" aria-label="Light or dark">◐</button></div>
+  </header>
+  <div id="strip"></div>
+  <main id="view"></main>
+</div>
+<nav class="tabs" id="tabs"></nav>
+<div id="ov" hidden><div class="box" role="dialog" aria-modal="true"></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="ver" aria-hidden="true"></div>
+<input type="file" id="fileIn" accept=".json,application/json" hidden>
+<input type="file" id="picIn" accept="image/*" multiple hidden>
+<script>
+"use strict";
+/* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
+   Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
+   Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
+const VERSION = 2;
+const STORE = "character-book";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+const sg = n => (n >= 0 ? "+" : "−") + Math.abs(n);
+const uid = p => p + "_" + Math.random().toString(36).slice(2, 9);
+const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+const ord = n => n + (["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
+const abMod = s => Math.floor(((+s || 10) - 10) / 2);
+const toast = (t, ms = 2600) => { const el = $("#toast"); el.textContent = t; el.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("on"), ms); };
+
+/* ── rules tables (2014 Player's Handbook wording, as Gnick's sheet uses) ── */
+const ABS = [["str", "Strength"], ["dex", "Dexterity"], ["con", "Constitution"], ["int", "Intelligence"], ["wis", "Wisdom"], ["cha", "Charisma"]];
+const AB_NAME = Object.fromEntries(ABS);
+const AB_SHORT = { str: "Str", dex: "Dex", con: "Con", int: "Int", wis: "Wis", cha: "Cha" };
+const SKILLS = [["acrobatics", "Acrobatics", "dex"], ["animal", "Animal Handling", "wis"], ["arcana", "Arcana", "int"], ["athletics", "Athletics", "str"],
+  ["deception", "Deception", "cha"], ["history", "History", "int"], ["insight", "Insight", "wis"], ["intimidation", "Intimidation", "cha"],
+  ["investigation", "Investigation", "int"], ["medicine", "Medicine", "wis"], ["nature", "Nature", "int"], ["perception", "Perception", "wis"],
+  ["performance", "Performance", "cha"], ["persuasion", "Persuasion", "cha"], ["religion", "Religion", "int"], ["sleight", "Sleight of Hand", "dex"],
+  ["stealth", "Stealth", "dex"], ["survival", "Survival", "wis"]];
+const SKILL = Object.fromEntries(SKILLS.map(s => [s[0], { name: s[1], ab: s[2] }]));
+const CONDITIONS = {
+  Blinded: "Can't see; fails any check that needs sight. Attacks against you have advantage; your attacks have disadvantage.",
+  Charmed: "Can't attack the charmer or target them with harmful abilities or magic. The charmer has advantage on social checks with you.",
+  Deafened: "Can't hear; fails any check that needs hearing.",
+  Frightened: "Disadvantage on ability checks and attacks while the source is in sight; can't willingly move closer to it.",
+  Grappled: "Speed 0.",
+  Incapacitated: "No actions or reactions.",
+  Invisible: "Your attacks have advantage; attacks against you have disadvantage.",
+  Paralyzed: "Incapacitated; can't move or speak. Fails Str and Dex saves. Attacks against you have advantage; hits from within 5 ft are critical.",
+  Petrified: "Turned to stone, incapacitated. Fails Str and Dex saves. Resistance to all damage.",
+  Poisoned: "Disadvantage on attack rolls and ability checks.",
+  Prone: "Your attacks have disadvantage. Attacks within 5 ft have advantage against you, farther ones disadvantage.",
+  Restrained: "Speed 0. Your attacks and Dex saves have disadvantage; attacks against you have advantage.",
+  Stunned: "Incapacitated, can't move, speaks falteringly. Fails Str and Dex saves. Attacks against you have advantage.",
+  Unconscious: "Incapacitated, can't move or speak, drops what it holds, falls prone. Fails Str and Dex saves. Attacks against you have advantage; hits from within 5 ft are critical."
+};
+const EXHAUSTION = ["None", "Disadvantage on ability checks", "Speed halved", "Disadvantage on attack rolls and saving throws", "Hit point maximum halved", "Speed reduced to 0", "Death"];
+// What an effect can add to: the words people pick from when they make their own
+const TARGETS = [["atk", "Attack rolls"], ["satk", "Spell attacks"], ["watk", "Weapon attacks"], ["dmg", "Damage"], ["save", "Saving throws"], ["check", "Ability checks"],
+  ["init", "Initiative"], ["ac", "Armor Class"], ["dc", "Spell save DC"], ["hpmax", "Hit point maximum"], ["speed", "Speed"]];
+const PRESETS = [
+  { name: "Bless", to: ["atk", "save"], bonus: "1d4", conc: true, note: "1 minute" },
+  { name: "Bane", to: ["atk", "save"], bonus: "-1d4", note: "Someone's spell on you" },
+  { name: "Guidance", to: ["check"], bonus: "1d4", once: true, note: "One ability check" },
+  { name: "Resistance", to: ["save"], bonus: "1d4", once: true, note: "One saving throw" },
+  { name: "Shield of Faith", to: ["ac"], bonus: "2", note: "Someone's concentration" },
+  { name: "Aid", to: ["hpmax"], bonus: "5", until: "long", note: "8 hours" },
+  { name: "Pass without Trace", to: ["skill:stealth"], bonus: "10", note: "1 hour" },
+  { name: "Blessing of the Trickster", adv: ["skill:stealth"], note: "Advantage on Stealth, 1 hour" },
+  { name: "Mirror Image", note: "3 duplicates, 1 minute" },
+  { name: "Inspiration", note: "Spend it for advantage on one roll" }
+];
+
+/* ── dice ── */
+const rnd = n => 1 + Math.floor(Math.random() * n);
+function parseDice(expr) {
+  const terms = []; const s = String(expr || "").replace(/\s+/g, "").replace(/−/g, "-");
+  const re = /([+-]?)(\d*)d(\d+)|([+-]?)(\d+)/gi; let m;
+  while ((m = re.exec(s))) {
+    if (m[3]) terms.push({ sign: m[1] === "-" ? -1 : 1, n: +(m[2] || 1), d: +m[3] });
+    else terms.push({ sign: m[4] === "-" ? -1 : 1, k: +m[5] });
+  }
+  return terms;
+}
+function rollExpr(expr, crit) {
+  let total = 0; const parts = [];
+  for (const t of parseDice(expr)) {
+    if (t.d) { const n = t.n * (crit ? 2 : 1); const rs = Array.from({ length: n }, () => rnd(t.d)); const v = rs.reduce((a, b) => a + b, 0) * t.sign;
+      total += v; parts.push(`${t.sign < 0 ? "−" : ""}${n}d${t.d} [${rs.join(",")}]`); }
+    else { total += t.k * t.sign; parts.push(sg(t.k * t.sign)); }
+  }
+  return { total, text: parts.join(" ") };
+}
+const isDice = b => /d/i.test(String(b || ""));
+const flatOf = b => isDice(b) ? 0 : (parseInt(String(b).replace(/−/g, "-"), 10) || 0);
+const addDice = (a, b) => !b ? a : !a ? b : (a + (/^[+-]/.test(b) ? "" : "+") + b);
+function scaleDice(expr, times) { // "1d6" × 2 = "2d6"
+  if (!times) return ""; return parseDice(expr).map(t => t.d ? `${t.sign < 0 ? "-" : "+"}${t.n * times}d${t.d}` : `${t.sign < 0 ? "-" : "+"}${t.k * times}`).join("").replace(/^\+/, "");
+}
+
+/* ── store ── */
+let db = (() => { try { const t = localStorage.getItem(STORE); if (t) return JSON.parse(t); } catch (e) {} return null; })();
+if (!db || !Array.isArray(db.chars) || !db.chars.length) db = { v: 1, cur: "ch_gnick", chars: [seedGnick()] };
+let saveT = null;
+function save(now) {
+  const go = () => { try { localStorage.setItem(STORE, JSON.stringify(db)); } catch (e) { toast("This device wouldn't save. Save a backup from the character menu."); } };
+  clearTimeout(saveT); if (now) go(); else saveT = setTimeout(go, 250);
+}
+window.addEventListener("pagehide", () => save(true));
+document.addEventListener("visibilitychange", () => { if (document.hidden) save(true); });
+const C = () => db.chars.find(c => c.id === db.cur) || db.chars[0];
+const ui = { tab: "play", open: {}, next: null, edit: null, wager: { roll: "", dc: "" }, itemOpen: null, filter: "", pkind: "" };
+try { Object.assign(ui, JSON.parse(localStorage.getItem(STORE + ":ui") || "{}"), { next: null, edit: null }); } catch (e) {}
+const saveUi = () => { try { localStorage.setItem(STORE + ":ui", JSON.stringify({ tab: ui.tab, open: ui.open })); } catch (e) {} };
+
+/* ── pictures: IndexedDB blobs, or "url:" files that ship with the app ── */
+const IDB = {
+  db: null,
+  open() { return this.db || (this.db = new Promise((ok, no) => { const r = indexedDB.open(STORE, 1); r.onupgradeneeded = () => r.result.createObjectStore("pics"); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); })); },
+  async run(mode, fn) { const d = await this.open(); return new Promise((ok, no) => { const tx = d.transaction("pics", mode); const r = fn(tx.objectStore("pics")); tx.oncomplete = () => ok(r && r.result); tx.onerror = () => no(tx.error); }); },
+  put(id, blob) { return this.run("readwrite", s => s.put(blob, id)); },
+  get(id) { return this.run("readonly", s => s.get(id)); },
+  del(id) { return this.run("readwrite", s => s.delete(id)); }
+};
+const picUrls = {};
+async function picSrc(id) {
+  if (id.startsWith("url:")) return id.slice(4);
+  if (picUrls[id]) return picUrls[id];
+  try { const b = await IDB.get(id); if (b) return (picUrls[id] = URL.createObjectURL(b)); } catch (e) {}
+  return "";
+}
+function hydratePics() { document.querySelectorAll("img[data-pic]").forEach(async im => { if (!im.src) im.src = await picSrc(im.dataset.pic); }); }
+function shrinkImage(file) { // phone photos are big: keep them at 1600 px on the long side
+  return new Promise(ok => {
+    const img = new Image(); img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height)); const cv = document.createElement("canvas");
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob(b => ok(b || file), "image/jpeg", .86); URL.revokeObjectURL(img.src);
+    }; img.onerror = () => ok(file); img.src = URL.createObjectURL(file);
+  });
+}
+
+/* ══ the numbers: everything worked out from the sheet plus what's on right now ══ */
+const prof = c => +c.profBonus || (2 + Math.floor(((+c.level || 1) - 1) / 4));
+const mod = (c, ab) => abMod(c.ab[ab]);
+const debtExh = c => Math.floor((+c.debtCp || 0) / 10000);
+const exhOf = c => Math.min(6, (+c.exh || 0) + debtExh(c));
+// every bonus in force: effects that are on, and items that grant one (attuned, if they need it)
+function activeMods(c) {
+  const out = c.effects.filter(e => e.on !== false).map(e => ({ ...e, src: "effect" }));
+  for (const it of c.items) if (!it.gone && it.mods && (!it.attune || it.attuned)) for (const m of it.mods) out.push({ ...m, name: it.name, src: "item" });
+  return out;
+}
+function hits(tok, ctx) {
+  if (tok === ctx.kind) return true;
+  if (ctx.kind === "atk" && ((tok === "satk" && ctx.spell) || (tok === "watk" && !ctx.spell))) return true;
+  if (ctx.kind === "init" && (tok === "check" || tok === "check:dex")) return true;
+  if (tok === ctx.kind + ":" + ctx.ab) return true;
+  if (ctx.kind === "check" && ctx.skill && tok === "skill:" + ctx.skill) return true;
+  return false;
+}
+const modsFor = (c, ctx) => activeMods(c).filter(m => (m.to || []).some(t => hits(t, ctx)) && m.bonus);
+const flatFor = (c, ctx) => modsFor(c, ctx).reduce((a, m) => a + flatOf(m.bonus), 0);
+const diceFor = (c, ctx) => modsFor(c, ctx).filter(m => isDice(m.bonus));
+const acOf = c => (+c.ac || 10) + flatFor(c, { kind: "ac" });
+const castAb = c => c.castAb || "wis";
+const dcOf = c => 8 + prof(c) + mod(c, castAb(c)) + flatFor(c, { kind: "dc" });
+const satkOf = c => prof(c) + mod(c, castAb(c)) + flatFor(c, { kind: "atk", spell: true });
+const initOf = c => mod(c, "dex") + (+c.initBonus || 0) + flatFor(c, { kind: "init" });
+function hpMaxOf(c) { let m = (+c.hpMax || 1) + flatFor(c, { kind: "hpmax" }); if (exhOf(c) >= 4) m = Math.floor(m / 2); return Math.max(1, m); }
+function speedOf(c) { const e = exhOf(c); let s = (+c.speed || 30) + flatFor(c, { kind: "speed" }); if (e >= 5 || c.conds.includes("Grappled") || c.conds.includes("Restrained")) return 0; if (e >= 2) s = Math.floor(s / 2); return s; }
+const saveOf = (c, ab) => mod(c, ab) + (c.saveProf.includes(ab) ? prof(c) : 0) + flatFor(c, { kind: "save", ab });
+const skillLv = (c, k) => +(c.skills[k] || 0); // 0, 1 proficient, 2 expertise, .5 half
+const skillOf = (c, k) => mod(c, SKILL[k].ab) + Math.floor(prof(c) * skillLv(c, k)) + flatFor(c, { kind: "check", ab: SKILL[k].ab, skill: k });
+const passiveOf = (c, k) => 10 + skillOf(c, k);
+function atkAb(c, a) { return a.ab === "best" ? (mod(c, "dex") > mod(c, "str") ? "dex" : "str") : (a.ab || "str"); }
+const atkOf = (c, a) => mod(c, atkAb(c, a)) + (a.prof !== false ? prof(c) : 0) + (+a.bonus || 0) + flatFor(c, { kind: "atk", spell: false });
+const res = (c, name) => c.res.find(r => r.name === name);
+const resLeft = r => r ? Math.max(0, (+r.max || 0) - (+r.used || 0)) : 0;
+const attunedCount = c => c.items.filter(i => !i.gone && i.attuned).length;
+
+// advantage the rules hand you, before you choose (conditions, exhaustion, effects like the Blessing)
+function autoMode(c, ctx) {
+  const adv = [], dis = []; const has = k => c.conds.includes(k); const e = exhOf(c);
+  if (ctx.kind === "atk") { ["Blinded", "Frightened", "Poisoned", "Prone", "Restrained"].forEach(k => has(k) && dis.push(k)); if (has("Invisible")) adv.push("Invisible"); if (e >= 3) dis.push("Exhaustion " + e); }
+  if (ctx.kind === "check" || ctx.kind === "init") { ["Frightened", "Poisoned"].forEach(k => has(k) && dis.push(k)); if (e >= 1) dis.push("Exhaustion " + e); }
+  if (ctx.kind === "save") { if (e >= 3) dis.push("Exhaustion " + e); if (ctx.ab === "dex" && has("Restrained")) dis.push("Restrained"); }
+  for (const m of activeMods(c)) { if ((m.adv || []).some(t => hits(t, ctx))) adv.push(m.name); if ((m.dis || []).some(t => hits(t, ctx))) dis.push(m.name); }
+  return { mode: adv.length && !dis.length ? "adv" : dis.length && !adv.length ? "dis" : "normal", adv, dis };
+}
+
+/* ── purse and divine debt (the Auspicious Cart's Pious Wager) ── */
+const COIN = { cp: 1, sp: 10, ep: 50, gp: 100, pp: 1000 };
+const purseCp = p => Object.keys(COIN).reduce((a, k) => a + (+p[k] || 0) * COIN[k], 0);
+const gpText = cp => { const g = cp / 100; return (Number.isInteger(g) ? g : g.toFixed(2)) + " gp"; };
+function payCp(p, cost) { // pays from the purse, breaking a coin for change if it must; returns what it couldn't pay
+  let left = cost;
+  for (const k of ["gp", "pp", "ep", "sp", "cp"]) { const n = Math.min(+p[k] || 0, Math.floor(left / COIN[k])); p[k] = (+p[k] || 0) - n; left -= n * COIN[k]; }
+  if (left > 0) for (const k of ["cp", "sp", "ep", "gp", "pp"]) if ((+p[k] || 0) > 0 && COIN[k] > left) {
+    p[k]--; let change = COIN[k] - left; left = 0;
+    for (const s of ["gp", "sp", "cp"]) { const n = Math.floor(change / COIN[s]); p[s] = (+p[s] || 0) + n; change -= n * COIN[s]; }
+    break;
+  }
+  return left;
+}
+function gainCp(c, cp, why) { // wealth goes to the debt first: it "disappears instantly to settle your debt"
+  if (c.debtCp > 0) { const s = Math.min(cp, c.debtCp); c.debtCp -= s; cp -= s; logIt(c, `${gpText(s)} went to settle divine debt${c.debtCp ? ` (${gpText(c.debtCp)} still owed)` : " (debt paid off)"}`); }
+  if (cp > 0) { for (const s of ["gp", "sp", "cp"]) { const n = Math.floor(cp / COIN[s]); c.purse[s] = (+c.purse[s] || 0) + n; cp -= n * COIN[s]; } }
+  if (why) logIt(c, why);
+}
+function loseCp(c, cp, why) {
+  const short = payCp(c.purse, cp);
+  if (why) logIt(c, why);
+  if (short > 0) { c.debtCp = (+c.debtCp || 0) + short * 10; logIt(c, `Couldn't cover ${gpText(short)}: divine debt grows by ${gpText(short * 10)} (now ${gpText(c.debtCp)})`); }
+}
+function logIt(c, text, at) { c.log.unshift({ id: uid("lg"), at: at || today(), text }); }
+
+/* ══ rolling ══ */
+let R = null; // the roll on screen
+function rollD20(spec) {
+  const c = C(); const ctx = spec.ctx || { kind: "plain" };
+  const auto = ctx.kind === "plain" || ctx.kind === "death" ? { mode: "normal", adv: [], dis: [] } : autoMode(c, ctx);
+  const dice = diceFor(c, ctx).map(m => ({ name: m.name, bonus: m.bonus, r: rollExpr(m.bonus) }));
+  R = { type: "d20", label: spec.label, sub: spec.sub || "", ctx, d: [rnd(20), rnd(20)], luck: [], pick: null, real: null,
+    mode: ui.next || auto.mode, auto, parts: spec.parts || [], dice, dmg: spec.dmg || null, dc: spec.dc || null, hint: spec.hint || "", conc: !!spec.conc, at: Date.now() };
+  ui.next = null;
+  // a once-only bonus (Guidance) is spent by the roll that uses it
+  const spent = modsFor(c, ctx).filter(m => m.once && m.src === "effect");
+  if (spent.length) { c.effects = c.effects.filter(e => !spent.some(s => s.id === e.id)); R.spent = spent.map(s => s.name); }
+  if (spec.ammo) { const it = c.items.find(i => i.id === spec.ammo); if (it && it.qty > 0) { it.qty--; R.ammo = it.id; } }
+  pushRoll(c); save(); showRoll();
+}
+const allD = r => r.d.concat(r.luck);
+function usedD(r) {
+  if (r.real != null) return r.real;
+  if (r.pick != null) return allD(r)[r.pick];
+  return r.mode === "adv" ? Math.max(r.d[0], r.d[1]) : r.mode === "dis" ? Math.min(r.d[0], r.d[1]) : r.d[0];
+}
+const flatParts = r => r.parts.reduce((a, p) => a + p.v, 0);
+const d20Total = r => usedD(r) + flatParts(r) + r.dice.reduce((a, x) => a + x.r.total, 0);
+function pushRoll(c) {
+  c.rolls = c.rolls || []; c.rolls.unshift(R); if (c.rolls.length > 40) c.rolls.length = 40;
+}
+function rollSummary(r) {
+  if (r.type === "d20") return `${r.label}: ${d20Total(r)}${usedD(r) === 20 ? " (nat 20)" : usedD(r) === 1 ? " (nat 1)" : ""}`;
+  if (r.type === "dmg") return `${r.label}: ${r.total}${r.heal ? " healing" : r.dtype ? " " + r.dtype : ""}`;
+  return r.label;
+}
+function rollDamage(label, expr, o = {}) {
+  const c = C(); const crit = !!o.crit;
+  const r = rollExpr(expr, crit); const extra = o.noMods ? [] : diceFor(c, { kind: "dmg" }).map(m => ({ name: m.name, r: rollExpr(m.bonus, crit) }));
+  const flat = o.noMods ? 0 : flatFor(c, { kind: "dmg" });
+  R = { type: "dmg", label, expr, crit, base: r, extra, flat, dtype: o.dtype || "", heal: !!o.heal, self: !!o.self, save: o.save || null, at: Date.now(), from: o.from || null };
+  R.total = Math.max(0, r.total + extra.reduce((a, x) => a + x.r.total, 0) + flat);
+  pushRoll(c); save(); showRoll();
+}
+function rollPlain(label, expr, note) { const r = rollExpr(expr); R = { type: "plain", label: `${label}: ${r.total}`, expr, base: r, total: r.total, note: note || "", at: Date.now() }; pushRoll(C()); save(); showRoll(); }
+
+function d20Parts(c, ab, extra) { const p = [{ name: AB_SHORT[ab], v: mod(c, ab) }]; return p.concat(extra || []); }
+function rollCheck(ab, skill) {
+  const c = C(); const lv = skill ? skillLv(c, skill) : 0;
+  const parts = d20Parts(c, ab, lv ? [{ name: lv >= 2 ? "Expertise" : lv < 1 ? "Half prof" : "Prof", v: Math.floor(prof(c) * lv) }] : []);
+  const ctx = { kind: "check", ab, skill };
+  const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
+  rollD20({ label: skill ? SKILL[skill].name : AB_NAME[ab] + " check", sub: skill ? AB_SHORT[ab] : "", ctx, parts });
+}
+function rollSave(ab, o = {}) {
+  const c = C(); const parts = d20Parts(c, ab, c.saveProf.includes(ab) ? [{ name: "Prof", v: prof(c) }] : []);
+  const ctx = { kind: "save", ab }; const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
+  const hint = c.traits.filter(t => t.saveAdv && t.saveAdv.includes(ab)).map(t => `${t.name}: advantage ${t.saveAdvWhen || ""}`.trim()).join(" · ");
+  rollD20({ label: o.label || AB_NAME[ab] + " save", ctx, parts, dc: o.dc, hint, conc: !!o.conc });
+}
+function rollInit() { const c = C(); const parts = [{ name: "Dex", v: mod(c, "dex") }]; if (+c.initBonus) parts.push({ name: "Bonus", v: +c.initBonus }); const f = flatFor(c, { kind: "init" }); if (f) parts.push({ name: "Bonuses", v: f }); rollD20({ label: "Initiative", ctx: { kind: "init", ab: "dex" }, parts }); }
+function rollAttack(a) {
+  const c = C(); const ab = atkAb(c, a);
+  const parts = [{ name: AB_SHORT[ab], v: mod(c, ab) }]; if (a.prof !== false) parts.push({ name: "Prof", v: prof(c) }); if (+a.bonus) parts.push({ name: "Weapon", v: +a.bonus });
+  const ctx = { kind: "atk", spell: false }; const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
+  const dmgExpr = addDice(a.dice, (mod(c, ab) + (+a.bonus || 0)) ? sg(mod(c, ab) + (+a.bonus || 0)).replace("−", "-") : "");
+  rollD20({ label: a.name, sub: "attack", ctx, parts, ammo: a.ammo, dmg: { label: a.name + " damage", expr: dmgExpr, dtype: a.dtype } });
+}
+function rollSpellAttack(sp, lvl) {
+  const c = C(); const parts = [{ name: AB_SHORT[castAb(c)], v: mod(c, castAb(c)) }, { name: "Prof", v: prof(c) }];
+  const ctx = { kind: "atk", spell: true }; const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
+  rollD20({ label: sp ? sp.name : "Spell attack", sub: "spell attack", ctx, parts, dmg: sp && sp.roll ? { label: sp.name, expr: spellExpr(c, sp, lvl), dtype: sp.roll.type } : null });
+}
+function spellExpr(c, sp, lvl) {
+  const r = sp.roll; let e = r.dice;
+  const above = Math.max(0, (lvl || sp.lvl) - sp.lvl); const steps = r.upEvery ? Math.floor(above / r.upEvery) : above;
+  if (r.up && steps) e = addDice(e, scaleDice(r.up, steps));
+  if (sp.lvl === 0 && r.cantrip) { const lv = +c.level || 1; const n = lv >= 17 ? 4 : lv >= 11 ? 3 : lv >= 5 ? 2 : 1; e = scaleDice(r.dice, n); }
+  if (r.mod) { const m = mod(c, castAb(c)); if (m) e = addDice(e, String(m)); }
+  return tidyDice(e);
+}
+function tidyDice(expr) { // "1d4+1d4+3" reads as "2d4+3"
+  const by = {}; let k = 0;
+  for (const t of parseDice(expr)) { if (t.d) by[t.d] = (by[t.d] || 0) + t.n * t.sign; else k += t.k * t.sign; }
+  const s = Object.keys(by).sort((a, b) => b - a).filter(d => by[d]).map(d => `${by[d] < 0 ? "-" : "+"}${Math.abs(by[d])}d${d}`).join("") + (k ? (k < 0 ? "-" : "+") + Math.abs(k) : "");
+  return s.replace(/^\+/, "") || "0";
+}
+
+/* ── the roll on screen ── */
+function showRoll() { openOv(rollHtml(), "roll"); }
+function rollHtml() {
+  const c = C(); const r = R; if (!r) return "";
+  if (r.type === "plain") return `<div class="rr-h">${esc(r.label)}</div><div class="brk">${esc(r.base.text)}</div>${r.note ? `<p class="note">${esc(r.note)}</p>` : ""}<button class="btn wide main" data-act="ovclose">Done</button>`;
+  if (r.type === "dmg") {
+    const tgt = r.save ? `<p class="note">They make a ${AB_NAME[r.save.ab]} save against DC ${dcOf(c)}${r.save.half ? ": half on a success" : ": nothing on a success"}.</p>` : "";
+    return `<div class="rr-h">${esc(r.label)} <small>${r.heal ? "healing" : esc(r.dtype || "damage")}${r.crit ? " · critical" : ""}</small></div>
+      <div class="total">${r.total}</div>
+      <div class="brk">${esc(r.base.text)}${r.extra.map(x => ` + ${esc(x.name)} ${esc(x.r.text)}`).join("")}${r.flat ? ` ${sg(r.flat)} bonuses` : ""}</div>${tgt}
+      ${r.heal ? `<button class="btn wide good" data-act="healself" data-n="${r.total}">Heal ${esc(c.short || c.name)} by ${r.total}</button>` : ""}
+      <div class="row"><button class="btn grow" data-act="rerolldmg">Roll it again</button><button class="btn grow main" data-act="ovclose">Done</button></div>`;
+  }
+  const u = usedD(r); const tot = d20Total(r); const dice = allD(r);
+  const usedIx = r.real != null ? -1 : r.pick != null ? r.pick : r.mode === "normal" ? 0 : (r.mode === "adv" ? (r.d[0] >= r.d[1] ? 0 : 1) : (r.d[0] <= r.d[1] ? 0 : 1));
+  const shown = r.mode === "normal" && !r.luck.length && r.pick == null ? [0] : dice.map((_, i) => i);
+  const chips = shown.map(i => `<button class="die ${i === usedIx ? "use" : ""} ${dice[i] === 20 ? "n20" : dice[i] === 1 ? "n1" : ""} ${i >= 2 ? "luck" : ""}" data-act="pickdie" data-i="${i}" title="${i >= 2 ? "Luck die" : "d20"}">${dice[i]}</button>`).join("");
+  const why = r.auto.adv.length || r.auto.dis.length ? `<p class="note">${r.auto.adv.length ? "Advantage from " + esc(r.auto.adv.join(", ")) : ""}${r.auto.adv.length && r.auto.dis.length ? "; " : ""}${r.auto.dis.length ? "Disadvantage from " + esc(r.auto.dis.join(", ")) : ""}</p>` : "";
+  const lucky = res(c, "Lucky"); const wager = res(c, "Pious Wager");
+  let verdict = "";
+  if (r.ctx.kind === "death") verdict = u === 20 ? `<p class="verdict ok">Natural 20: you're back with 1 hit point.</p>` : u === 1 ? `<p class="verdict bad">Natural 1: two failures.</p>` : u >= 10 ? `<p class="verdict ok">A success.</p>` : `<p class="verdict bad">A failure.</p>`;
+  else if (r.dc) verdict = tot >= r.dc ? `<p class="verdict ok">Made it (DC ${r.dc}).</p>` : `<p class="verdict bad">Missed it (DC ${r.dc})${r.conc && c.conc ? `: concentration on ${esc(c.conc)} breaks` : ""}.</p>`;
+  else if (u === 20 && r.ctx.kind === "atk") verdict = `<p class="verdict ok">Natural 20: a critical hit.</p>`;
+  else if (u === 1 && r.ctx.kind === "atk") verdict = `<p class="verdict bad">Natural 1: a miss.</p>`;
+  const ammo = r.ammo ? c.items.find(i => i.id === r.ammo) : null;
+  return `<div class="rr-h">${esc(r.label)} <small>${esc(r.sub || "")}</small></div>
+    <div class="dice">${chips}<span class="total">${tot}</span></div>
+    <div class="brk">d20 ${r.real != null ? "(real die) " : ""}${u}${r.parts.map(p => ` ${sg(p.v)} ${esc(p.name)}`).join("")}${r.dice.map(x => ` ${x.r.total < 0 ? "−" : "+"} ${Math.abs(x.r.total)} ${esc(x.name)} (${esc(x.bonus)})`).join("")}</div>
+    ${verdict}${why}${r.hint ? `<p class="note">${esc(r.hint)}</p>` : ""}${r.spent ? `<p class="note">Used up: ${esc(r.spent.join(", "))}.</p>` : ""}
+    ${r.ctx.kind !== "death" ? `<div class="row" style="margin-bottom:10px"><div class="seg">${[["normal", "Normal"], ["adv", "Advantage"], ["dis", "Disadvantage"]].map(([k, l]) => `<button class="${r.mode === k ? "on" : ""}" data-act="rmode" data-m="${k}">${l}</button>`).join("")}</div></div>` : ""}
+    <div class="row" style="margin-bottom:10px;align-items:center"><span class="lab">Rolled a real die?</span><input type="number" min="1" max="20" inputmode="numeric" style="width:80px" data-act="realdie" value="${r.real ?? ""}" placeholder="d20"></div>
+    ${r.luck.length ? `<p class="note">Lucky: tap the die you want to use.</p>` : ""}
+    <div class="row" style="margin-bottom:10px">
+      ${lucky && r.ctx.kind !== "plain" ? `<button class="btn small" data-act="luck" ${resLeft(lucky) ? "" : "disabled"}>Use a Luck point (${resLeft(lucky)} left)</button>` : ""}
+      ${wager && ["atk", "save", "check"].includes(r.ctx.kind) ? `<button class="btn small" data-act="wagerfrom">This was a Pious Wager…</button>` : ""}
+      ${ammo ? `<button class="btn small" data-act="ammoback">Got the ${esc(ammo.name.toLowerCase())} back (${ammo.qty} left)</button>` : ""}
+    </div>
+    ${r.ctx.kind === "death" ? `<button class="btn wide main" data-act="deathapply">Mark it on the sheet</button>` : ""}
+    ${r.conc && r.dc && tot < r.dc && c.conc ? `<button class="btn wide danger" data-act="concend">End concentration on ${esc(c.conc)}</button>` : ""}
+    ${r.dmg ? `<div class="row"><button class="btn grow main" data-act="rolldmg">Roll ${esc(r.dmg.label.endsWith("damage") ? r.dmg.label : r.dmg.label + " damage")}${u === 20 ? " (critical)" : ""}</button></div><div style="height:8px"></div>` : ""}
+    <button class="btn wide" data-act="ovclose">Done</button>`;
+}
+
+/* ── overlay ── */
+let ovKind = null;
+function openOv(html, kind, cls) { const b = $("#ov .box"); b.className = "box " + (cls || ""); b.innerHTML = html; $("#ov").hidden = false; ovKind = kind; hydratePics(); }
+function closeOv() { $("#ov").hidden = true; ovKind = null; R = null; render(); }
+
+/* ══ actions on the character ══ */
+function damage(c, n) {
+  if (!(n > 0)) return;
+  let left = n; const t = Math.min(+c.temp || 0, left); c.temp = (+c.temp || 0) - t; left -= t;
+  const was = c.hp; c.hp = Math.max(0, c.hp - left);
+  let msg = `Took ${n}${t ? ` (${t} from temp HP)` : ""}.`;
+  if (was === 0 && left > 0) { c.death.fail = Math.min(3, c.death.fail + 1); msg += " A death save failure."; }
+  else if (c.hp === 0 && left - was >= hpMaxOf(c)) msg += " That's massive damage: instant death by the rules.";
+  else if (c.hp === 0) { if (!c.conds.includes("Unconscious")) c.conds.push("Unconscious"); msg += " Down to 0: unconscious, making death saves."; }
+  save(); render(); toast(msg, 3500);
+  if (c.conc && c.hp > 0) { const dc = Math.max(10, Math.floor(n / 2)); setTimeout(() => rollSave("con", { label: `Concentration (${c.conc})`, dc, conc: true }), 50); }
+  else if (c.conc && c.hp === 0) { endConc(c, true); }
+}
+function heal(c, n) {
+  if (!(n > 0)) return; const was = c.hp; c.hp = Math.min(hpMaxOf(c), c.hp + n);
+  if (was === 0 && c.hp > 0) { c.death = { ok: 0, fail: 0 }; c.conds = c.conds.filter(k => k !== "Unconscious"); }
+  save(); render(); toast(`Healed ${c.hp - was}. ${c.hp}/${hpMaxOf(c)}`);
+}
+function setConc(c, name) {
+  if (c.conc && c.conc !== name && !confirm(`You're concentrating on ${c.conc}. Casting ${name} ends it. Go ahead?`)) return false;
+  if (c.conc && c.conc !== name) endConc(c, true);
+  c.conc = name; return true;
+}
+function endConc(c, quiet) {
+  const gone = c.effects.filter(e => e.conc); c.effects = c.effects.filter(e => !e.conc);
+  if (!quiet) toast(`Concentration on ${c.conc} ended${gone.length ? ": " + gone.map(e => e.name).join(", ") + " off" : ""}.`);
+  c.conc = null; save();
+}
+function addEffect(c, p, extra) {
+  const e = { id: uid("ef"), name: p.name, to: (p.to || []).slice(), bonus: p.bonus || "", adv: (p.adv || []).slice(), dis: (p.dis || []).slice(), once: !!p.once, until: p.until || "", note: p.note || "", on: true, ...(extra || {}) };
+  c.effects.push(e); return e;
+}
+function cast(c, sp, lvl, how) {
+  if (how === "cart") {
+    const r = res(c, "Cart points"); const cost = sp.lvl || 0;
+    if (resLeft(r) < cost) return toast("Not enough cart points left.");
+    r.used += cost; logRoll(c, `Cast ${sp.name} from the Auspicious Cart (${cost} point${cost === 1 ? "" : "s"}, no concentration)`); save(); render(); return;
+  }
+  if (sp.lvl > 0) {
+    const s = c.slots[lvl]; if (!s || s.used >= s.max) return toast(`No ${ord(lvl)}-level slots left.`);
+    if (sp.conc && !setConc(c, sp.name)) return;
+    s.used++;
+  } else if (sp.conc && !setConc(c, sp.name)) return;
+  const up = Math.max(0, lvl - sp.lvl);
+  if (sp.effect) {
+    const p = PRESETS.find(x => x.name === sp.effect) || { name: sp.effect };
+    if (confirm(`${sp.name}: are you one of the targets?`)) {
+      const extra = { conc: !!sp.conc };
+      if (p.name === "Aid") { extra.bonus = String(5 * (1 + up)); }
+      addEffect(c, p, extra);
+      if (p.name === "Aid") c.hp += 5 * (1 + up);
+    }
+  }
+  logRoll(c, `Cast ${sp.name}${sp.lvl ? ` (${ord(lvl)} level)` : ""}${sp.conc ? " · concentrating" : ""}`);
+  save();
+  if (sp.roll) {
+    if (sp.roll.kind === "atk") return rollSpellAttack(sp, lvl);
+    if (sp.roll.kind === "save") return rollDamage(sp.name, spellExpr(c, sp, lvl), { dtype: sp.roll.type, save: { ab: sp.roll.save, half: !!sp.roll.half }, noMods: true });
+    if (sp.roll.kind === "heal") return rollDamage(sp.name, spellExpr(c, sp, lvl), { heal: true, noMods: true });
+  }
+  render(); toast(`${sp.name} cast.${sp.save ? ` They make a ${AB_NAME[sp.save]} save, DC ${dcOf(c)}.` : ""}`, 3200);
+}
+function logRoll(c, text) { R = null; c.rolls = c.rolls || []; c.rolls.unshift({ type: "note", label: text, at: Date.now() }); if (c.rolls.length > 40) c.rolls.length = 40; }
+function shortRestHtml(c) {
+  const hd = c.hd; const left = hd.max - hd.used;
+  return `<div class="rr-h">Short rest</div>
+    <p class="note">Spend hit dice to heal: each is a d${hd.die} ${sg(mod(c, "con"))} (Con). ${left} of ${hd.max} left. HP ${c.hp}/${hpMaxOf(c)}.</p>
+    <button class="btn wide" data-act="spendhd" ${left && c.hp < hpMaxOf(c) ? "" : "disabled"}>Spend a hit die</button>
+    <p class="note">Finishing it brings back: ${esc(c.res.filter(r => r.rest === "short").map(r => r.name).join(", ") || "nothing on a short rest")}.</p>
+    <button class="btn wide main" data-act="shortdone">Finish the short rest</button><button class="btn wide" data-act="ovclose">Not now</button>`;
+}
+function longRest(c) {
+  c.hp = hpMaxOf(c); c.temp = 0; c.death = { ok: 0, fail: 0 };
+  Object.values(c.slots).forEach(s => s.used = 0); c.res.forEach(r => { if (r.rest === "short" || r.rest === "long") r.used = 0; });
+  c.hd.used = Math.max(0, c.hd.used - Math.max(1, Math.floor(c.hd.max / 2)));
+  if (c.exh > 0) c.exh--;
+  c.effects = c.effects.filter(e => e.until !== "long" && !e.conc); c.conc = null;
+  c.conds = c.conds.filter(k => k !== "Unconscious");
+  c.hp = hpMaxOf(c);
+  logRoll(c, "Long rest"); save(); render();
+  toast(`Long rest: full HP, slots and features back, ${Math.max(1, Math.floor(c.hd.max / 2))} hit dice back${debtExh(c) ? ". Divine debt exhaustion stays until the debt is settled" : ""}.`, 4200);
+}
+
+/* ══ Pious Wager ══ */
+const WAGER = [
+  { min: 10, max: 99, name: "DM's choice", text: "DM's choice." },
+  { min: 5, max: 9, name: "Jackpot", text: "You gain 10 gp in wealth times the difference between your roll and the AC/DC. Additionally, you regain one spell slot of any level." },
+  { min: 3, max: 4, name: "Windfall", text: "You gain the equivalent of 5d10 gp." },
+  { min: 1, max: 2, name: "Payout", text: "You gain the equivalent of 2d10 gp." },
+  { min: 0, max: 0, name: "Push", text: "No additional effects." },
+  { min: -4, max: -1, name: "Loss", text: "You lose the equivalent of 10 gp in wealth times the difference between your roll and the AC/DC. Additionally, roll on the Wild Magic Surge table." },
+  { min: -9, max: -5, name: "Ruin", text: "You lose the equivalent of 50 gp and roll on the Wild Magic Surge table. Additionally, you are now marked; before the next time you make a Pious Wager, the DM can choose to force one roll you make to fail." },
+  { min: -99, max: -10, name: "DM's choice", text: "DM's choice." }
+];
+const wagerRow = diff => WAGER.find(w => diff >= w.min && diff <= w.max);
+function wagerHtml(c) {
+  const w = ui.wager; const r = res(c, "Pious Wager");
+  return `<h3>Pious Wager <small class="caps">${r ? `${resLeft(r)} of ${r.max} left · long rest` : ""}</small></h3>
+    ${c.marked ? `<p class="warn">You're marked (from a Ruin): before this wager, the DM can force one roll you make to fail.</p>` : ""}
+    <div class="row"><label class="fld"><span>Your roll (total)</span><input type="number" inputmode="numeric" data-wager="roll" value="${esc(w.roll)}"></label>
+      <label class="fld"><span>AC or DC</span><input type="number" inputmode="numeric" data-wager="dc" value="${esc(w.dc)}"></label></div>
+    <div id="wagerOut">${wagerOutHtml(c)}</div>`;
+}
+function wagerOutHtml(c) {
+  const w = ui.wager; const roll = parseInt(w.roll, 10); const dcIn = parseInt(w.dc, 10);
+  const ok = !isNaN(roll) && !isNaN(dcIn); const dc = ok ? Math.max(15, dcIn) : null; const diff = ok ? roll - dc : null; const row = ok ? wagerRow(diff) : null;
+  return `${ok ? `<p class="note">${dcIn < 15 ? `The AC/DC was ${dcIn}, so it's now 15. ` : ""}${roll} against ${dc}: ${sg(diff)}.</p>
+      <p class="verdict ${diff > 0 ? "ok" : diff < 0 ? "bad" : ""}"><b>${row.name}.</b> ${esc(row.text)}</p>
+      ${row.name === "Jackpot" ? `<div class="row" style="margin-bottom:10px"><span class="lab">Slot back:</span>${Object.keys(c.slots).filter(k => c.slots[k].max).map(k => `<button class="btn small" data-act="wagerapply" data-slot="${k}" ${c.slots[k].used ? "" : "disabled"}>${ord(+k)}</button>`).join("")}</div>
+        <button class="btn wide main" data-act="wagerapply">Take ${10 * diff} gp${c.slots && Object.values(c.slots).some(s => s.used) ? " (pick a slot above to take it too)" : ""}</button>`
+      : row.name === "Push" || row.name === "DM's choice" ? `<button class="btn wide main" data-act="wagerapply">Mark the wager used</button>`
+      : `<button class="btn wide main" data-act="wagerapply">${row.name === "Windfall" ? "Roll 5d10 gp and take it" : row.name === "Payout" ? "Roll 2d10 gp and take it" : row.name === "Loss" ? `Lose ${10 * -diff} gp and roll the surge` : "Lose 50 gp, roll the surge, and take the mark"}</button>`}`
+      : `<p class="note">Put in the roll and the AC or DC it was against.</p>`}
+    <details class="sec" data-sec="wagertable" ${ui.open.wagertable ? "open" : ""}><summary>The table</summary>
+      <table class="tbl"><tr><th>Roll minus AC/DC</th><th>Result</th></tr>${[["≥10", 0], ["5 to 9", 1], ["3 or 4", 2], ["1 or 2", 3], ["0", 4], ["−1 to −4", 5], ["−5 to −9", 6], ["≤−10", 7]].map(([k, i]) => `<tr class="${row === WAGER[i] ? "hit" : ""}"><td>${k}</td><td><b>${WAGER[i].name}.</b> ${esc(WAGER[i].text)}</td></tr>`).join("")}</table>
+      <p class="note">Money can come as coin, gems or art (the DM's call). Losing more than you have puts you in divine debt at ten times the shortfall; anything you gain goes to the debt first; each 100 gp owed is a level of exhaustion nothing removes but paying it.</p></details>`;
+}
+function applyWager(c, slot) {
+  const w = ui.wager; const roll = parseInt(w.roll, 10); const dc = Math.max(15, parseInt(w.dc, 10)); const diff = roll - dc; const row = wagerRow(diff);
+  const r = res(c, "Pious Wager"); if (r && !resLeft(r) && !confirm("The wager's used this long rest. Make it anyway (the DM's discretion)?")) return;
+  if (r && resLeft(r)) r.used++;
+  const wasMarked = c.marked; c.marked = false; const head = `Pious Wager (${roll} vs ${dc}, ${sg(diff)}): ${row.name}`;
+  let msg = row.name;
+  if (row.name === "Jackpot") { gainCp(c, 1000 * diff, `${head}: +${10 * diff} gp`); msg += `: +${10 * diff} gp`; if (slot && c.slots[slot] && c.slots[slot].used) { c.slots[slot].used--; msg += `, a ${ord(+slot)}-level slot back`; } }
+  else if (row.name === "Windfall" || row.name === "Payout") { const x = rollExpr(row.name === "Windfall" ? "5d10" : "2d10"); gainCp(c, x.total * 100, `${head}: ${x.text} = +${x.total} gp`); msg += `: ${x.text} = +${x.total} gp`; }
+  else if (row.name === "Loss" || row.name === "Ruin") {
+    const gp = row.name === "Loss" ? 10 * -diff : 50; const s = rnd(100);
+    loseCp(c, gp * 100, `${head}: −${gp} gp; Wild Magic Surge d100 = ${s}`); msg += `: −${gp} gp. Wild Magic Surge: d100 = ${s} (on your DM's table)`;
+    if (row.name === "Ruin") c.marked = true;
+  } else logIt(c, head);
+  if (wasMarked && !c.marked) msg += ". The mark is gone.";
+  ui.wager = { roll: "", dc: "" }; save(); render(); toast(msg, 6000);
+}
+
+/* ══ drawing ══ */
+const TABS = [["play", "Play"], ["spells", "Spells"], ["items", "Items"], ["journal", "Journal"], ["people", "People"]];
+function render() {
+  const c = C();
+  $("#who").innerHTML = `<b>${esc(c.name)}</b><small class="caps">${esc([c.species, `${c.cls} ${c.level}`, c.subcls].filter(Boolean).join(" · "))}</small>`;
+  $("#tabs").innerHTML = TABS.map(([k, l]) => `<button class="${ui.tab === k ? "on" : ""}" data-tab="${k}">${l}<small>${tabCount(c, k)}</small></button>`).join("");
+  $("#strip").innerHTML = stripHtml(c);
+  const v = { play: playHtml, spells: spellsHtml, items: itemsHtml, journal: journalHtml, people: peopleHtml }[ui.tab] || playHtml;
+  $("#view").innerHTML = v(c);
+  $("#ver").textContent = "v" + VERSION;
+  hydratePics();
+  if (ovKind === "roll" && R) $("#ov .box").innerHTML = rollHtml();
+}
+function tabCount(c, k) {
+  if (k === "play") return `AC ${acOf(c)}`;
+  if (k === "spells") { const s = Object.values(c.slots).reduce((a, x) => a + x.max - x.used, 0); return `${s} slot${s === 1 ? "" : "s"}`; }
+  if (k === "items") return `${Math.floor(purseCp(c.purse) / 100)} gp`;
+  if (k === "journal") return `${c.sessions.length}`;
+  return `${c.people.length}`;
+}
+function stripHtml(c) {
+  const max = hpMaxOf(c);
+  return `<span class="hp">${c.hp}<small>/${max}</small></span>${c.temp ? `<span class="tmp">+${c.temp} temp</span>` : ""}
+    ${c.conc ? `<button class="chip lead" data-act="concend" title="End concentration">◉ ${esc(c.conc)} <span class="x">✕</span></button>` : ""}
+    ${c.effects.filter(e => e.on !== false).map(e => `<span class="chip goodc">${esc(e.name)}</span>`).join("")}
+    ${c.conds.map(k => `<span class="chip lead">${esc(k)}</span>`).join("")}${exhOf(c) ? `<span class="chip lead">Exhaustion ${exhOf(c)}</span>` : ""}
+    <span class="sp"></span>
+    <button class="chip ${ui.next === "adv" ? "on" : ""}" data-act="next" data-m="adv" title="Next roll with advantage">Adv</button><button class="chip ${ui.next === "dis" ? "on" : ""}" data-act="next" data-m="dis" title="Next roll with disadvantage">Dis</button>`;
+}
+const sec = (key, title, small, body, openDefault) => {
+  const open = ui.open[key] ?? openDefault;
+  return `<details class="sec" data-sec="${key}" ${open ? "open" : ""}><summary>${title}${small ? ` <small>${small}</small>` : ""}</summary>${body}</details>`;
+};
+function fmt(t) { // light markup: blank line = paragraph, "- " = bullet, **bold**, *italic*
+  return String(t || "").split(/\n{2,}/).map(par => {
+    const lines = par.split("\n"); const inl = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>");
+    if (lines.every(l => /^\s*[-•]\s/.test(l))) return `<ul style="margin:0 0 6px;padding-left:20px">${lines.map(l => `<li>${inl(l.replace(/^\s*[-•]\s/, ""))}</li>`).join("")}</ul>`;
+    return `<p>${lines.map(inl).join("<br>")}</p>`;
+  }).join("");
+}
+function pips(n, used, act, data, sq) { return `<span class="pips">${Array.from({ length: n }, (_, i) => `<button class="pip ${i >= n - used ? "used" : ""} ${sq ? "sq" : ""}" data-act="${act}" data-i="${i}" ${data}></button>`).join("")}</span>`; }
+
+/* ── Play ── */
+function playHtml(c) {
+  const max = hpMaxOf(c); const tot = Math.max(max, c.hp + (+c.temp || 0));
+  const effs = c.effects; const exh = exhOf(c);
+  const hpPanel = `<div class="panel">
+    <div class="hpbig"><span class="cur">${c.hp}</span><span class="max">/ ${max} HP</span>${c.temp ? `<span class="chip goodc">+${c.temp} temporary</span>` : ""}
+      ${max !== +c.hpMax ? `<span class="note" style="margin:0">(sheet ${c.hpMax}${flatFor(c, { kind: "hpmax" }) ? ` ${sg(flatFor(c, { kind: "hpmax" }))}` : ""}${exh >= 4 ? ", halved by exhaustion" : ""})</span>` : ""}</div>
+    <div class="hpbar ${c.hp <= max / 4 ? "low" : ""}"><i style="width:${100 * c.hp / tot}%"></i><i class="t" style="width:${100 * (+c.temp || 0) / tot}%"></i></div>
+    <div class="row" style="margin-bottom:10px"><input id="hpN" type="number" inputmode="numeric" min="0" placeholder="Amount" style="flex:1 1 90px">
+      <button class="btn danger" data-act="dmg">Damage</button><button class="btn good" data-act="heal">Heal</button><button class="btn" data-act="temp">Temp HP</button></div>
+    ${c.hp === 0 ? `<div class="death"><span class="lab">Death saves</span><span class="ok">Successes ${[0, 1, 2].map(i => `<button class="pip ${i < c.death.ok ? "f" : ""}" data-act="dsok" data-i="${i}"></button>`).join(" ")}</span>
+      <span class="bad">Failures ${[0, 1, 2].map(i => `<button class="pip ${i < c.death.fail ? "f" : ""}" data-act="dsfail" data-i="${i}"></button>`).join(" ")}</span>
+      <button class="btn small main" data-act="deathsave">Roll a death save</button></div>
+      ${c.death.ok >= 3 ? `<p class="verdict ok">Stable.</p>` : c.death.fail >= 3 ? `<p class="verdict bad">Three failures.</p>` : ""}` : ""}
+    <div class="row" style="margin-bottom:10px;align-items:center"><span class="lab">Concentration</span>
+      ${c.conc ? `<span class="chip lead">◉ ${esc(c.conc)}</span><button class="btn tiny" data-act="concsave">Con save…</button><button class="btn tiny danger" data-act="concend">End it</button>` : `<span class="note" style="margin:0">None</span><button class="btn tiny" data-act="concset">Start…</button>`}</div>
+  </div>`;
+  const effPanel = `<div class="panel"><h2>On right now <small>conditions, effects, modifiers</small></h2>
+    <div class="row" style="margin-bottom:8px">${effs.length ? effs.map(e => `<button class="chip ${e.on === false ? "off" : "goodc"}" data-act="efftoggle" data-id="${e.id}" title="${esc(effDesc(e))}">${esc(e.name)}${e.bonus ? " " + esc(/^[+-]/.test(e.bonus) ? e.bonus : "+" + e.bonus) : ""}${e.conc ? " ◉" : ""}${e.once ? " ¹" : ""}</button><button class="chip" data-act="effdel" data-id="${e.id}" aria-label="Remove ${esc(e.name)}">✕</button>`).join("") : `<span class="note" style="margin:0">No spells or bonuses on you.</span>`}</div>
+    ${effs.length ? `<p class="note">${effs.map(e => `<b>${esc(e.name)}</b>: ${esc(effDesc(e))}`).join(" · ")}</p>` : ""}
+    <div class="row" style="margin-bottom:10px"><select id="effPick" style="flex:1"><option value="">Add an effect…</option>${PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("")}<option value="custom">Your own…</option></select><button class="btn small" data-act="effadd">Add</button></div>
+    ${ui.edit === "effect" ? customEffectForm() : ""}
+    <div class="row" style="margin-bottom:8px">${c.conds.map(k => `<button class="chip lead" data-act="conddel" data-k="${esc(k)}" title="${esc(CONDITIONS[k] || "")}">${esc(k)} ✕</button>`).join("")}
+      <select id="condPick" style="flex:1 1 150px"><option value="">Add a condition…</option>${Object.keys(CONDITIONS).filter(k => !c.conds.includes(k)).map(k => `<option>${k}</option>`).join("")}</select></div>
+    ${c.conds.length ? `<p class="note">${c.conds.map(k => `<b>${esc(k)}</b>: ${esc(CONDITIONS[k] || "")}`).join("<br>")}</p>` : ""}
+    <div class="res"><span class="nm">Exhaustion${debtExh(c) ? `<small>${debtExh(c)} from divine debt (only paying it removes that)</small>` : ""}</span>
+      <button class="btn tiny" data-act="exh" data-d="-1">−</button><span class="big">${exh}</span><button class="btn tiny" data-act="exh" data-d="1">+</button>
+      <span class="note" style="margin:0;flex-basis:100%">${exh ? EXHAUSTION.slice(1, exh + 1).join("; ") : ""}</span></div>
+    ${c.inspiration != null ? `<label class="check" style="margin-top:8px"><input type="checkbox" data-f="inspiration" ${c.inspiration ? "checked" : ""}> Inspiration</label>` : ""}
+  </div>`;
+  const stats = `<div class="stats">
+    <div class="stat"><b>${acOf(c)}</b><small>Armor class</small>${acOf(c) !== +c.ac ? `<em>sheet ${c.ac}</em>` : ""}</div>
+    <button class="stat" data-act="init"><b>${sg(initOf(c))}</b><small>Initiative</small></button>
+    <div class="stat"><b>${speedOf(c)}</b><small>Speed ft</small></div>
+    <div class="stat"><b>${sg(prof(c))}</b><small>Proficiency</small></div>
+    <div class="stat"><b>${dcOf(c)}</b><small>Spell DC</small>${flatFor(c, { kind: "dc" }) ? `<em>${sg(flatFor(c, { kind: "dc" }))} items</em>` : ""}</div>
+    <button class="stat" data-act="satk"><b>${sg(satkOf(c))}</b><small>Spell attack</small></button>
+    <div class="stat"><b>${passiveOf(c, "perception")}</b><small>Passive Percep.</small></div>
+    <div class="stat"><b>${passiveOf(c, "insight")}</b><small>Passive Insight</small></div></div>`;
+  const resBody = `${Object.keys(c.slots).filter(k => c.slots[k].max).map(k => `<div class="res"><span class="nm">${ord(+k)}-level slots<small>${c.slots[k].max - c.slots[k].used} of ${c.slots[k].max}</small></span>${pips(c.slots[k].max, c.slots[k].used, "slot", `data-k="${k}"`, true)}</div>`).join("")}
+    ${c.res.map(r => `<div class="res"><span class="nm">${esc(r.name)}<small>${resLeft(r)} of ${r.max} · ${r.rest === "short" ? "short or long rest" : r.rest === "long" ? "long rest" : "doesn't come back on its own"}${r.note ? " · " + esc(r.note) : ""}</small></span>${r.max <= 12 ? pips(r.max, r.used, "res", `data-id="${r.id}"`) : `<button class="btn tiny" data-act="resn" data-id="${r.id}" data-d="1">Use</button><span class="big">${resLeft(r)}</span><button class="btn tiny" data-act="resn" data-id="${r.id}" data-d="-1">+1</button>`}</div>`).join("")}
+    <div class="res"><span class="nm">Hit dice (d${c.hd.die})<small>${c.hd.max - c.hd.used} of ${c.hd.max}</small></span>${pips(c.hd.max, c.hd.used, "hd", "")}</div>
+    ${res(c, "Lucky") ? `<div class="row" style="margin:8px 0"><button class="btn small" data-act="luckvs">Lucky: an attack against me</button></div>` : ""}
+    <div class="row" style="margin:10px 0"><button class="btn grow" data-act="short">Short rest…</button><button class="btn grow" data-act="long">Long rest</button></div>`;
+  const atkBody = c.attacks.map((a, i) => { const am = a.ammo ? c.items.find(x => x.id === a.ammo) : null;
+    return `<div class="card"><div class="atkrow"><span class="nm">${esc(a.name)}${a.prof === false ? `<span class="tag c">not proficient</span>` : ""}<span class="sub">${esc([a.dice + (mod(c, atkAb(c, a)) + (+a.bonus || 0) ? " " + sg(mod(c, atkAb(c, a)) + (+a.bonus || 0)) : ""), a.dtype, a.range, am ? `${am.qty} ${am.name.toLowerCase()}` : ""].filter(Boolean).join(" · "))}</span>${a.note ? `<span class="sub">${esc(a.note)}</span>` : ""}</span>
+      <button class="btn main" data-act="atk" data-i="${i}"><span class="big">${sg(atkOf(c, a))}</span></button><button class="btn small" data-act="atkdmg" data-i="${i}">Dmg</button></div></div>`; }).join("")
+    + c.spells.filter(s => s.roll && s.lvl === 0).map(s => `<div class="card"><div class="atkrow"><span class="nm">${esc(s.name)}<span class="sub">cantrip · ${esc(spellExpr(c, s, 0))} ${esc(s.roll.type || "")}${s.roll.kind === "save" ? ` · ${AB_SHORT[s.roll.save]} save DC ${dcOf(c)}` : ""}</span></span>
+      <button class="btn main" data-act="castq" data-id="${s.id}">${s.roll.kind === "atk" ? `<span class="big">${sg(satkOf(c))}</span>` : "Cast"}</button></div></div>`).join("");
+  const abil = `<div class="abil">${ABS.map(([k]) => `<button class="stat" data-act="chk" data-ab="${k}"><small>${AB_SHORT[k]}</small><b>${sg(mod(c, k))}</b><span class="sc">${c.ab[k]}</span></button>`).join("")}</div>
+    <div class="lab" style="margin-bottom:2px">Saving throws</div>
+    <div class="lines">${ABS.map(([k, n]) => `<button class="line" data-act="sv" data-ab="${k}"><span class="pf ${c.saveProf.includes(k) ? "on" : ""}"></span><span class="nm">${n}</span><span class="v">${sg(saveOf(c, k))}</span></button>`).join("")}</div>
+    <div class="lab" style="margin-bottom:2px">Skills</div>
+    <div class="lines">${SKILLS.map(([k, n, ab]) => `<button class="line" data-act="sk" data-k="${k}"><span class="pf ${skillLv(c, k) >= 2 ? "ex" : skillLv(c, k) ? "on" : ""}"></span><span class="nm">${n} <small>${AB_SHORT[ab]}</small></span><span class="v">${sg(skillOf(c, k))}</span></button>`).join("")}</div>`;
+  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>
+    ${t.roll === "sticky" ? `<div class="acts"><button class="btn small" data-act="sticky">Roll it: Stealth + d100</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
+  const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
+  return hpPanel + effPanel + stats
+    + sec("res", "Slots, features and rests", "", resBody, true)
+    + sec("atk", "Attacks", `${c.attacks.length}`, atkBody, true)
+    + sec("abil", "Abilities, saves and skills", "", abil, true)
+    + sec("feat", "Features and traits", `${c.traits.length}`, feats, false)
+    + sec("rolls", "Recent rolls", "", recent, false)
+    + sec("edit", "Edit the sheet", "", editHtml(c), false);
+}
+function effDesc(e) {
+  const to = (e.to || []).map(t => t.startsWith("skill:") ? (SKILL[t.slice(6)] || {}).name : (TARGETS.find(x => x[0] === t) || [, t])[1]).join(", ");
+  const adv = (e.adv || []).map(t => t.startsWith("skill:") ? (SKILL[t.slice(6)] || {}).name : t).join(", ");
+  return [e.bonus && to ? `${/^[+-]/.test(e.bonus) ? e.bonus : "+" + e.bonus} to ${to}` : "", adv ? `advantage on ${adv}` : "", e.once ? "once" : "", e.conc ? "ends with your concentration" : "", e.until === "long" ? "ends on a long rest" : "", e.note].filter(Boolean).join("; ");
+}
+function customEffectForm() {
+  return `<div class="panel" style="background:var(--paper-lit)">
+    <div class="row"><label class="fld"><span>Name</span><input id="ceName" placeholder="Potion of Diminution"></label><label class="fld n"><span>Bonus</span><input id="ceBonus" placeholder="+2 or 1d4"></label></div>
+    <div class="lab">Adds to</div><div class="row" style="margin:4px 0 10px">${TARGETS.map(([k, l]) => `<label class="check" style="margin:0 8px 4px 0"><input type="checkbox" class="ceTo" value="${k}"> ${l}</label>`).join("")}</div>
+    <div class="row"><label class="fld"><span>Advantage on a skill</span><select id="ceAdv"><option value="">—</option>${SKILLS.map(s => `<option value="skill:${s[0]}">${s[1]}</option>`).join("")}</select></label>
+      <label class="fld"><span>Note</span><input id="ceNote" placeholder="1 hour"></label></div>
+    <label class="check"><input type="checkbox" id="ceOnce"> Only the next roll it applies to</label>
+    <label class="check"><input type="checkbox" id="ceConc"> Ends when my concentration ends</label>
+    <div class="row" style="margin-bottom:10px"><button class="btn main grow" data-act="effcustom">Put it on</button><button class="btn" data-act="effcancel">Cancel</button></div></div>`;
+}
+
+/* ── Edit the sheet: the numbers the rest comes from ── */
+const fld = (label, path, val, o = {}) => `<label class="fld ${o.n ? "n" : ""}"><span>${label}</span>${o.area ? `<textarea data-f="${path}" rows="${o.rows || 3}">${esc(val)}</textarea>` : `<input ${o.n ? 'type="number" inputmode="numeric" data-t="n"' : ""} data-f="${path}" value="${esc(val)}">`}</label>`;
+function editHtml(c) {
+  return `<p class="note">Changes save as you type.</p>
+    <div class="row">${fld("Name", "name", c.name)}${fld("Short name", "short", c.short || "")}</div>
+    <div class="row">${fld("Species", "species", c.species)}${fld("Class", "cls", c.cls)}${fld("Level", "level", c.level, { n: 1 })}</div>
+    <div class="row">${fld("Subclass", "subcls", c.subcls)}${fld("Background", "bg", c.bg)}${fld("Alignment", "align", c.align)}</div>
+    <div class="row">${fld("Armor class", "ac", c.ac, { n: 1 })}${fld("Speed", "speed", c.speed, { n: 1 })}${fld("HP max", "hpMax", c.hpMax, { n: 1 })}${fld("Hit dice", "hd.max", c.hd.max, { n: 1 })}${fld("Die", "hd.die", c.hd.die, { n: 1 })}</div>
+    ${fld("Armor class comes from", "acNote", c.acNote || "")}
+    <div class="row">${ABS.map(([k]) => fld(AB_SHORT[k], "ab." + k, c.ab[k], { n: 1 })).join("")}</div>
+    <div class="row"><label class="fld"><span>Spellcasting ability</span><select data-f="castAb">${ABS.map(([k, n]) => `<option value="${k}" ${castAb(c) === k ? "selected" : ""}>${n}</option>`).join("")}</select></label>${fld("Proficiency (blank = by level)", "profBonus", c.profBonus || "", { n: 1 })}</div>
+    <div class="lab">Saving throw proficiencies</div><div class="row" style="margin:4px 0 10px">${ABS.map(([k, n]) => `<label class="check" style="margin:0 10px 4px 0"><input type="checkbox" data-act="saveprof" data-ab="${k}" ${c.saveProf.includes(k) ? "checked" : ""}> ${n}</label>`).join("")}</div>
+    <div class="lab">Skills (tap to cycle: none · proficient · expertise)</div><div class="row" style="margin:4px 0 10px">${SKILLS.map(([k, n]) => `<button class="chip ${skillLv(c, k) >= 2 ? "lead" : skillLv(c, k) ? "on" : ""}" data-act="skillcycle" data-k="${k}">${n}${skillLv(c, k) >= 2 ? " ★" : ""}</button>`).join("")}</div>
+    <h3>Attacks</h3>${c.attacks.map((a, i) => `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Name", `attacks.${i}.name`, a.name)}${fld("Damage", `attacks.${i}.dice`, a.dice, {})}</div>
+      <div class="row">${fld("Type", `attacks.${i}.dtype`, a.dtype)}${fld("Range", `attacks.${i}.range`, a.range || "")}${fld("+ magic", `attacks.${i}.bonus`, a.bonus || 0, { n: 1 })}</div>
+      <div class="row"><label class="fld"><span>Ability</span><select data-f="attacks.${i}.ab">${[["str", "Str"], ["dex", "Dex"], ["best", "Finesse (better of the two)"], ["wis", "Wis"], ["cha", "Cha"], ["int", "Int"]].map(([k, l]) => `<option value="${k}" ${a.ab === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        <label class="fld"><span>Ammunition</span><select data-f="attacks.${i}.ammo"><option value="">—</option>${c.items.filter(x => !x.gone).map(x => `<option value="${x.id}" ${a.ammo === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label></div>
+      ${fld("Note", `attacks.${i}.note`, a.note || "")}
+      <label class="check"><input type="checkbox" data-f="attacks.${i}.prof" data-t="b" ${a.prof !== false ? "checked" : ""}> Proficient</label>
+      <button class="btn small danger" data-act="del" data-list="attacks" data-i="${i}" style="margin-bottom:10px">Remove</button></div>`).join("")}
+    <button class="btn wide" data-act="addatk">+ An attack</button>
+    <h3>Features and resources</h3>${c.res.map((r, i) => `<div class="row">${fld("Name", `res.${i}.name`, r.name)}${fld("Uses", `res.${i}.max`, r.max, { n: 1 })}<label class="fld"><span>Back on</span><select data-f="res.${i}.rest">${[["short", "Short rest"], ["long", "Long rest"], ["none", "Never"]].map(([k, l]) => `<option value="${k}" ${r.rest === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="btn small danger" data-act="del" data-list="res" data-i="${i}" style="margin-bottom:10px">✕</button></div>`).join("")}
+    <button class="btn wide" data-act="addres">+ A resource</button>
+    ${c.traits.map((t, i) => `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Feature", `traits.${i}.name`, t.name)}${fld("From", `traits.${i}.src`, t.src || "")}</div>${fld("What it does", `traits.${i}.text`, t.text, { area: 1, rows: 3 })}<button class="btn small danger" data-act="del" data-list="traits" data-i="${i}" style="margin-bottom:10px">Remove</button></div>`).join("")}
+    <button class="btn wide" data-act="addtrait">+ A feature</button>
+    <h3>Spell slots</h3><div class="row">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => fld(ord(k), `slots.${k}.max`, (c.slots[k] || {}).max || 0, { n: 1 })).join("")}</div>
+    <h3>Who they are</h3>
+    ${fld("Proficiencies and languages", "story.profs", c.story.profs, { area: 1 })}
+    ${fld("Personality traits", "story.traits", c.story.traits, { area: 1 })}${fld("Ideals", "story.ideals", c.story.ideals, { area: 1 })}
+    ${fld("Bonds", "story.bonds", c.story.bonds, { area: 1 })}${fld("Flaws", "story.flaws", c.story.flaws, { area: 1 })}
+    ${fld("Appearance", "story.looks", c.story.looks, { area: 1 })}${fld("Backstory", "story.backstory", c.story.backstory, { area: 1, rows: 8 })}
+    ${fld("More about them", "story.more", c.story.more, { area: 1, rows: 6 })}`;
+}
+
+/* ── Spells ── */
+function spellsHtml(c) {
+  const byLvl = {}; c.spells.forEach(s => (byLvl[s.lvl] = byLvl[s.lvl] || []).push(s));
+  const cart = c.items.find(i => i.cartSpells && !i.gone); const cp = res(c, "Cart points");
+  const head = `<div class="panel"><div class="stats" style="margin-bottom:8px"><div class="stat"><b>${dcOf(c)}</b><small>Save DC</small></div><button class="stat" data-act="satk"><b>${sg(satkOf(c))}</b><small>Spell attack</small></button>
+    ${Object.keys(c.slots).filter(k => c.slots[k].max).map(k => `<div class="stat"><b>${c.slots[k].max - c.slots[k].used}/${c.slots[k].max}</b><small>${ord(+k)} slots</small></div>`).join("")}</div>
+    ${flatFor(c, { kind: "dc" }) ? `<p class="note">Includes ${modsFor(c, { kind: "dc" }).map(m => `${esc(m.name)} ${esc(sg(flatOf(m.bonus)))}`).join(", ")} (attuned).</p>` : ""}
+    ${c.conc ? `<p class="warn">Concentrating on ${esc(c.conc)}.</p>` : ""}</div>`;
+  const card = s => {
+    const avail = Object.keys(c.slots).filter(k => +k >= s.lvl && c.slots[k].max).map(Number);
+    const firstFree = avail.find(k => c.slots[k].used < c.slots[k].max);
+    return `<div class="card"><span class="nm">${esc(s.name)}${s.tag ? `<span class="tag ${s.tag === "D" ? "g" : ""}">${esc(s.tag === "D" ? "Domain · always prepared" : s.tag)}</span>` : ""}${s.conc ? `<span class="tag c">Concentration</span>` : ""}</span>
+      <span class="sub">${esc([s.time, s.range, s.dur].filter(Boolean).join(" · "))}</span>
+      <div class="txt">${fmt(s.text)}</div>
+      ${s.roll ? `<span class="sub">${s.roll.kind === "atk" ? `Spell attack ${sg(satkOf(c))}, ` : s.roll.kind === "save" ? `${AB_NAME[s.roll.save]} save DC ${dcOf(c)}, ` : ""}${esc(spellExpr(c, s, s.lvl))} ${esc(s.roll.kind === "heal" ? "healing" : s.roll.type || "")}${s.roll.up ? ` · ${s.roll.up} more per ${s.roll.upEvery ? s.roll.upEvery + " slot levels" : "slot level"} above ${ord(s.lvl)}` : ""}</span>` : ""}
+      <div class="acts">${s.lvl === 0 ? `<button class="btn small main" data-act="castq" data-id="${s.id}">Cast</button>`
+        : `<select data-castlvl="${s.id}" style="width:auto">${avail.map(k => `<option value="${k}" ${k === firstFree ? "selected" : ""}>${ord(k)} level (${c.slots[k].max - c.slots[k].used} left)</option>`).join("")}</select><button class="btn small main" data-act="cast" data-id="${s.id}" ${firstFree ? "" : "disabled"}>Cast</button>`}
+        ${s.roll && s.lvl > 0 ? `<button class="btn small" data-act="spellroll" data-id="${s.id}">Roll it, no slot</button>` : ""}
+        <button class="btn small" data-act="spelledit" data-id="${s.id}">Edit</button></div>
+      ${ui.edit === "spell:" + s.id ? spellForm(c, s) : ""}</div>`;
+  };
+  let h = head;
+  for (const lv of Object.keys(byLvl).map(Number).sort((a, b) => a - b)) h += sec("sp" + lv, lv === 0 ? "Cantrips" : `${ord(lv)} level`, `${byLvl[lv].length}`, byLvl[lv].map(card).join(""), true);
+  if (cart) {
+    const list = cart.cartSpells.map(s => `<div class="card"><span class="nm">${esc(s.name)}<span class="tag g">${ord(s.lvl || 1)} · ${s.lvl || 1} point${(s.lvl || 1) === 1 ? "" : "s"}</span></span><div class="txt">${fmt(s.text)}</div>
+      <div class="acts"><button class="btn small main" data-act="cartcast" data-n="${esc(s.name)}" ${resLeft(cp) >= (s.lvl || 1) ? "" : "disabled"}>Cast from the cart</button></div></div>`).join("");
+    h += sec("spcart", `From the ${esc(cart.name)}`, cp ? `${resLeft(cp)} of ${cp.max} points` : "",
+      `<p class="note">Points equal to your level, back on a long rest. No preparing and no concentration; you must be touching the cart. Any non-damaging 1st-level divination spell, so the list below is the obvious ones: check any other with your DM.</p>${list}`, true);
+  }
+  h += `<button class="btn wide" data-act="addspell">+ A spell</button>`;
+  return h;
+}
+function spellForm(c, s) {
+  const i = c.spells.indexOf(s); const p = `spells.${i}`; const r = s.roll || {};
+  return `<div class="panel" style="background:var(--paper-lit);margin-top:10px">
+    <div class="row">${fld("Name", p + ".name", s.name)}${fld("Level", p + ".lvl", s.lvl, { n: 1 })}${fld("Tag", p + ".tag", s.tag || "")}</div>
+    <div class="row">${fld("Casting time", p + ".time", s.time || "")}${fld("Range", p + ".range", s.range || "")}${fld("Duration", p + ".dur", s.dur || "")}</div>
+    ${fld("What it does", p + ".text", s.text, { area: 1, rows: 4 })}
+    <label class="check"><input type="checkbox" data-f="${p}.conc" data-t="b" ${s.conc ? "checked" : ""}> Concentration</label>
+    <div class="row"><label class="fld"><span>Roll</span><select data-act="spellrollkind" data-i="${i}"><option value="">None</option>${[["atk", "Spell attack"], ["save", "Target saves"], ["heal", "Healing"]].map(([k, l]) => `<option value="${k}" ${r.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      ${s.roll ? fld("Dice", p + ".roll.dice", r.dice || "") + fld("Type", p + ".roll.type", r.type || "") + fld("Per level up", p + ".roll.up", r.up || "") : ""}</div>
+    ${s.roll && s.roll.kind === "save" ? `<div class="row"><label class="fld"><span>Save</span><select data-f="${p}.roll.save">${ABS.map(([k, n]) => `<option value="${k}" ${r.save === k ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>` : ""}
+    ${s.roll ? `<label class="check"><input type="checkbox" data-f="${p}.roll.mod" data-t="b" ${r.mod ? "checked" : ""}> Add my spellcasting modifier</label>` : ""}
+    <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="spelldone">Done</button><button class="btn small danger" data-act="del" data-list="spells" data-i="${i}">Remove the spell</button></div></div>`;
+}
+
+/* ── Items ── */
+const WHERE = [["on", "On me"], ["cart", "In the cart"], ["mule", "With the mule"], ["stash", "Stashed somewhere"]];
+function itemsHtml(c) {
+  const p = c.purse;
+  const purse = `<div class="panel"><h2>Purse <small id="purseTotal">${gpText(purseCp(p))} in all</small></h2>
+    <div class="purse">${["cp", "sp", "ep", "gp", "pp"].map(k => `<label><span class="lab">${k}</span><input type="number" inputmode="numeric" data-coin="${k}" value="${+p[k] || 0}"></label>`).join("")}</div>
+    ${c.debtCp ? `<p class="warn">Divine debt: ${gpText(c.debtCp)} owed to Beshaba (${debtExh(c)} level${debtExh(c) === 1 ? "" : "s"} of exhaustion). Anything you gain goes to it first.</p>` : ""}
+    <div class="row" style="margin-bottom:10px"><input id="coinN" type="number" inputmode="numeric" min="0" placeholder="Amount" style="flex:1 1 80px"><select id="coinK" style="flex:0 0 72px">${["gp", "sp", "cp", "pp", "ep"].map(k => `<option>${k}</option>`).join("")}</select>
+      <input id="coinWhy" placeholder="What for" style="flex:2 1 140px"></div>
+    <div class="row" style="margin-bottom:10px"><button class="btn good grow" data-act="coingain">Gained</button><button class="btn danger grow" data-act="coinspend">Spent or lost</button></div></div>`;
+  const arts = c.items.filter(i => i.artifact && !i.gone).map(i => `<div class="panel artifact"><h2>${esc(i.name)} <small>${esc(i.artifact.kind || "artifact")}${i.artifact.state ? " · " + esc(i.artifact.state) : ""}${i.attune ? (i.attuned ? " · attuned" : " · not attuned") : ""}</small></h2>
+    ${i.attune ? `<label class="check"><input type="checkbox" data-act="attune" data-id="${i.id}" ${i.attuned ? "checked" : ""}> Attuned (${attunedCount(c)} of 3)</label>` : ""}
+    ${i.pics && i.pics.length ? `<div class="thumbs">${i.pics.map(id => `<img data-pic="${esc(id)}" data-act="pic" data-id="${esc(id)}" alt="">`).join("")}</div>` : ""}
+    ${sec("art:" + i.id, "What it does", "", `<div class="txt">${fmt(i.artifact.text)}</div>`, false)}
+    ${i.artifact.wager ? wagerHtml(c) : ""}</div>`).join("");
+  const att = attunedCount(c);
+  const shown = c.items.filter(i => !i.artifact || i.gone);
+  const groups = WHERE.map(([k, l]) => [l, shown.filter(i => !i.gone && (i.where || "on") === k)]).filter(g => g[1].length);
+  const gone = shown.filter(i => i.gone);
+  const itemCard = i => `<div class="card tap ${i.gone ? "gone" : ""}" data-act="itemopen" data-id="${i.id}"><span class="nm">${i.qty > 1 || i.qty === 0 ? `${i.qty} × ` : ""}${esc(i.name)}${i.attuned ? `<span class="tag g">attuned</span>` : i.attune ? `<span class="tag">attunement</span>` : ""}${i.check ? `<span class="tag c">still have it?</span>` : ""}</span>
+      ${i.note ? `<span class="sub">${esc(i.note.split("\n")[0].slice(0, 120))}</span>` : ""}
+      ${i.use && !i.gone ? `<div class="acts"><button class="btn small good" data-act="use" data-id="${i.id}">${esc(i.use.label || "Use")}${i.use.heal ? ` (${esc(i.use.heal)})` : ""}</button></div>` : ""}
+      ${ui.itemOpen === i.id ? itemForm(c, i) : ""}</div>`;
+  const list = groups.map(([l, items]) => sec("where:" + l, l, `${items.length}`, items.map(itemCard).join(""), true)).join("")
+    + (gone.length ? sec("gone", "Sold, used or lost", `${gone.length}`, gone.map(itemCard).join(""), false) : "");
+  const log = c.log.slice(0, 80).map(l => `<div class="logl"><span class="d">${esc(l.at)}</span><span class="t">${esc(l.text)}</span></div>`).join("");
+  return purse + arts
+    + `<div class="row" style="margin-bottom:10px"><input id="newItem" placeholder="Add an item: 3 turnips" style="flex:1"><button class="btn main" data-act="additem">Add</button></div>
+      <p class="note">Attuned to ${att} of 3.</p>` + list
+    + sec("log", "What came and went", `${c.log.length}`, `<div class="row" style="margin-bottom:10px"><input id="logT" placeholder="Something to write down" style="flex:1"><button class="btn" data-act="addlog">Add</button></div>${log}`, false);
+}
+function itemForm(c, i) {
+  const ix = c.items.indexOf(i); const p = `items.${ix}`;
+  return `<div class="panel" style="background:var(--paper-lit);margin-top:10px" data-stop="1">
+    <div class="row">${fld("Name", p + ".name", i.name)}${fld("How many", p + ".qty", i.qty, { n: 1 })}</div>
+    <div class="row"><label class="fld"><span>Where</span><select data-f="${p}.where">${WHERE.map(([k, l]) => `<option value="${k}" ${(i.where || "on") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>${fld("Worth", p + ".value", i.value || "")}</div>
+    ${fld("Notes", p + ".note", i.note || "", { area: 1, rows: 3 })}
+    <label class="check"><input type="checkbox" data-f="${p}.attune" data-t="b" ${i.attune ? "checked" : ""}> Needs attunement</label>
+    ${i.attune ? `<label class="check"><input type="checkbox" data-act="attune" data-id="${i.id}" ${i.attuned ? "checked" : ""}> Attuned</label>` : ""}
+    ${i.check ? `<label class="check"><input type="checkbox" data-f="${p}.check" data-t="b" checked> Not sure I still have it</label>` : ""}
+    <div class="thumbs">${(i.pics || []).map(id => `<img data-pic="${esc(id)}" data-act="pic" data-id="${esc(id)}" alt="">`).join("")}</div>
+    <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="addpic" data-id="${i.id}">+ A picture</button>
+      ${i.gone ? `<button class="btn small" data-act="ungone" data-id="${i.id}">I have it again</button>` : `<button class="btn small" data-act="sold" data-id="${i.id}">Sold it…</button><button class="btn small" data-act="gone" data-id="${i.id}">Used or lost</button>`}
+      <button class="btn small danger" data-act="del" data-list="items" data-i="${ix}">Delete</button><button class="btn small main" data-act="itemclose">Done</button></div></div>`;
+}
+
+/* ── Journal ── */
+function journalHtml(c) {
+  const list = c.sessions.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  return `<button class="btn wide main" data-act="addsession">+ A new session</button>` + (list.length ? list.map(s => {
+    const i = c.sessions.indexOf(s);
+    if (ui.edit === "ses:" + s.id) return `<div class="panel"><div class="row"><label class="fld n" style="flex:0 0 150px"><span>Date</span><input type="date" data-f="sessions.${i}.date" value="${esc(s.date)}"></label>${fld("Title", `sessions.${i}.title`, s.title)}</div>
+      ${fld("Notes", `sessions.${i}.text`, s.text, { area: 1, rows: 12 })}
+      <div class="row" style="margin-bottom:10px"><button class="btn main" data-act="sesdone">Done</button><button class="btn small danger" data-act="del" data-list="sessions" data-i="${i}">Delete</button></div></div>`;
+    return `<div class="card tap" data-act="sesopen" data-id="${s.id}"><span class="nm">${esc(s.title || "A session")}</span><span class="sub">${esc(s.date || "no date")}</span><div class="txt">${fmt(s.text)}</div></div>`;
+  }).join("") : `<p class="empty">No sessions yet.</p>`);
+}
+
+/* ── People and places ── */
+const PKINDS = [["person", "People"], ["place", "Places"], ["group", "Groups and gods"]];
+const ATTS = ["", "Friendly", "Neutral", "Hostile", "Unknown"];
+function peopleHtml(c) {
+  const q = (ui.filter || "").toLowerCase();
+  const list = c.people.filter(p => (!ui.pkind || p.kind === ui.pkind) && (!q || (p.name + " " + p.where + " " + p.text).toLowerCase().includes(q)));
+  return `<div class="row" style="margin-bottom:10px"><input id="pFilter" placeholder="Search" value="${esc(ui.filter)}" style="flex:1"><button class="btn main" data-act="addperson">+ Add</button></div>
+    <div class="row" style="margin-bottom:12px"><div class="seg"><button class="${!ui.pkind ? "on" : ""}" data-act="pkind" data-k="">All</button>${PKINDS.map(([k, l]) => `<button class="${ui.pkind === k ? "on" : ""}" data-act="pkind" data-k="${k}">${l}</button>`).join("")}</div></div>`
+    + (list.length ? list.map(p => {
+      const i = c.people.indexOf(p);
+      if (ui.edit === "p:" + p.id) return `<div class="panel"><div class="row">${fld("Name", `people.${i}.name`, p.name)}<label class="fld" style="flex:0 0 130px"><span>Kind</span><select data-f="people.${i}.kind">${PKINDS.map(([k, l]) => `<option value="${k}" ${p.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+        <div class="row">${fld("Where", `people.${i}.where`, p.where || "")}<label class="fld" style="flex:0 0 130px"><span>Toward us</span><select data-f="people.${i}.att">${ATTS.map(a => `<option ${p.att === a ? "selected" : ""}>${a}</option>`).join("")}</select></label></div>
+        ${fld("Notes", `people.${i}.text`, p.text || "", { area: 1, rows: 5 })}
+        <div class="row" style="margin-bottom:10px"><button class="btn main" data-act="pdone">Done</button><button class="btn small danger" data-act="del" data-list="people" data-i="${i}">Delete</button></div></div>`;
+      return `<div class="card tap" data-act="popen" data-id="${p.id}"><span class="nm">${esc(p.name)}${p.att ? `<span class="tag ${p.att === "Hostile" ? "c" : ""}">${esc(p.att)}</span>` : ""}</span>${p.where ? `<span class="sub">${esc(p.where)}</span>` : ""}<div class="txt">${fmt(p.text)}</div></div>`;
+    }).join("") : `<p class="empty">Nobody here yet.</p>`);
+}
+
+/* ── the character menu: switch, add, back up ── */
+function menuHtml() {
+  return `<div class="rr-h">Characters</div>
+    ${db.chars.map(ch => `<button class="card tap" data-act="switch" data-id="${ch.id}"><span class="nm">${ch.id === db.cur ? "▸ " : ""}${esc(ch.name)}</span><span class="sub">${esc([ch.species, ch.cls + " " + ch.level].join(" · "))}</span></button>`).join("")}
+    <button class="btn wide" data-act="newchar">+ A new character</button>
+    <h3 style="font-weight:normal">Backups</h3>
+    <p class="note">Everything lives on this device. Save a backup now and then (it carries the pictures too), and bring it in on another phone or computer.</p>
+    <button class="btn wide" data-act="export">Save a backup file</button><button class="btn wide" data-act="import">Bring in a backup…</button>
+    ${db.chars.length > 1 ? `<button class="btn wide danger" data-act="delchar">Delete ${esc(C().name)}…</button>` : ""}
+    <button class="btn wide main" data-act="ovclose">Close</button>`;
+}
+function blankChar(name) {
+  return { id: uid("ch"), name, short: "", species: "", cls: "Fighter", subcls: "", level: 1, bg: "", align: "", ab: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+    saveProf: [], skills: {}, ac: 10, acNote: "", speed: 30, initBonus: 0, hpMax: 10, hp: 10, temp: 0, hd: { die: 10, max: 1, used: 0 }, death: { ok: 0, fail: 0 },
+    conds: [], exh: 0, conc: null, effects: [], res: [], slots: {}, attacks: [], spells: [], traits: [], items: [], purse: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }, debtCp: 0, marked: false,
+    log: [], sessions: [], people: [], story: { profs: "", traits: "", ideals: "", bonds: "", flaws: "", looks: "", backstory: "", more: "" }, rolls: [], inspiration: false };
+}
+async function exportAll() {
+  const pics = {}; const ids = new Set(); db.chars.forEach(ch => ch.items.forEach(i => (i.pics || []).forEach(id => !id.startsWith("url:") && ids.add(id))));
+  for (const id of ids) { try { const b = await IDB.get(id); if (b) pics[id] = await new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(b); }); } catch (e) {} }
+  const blob = new Blob([JSON.stringify({ app: "character-book", version: VERSION, saved: new Date().toISOString(), db, pics })], { type: "application/json" });
+  const name = `character-book-${today()}.json`; const file = new File([blob], name, { type: "application/json" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e.name === "AbortError") return; } }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function importFile(f) {
+  let d; try { d = JSON.parse(await f.text()); } catch (e) { return toast("That isn't a Character Book backup."); }
+  if (!d || d.app !== "character-book" || !d.db || !Array.isArray(d.db.chars)) return toast("That isn't a Character Book backup.");
+  const names = d.db.chars.map(x => x.name).join(", ");
+  if (!confirm(`Bring in ${names}? A character already here with the same id is replaced by the backup's copy.`)) return;
+  for (const [id, url] of Object.entries(d.pics || {})) { try { const b = await (await fetch(url)).blob(); await IDB.put(id, b); } catch (e) {} }
+  for (const ch of d.db.chars) { const i = db.chars.findIndex(x => x.id === ch.id); if (i >= 0) db.chars[i] = norm(ch); else db.chars.push(norm(ch)); }
+  db.cur = d.db.cur || db.cur; save(true); closeOv(); toast("Brought in: " + names);
+}
+function norm(ch) { const b = blankChar(ch.name || "Someone"); return Object.assign(b, ch, { story: Object.assign(b.story, ch.story || {}) }); }
+
+/* ══ wiring ══ */
+function getPath(o, path) { return path.split(".").reduce((a, k) => a == null ? a : a[k], o); }
+function setPath(o, path, v) { const ks = path.split("."); const last = ks.pop(); const t = ks.reduce((a, k, i) => (a[k] = a[k] ?? (/^\d+$/.test(ks[i + 1] ?? last) ? [] : {})), o); t[last] = v; }
+function valOf(el) { if (el.dataset.t === "b") return el.checked; if (el.type === "checkbox") return el.checked; if (el.dataset.t === "n") return el.value === "" ? "" : +el.value; return el.value; }
+document.addEventListener("input", e => {
+  const el = e.target; const c = C();
+  if (el.dataset.f && el.type !== "checkbox" && el.tagName !== "SELECT") { setPath(c, el.dataset.f, valOf(el)); save(); }
+  if (el.dataset.wager) { ui.wager[el.dataset.wager] = el.value; const o = $("#wagerOut"); if (o) o.innerHTML = wagerOutHtml(c); }
+  if (el.id === "pFilter") { ui.filter = el.value; clearTimeout(ui.ft); ui.ft = setTimeout(() => { render(); const f = $("#pFilter"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }, 300); }
+  if (el.dataset.act === "realdie" && R) { const v = parseInt(el.value, 10); R.real = v >= 1 && v <= 20 ? v : null; save(); const pos = el.selectionStart; $("#ov .box").innerHTML = rollHtml(); const n = $('#ov [data-act="realdie"]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {} } }
+});
+document.addEventListener("change", e => {
+  const el = e.target; const c = C();
+  // typed fields don't redraw the page when they lose focus: the tap that took the focus away would land on a button that's been replaced
+  if (el.dataset.f) { setPath(c, el.dataset.f, valOf(el)); if (el.dataset.f.startsWith("slots.")) { const k = el.dataset.f.split(".")[1]; c.slots[k].used = Math.min(+c.slots[k].used || 0, +c.slots[k].max || 0); } save(); if (el.tagName === "SELECT" || el.type === "checkbox") render(); return; }
+  if (el.dataset.coin) { const k = el.dataset.coin; const was = +c.purse[k] || 0; c.purse[k] = Math.max(0, parseInt(el.value, 10) || 0); if (was !== c.purse[k]) logIt(c, `Purse corrected: ${k} ${was} → ${c.purse[k]}`); save(); const t = $("#purseTotal"); if (t) t.textContent = gpText(purseCp(c.purse)) + " in all"; return; }
+  if (el.id === "condPick" && el.value) { c.conds.push(el.value); save(); render(); return; }
+  if (el.dataset.act === "spellrollkind") { const s = c.spells[+el.dataset.i]; s.roll = el.value ? Object.assign({ dice: "1d8", type: "", mod: false, save: "dex" }, s.roll || {}, { kind: el.value }) : null; save(); render(); return; }
+});
+document.addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.sec) { ui.open[d.dataset.sec] = d.open; saveUi(); } }, true);
+$("#ov").addEventListener("click", e => { if (e.target.id === "ov") closeOv(); });
+$("#themeBtn").onclick = () => { document.body.classList.toggle("dark"); try { localStorage.setItem(STORE + ":dark", document.body.classList.contains("dark") ? "1" : ""); } catch (e) {} };
+try { if (localStorage.getItem(STORE + ":dark") === "1" || (localStorage.getItem(STORE + ":dark") === null && matchMedia("(prefers-color-scheme: dark)").matches)) document.body.classList.add("dark"); } catch (e) {}
+$("#fileIn").onchange = e => { const f = e.target.files[0]; e.target.value = ""; if (f) importFile(f); };
+$("#picIn").onchange = async e => {
+  const c = C(); const it = c.items.find(i => i.id === $("#picIn").dataset.item); const files = [...e.target.files]; e.target.value = ""; if (!it) return;
+  for (const f of files) { const id = uid("pic"); await IDB.put(id, await shrinkImage(f)); (it.pics = it.pics || []).push(id); }
+  save(); render(); toast(`${files.length} picture${files.length === 1 ? "" : "s"} added.`);
+};
+
+document.addEventListener("click", e => {
+  const tab = e.target.closest("[data-tab]"); if (tab) { ui.tab = tab.dataset.tab; ui.edit = null; ui.itemOpen = null; saveUi(); render(); scrollTo(0, 0); return; }
+  const el = e.target.closest("[data-act]"); if (!el) return;
+  if (el.tagName === "INPUT" && el.type !== "checkbox") return;
+  if (el.dataset.act === "itemopen" && e.target.closest("[data-stop]")) return; // a tap inside the open item's form
+  const c = C(); const a = el.dataset.act; const n = () => parseInt(($("#hpN") || {}).value, 10);
+  switch (a) {
+    case "menu": openOv(menuHtml(), "menu"); break;
+    case "ovclose": closeOv(); break;
+    case "switch": db.cur = el.dataset.id; save(); closeOv(); break;
+    case "newchar": { const nm = prompt("Their name?"); if (!nm) break; const ch = blankChar(nm); db.chars.push(ch); db.cur = ch.id; ui.open.edit = true; ui.tab = "play"; save(); closeOv(); toast("Fill in the sheet under Edit the sheet."); break; }
+    case "delchar": if (confirm(`Delete ${c.name} for good? Save a backup first if you're not sure.`)) { db.chars = db.chars.filter(x => x !== c); db.cur = db.chars[0].id; save(); closeOv(); } break;
+    case "export": exportAll(); break;
+    case "import": $("#fileIn").click(); break;
+    case "next": ui.next = ui.next === el.dataset.m ? null : el.dataset.m; render(); break;
+    // hit points
+    case "dmg": damage(c, n()); break;
+    case "heal": heal(c, n()); break;
+    case "temp": { const v = n(); if (!(v >= 0)) break; if (c.temp && v < c.temp && !confirm(`You have ${c.temp} temporary hit points. They don't stack: keep the higher? (Cancel = keep ${c.temp})`)) break; c.temp = v; save(); render(); break; }
+    case "dsok": c.death.ok = +el.dataset.i < c.death.ok ? +el.dataset.i : +el.dataset.i + 1; save(); render(); break;
+    case "dsfail": c.death.fail = +el.dataset.i < c.death.fail ? +el.dataset.i : +el.dataset.i + 1; save(); render(); break;
+    case "deathsave": rollD20({ label: "Death save", ctx: { kind: "death" }, parts: [] }); break;
+    case "deathapply": { const u = usedD(R); if (u === 20) { c.hp = 1; c.death = { ok: 0, fail: 0 }; c.conds = c.conds.filter(k => k !== "Unconscious"); } else if (u === 1) c.death.fail = Math.min(3, c.death.fail + 2); else if (u >= 10) c.death.ok = Math.min(3, c.death.ok + 1); else c.death.fail = Math.min(3, c.death.fail + 1); save(); closeOv(); break; }
+    case "healself": heal(c, +el.dataset.n); closeOv(); break;
+    // concentration and effects
+    case "concend": if (c.conc) { endConc(c); } if (ovKind) closeOv(); else render(); break;
+    case "concset": { const nm = prompt("Concentrating on what?"); if (nm) { c.conc = nm; save(); render(); } break; }
+    case "concsave": { const d = prompt("Damage taken? (the DC is 10 or half of it, whichever is higher)"); const v = parseInt(d, 10); if (v >= 0) rollSave("con", { label: `Concentration (${c.conc})`, dc: Math.max(10, Math.floor(v / 2)), conc: true }); break; }
+    case "effadd": { const v = $("#effPick").value; if (v === "custom") { ui.edit = "effect"; render(); break; } if (v === "") break; const p = PRESETS[+v]; addEffect(c, p, { conc: false }); if (p.name === "Aid") c.hp += 5; save(); render(); break; }
+    case "effcustom": { const nm = $("#ceName").value.trim(); if (!nm) { toast("Give it a name."); break; }
+      const to = [...document.querySelectorAll(".ceTo:checked")].map(x => x.value); const adv = $("#ceAdv").value;
+      addEffect(c, { name: nm, to, bonus: $("#ceBonus").value.trim().replace(/^\+/, ""), adv: adv ? [adv] : [], once: $("#ceOnce").checked, note: $("#ceNote").value.trim() }, { conc: $("#ceConc").checked });
+      ui.edit = null; save(); render(); break; }
+    case "effcancel": ui.edit = null; render(); break;
+    case "efftoggle": { const ef = c.effects.find(x => x.id === el.dataset.id); if (ef) ef.on = ef.on === false; save(); render(); break; }
+    case "effdel": { const ef = c.effects.find(x => x.id === el.dataset.id); c.effects = c.effects.filter(x => x !== ef); if (ef && ef.name === "Aid") c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break; }
+    case "conddel": c.conds = c.conds.filter(k => k !== el.dataset.k); save(); render(); break;
+    case "exh": c.exh = Math.max(0, Math.min(6, (+c.exh || 0) + +el.dataset.d)); c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break;
+    case "traiteff": { const t = c.traits[+el.dataset.i]; const p = PRESETS.find(x => x.name === t.effect); if (p) { addEffect(c, p); save(); render(); toast(`${p.name} is on.`); } break; }
+    // rolls
+    case "init": rollInit(); break;
+    case "satk": rollSpellAttack(null); break;
+    case "chk": rollCheck(el.dataset.ab); break;
+    case "sv": rollSave(el.dataset.ab); break;
+    case "sk": rollCheck(SKILL[el.dataset.k].ab, el.dataset.k); break;
+    case "atk": rollAttack(c.attacks[+el.dataset.i]); break;
+    case "atkdmg": { const at = c.attacks[+el.dataset.i]; const m = mod(c, atkAb(c, at)) + (+at.bonus || 0); rollDamage(at.name + " damage", addDice(at.dice, m ? String(m) : ""), { dtype: at.dtype }); break; }
+    case "sticky": { rollCheck("dex", "stealth"); R.label = "Sticky Fingers: Stealth"; R.hint = `Percentile die: ${rnd(100)}`; showRoll(); break; }
+    case "rmode": R.mode = el.dataset.m; R.pick = null; save(); showRoll(); break;
+    case "pickdie": if (R.luck.length) { R.pick = +el.dataset.i; save(); showRoll(); } break;
+    case "luck": { const r = res(c, "Lucky"); if (!resLeft(r)) break; r.used++; R.luck.push(rnd(20)); R.pick = R.d.length + R.luck.length - 1; save(); showRoll(); toast("Luck point spent: tap the die you want."); break; }
+    case "luckvs": { const r = res(c, "Lucky"); if (!resLeft(r)) { toast("No Luck points left."); break; } r.used++; save(); rollPlain("Lucky against an attack", "1d20", "Your d20 against the attacker's: pick which one the attack uses."); break; }
+    case "ammoback": { const it = c.items.find(i => i.id === R.ammo); if (it) it.qty++; R.ammo = null; save(); showRoll(); break; }
+    case "rolldmg": { const u = usedD(R); const d = R.dmg; rollDamage(d.label.endsWith("damage") ? d.label : d.label + " damage", d.expr, { dtype: d.dtype, crit: u === 20 }); break; }
+    case "rerolldmg": rollDamage(R.label, R.expr, { dtype: R.dtype, crit: R.crit, heal: R.heal, save: R.save, noMods: !R.extra.length && !R.flat }); break;
+    case "wagerfrom": ui.wager = { roll: String(d20Total(R)), dc: "" }; ui.tab = "items"; closeOv(); toast("Put in the AC or DC it was against."); setTimeout(() => { const i = document.querySelector('[data-wager="dc"]'); if (i) { i.scrollIntoView({ block: "center" }); i.focus(); } }, 60); break;
+    case "wagerapply": applyWager(c, el.dataset.slot); break;
+    // slots, resources, rests
+    case "slot": { const s = c.slots[el.dataset.k]; const i = +el.dataset.i; const usedNow = i >= s.max - s.used; s.used = usedNow ? s.max - i - 1 : s.max - i; save(); render(); break; }
+    case "res": { const r = c.res.find(x => x.id === el.dataset.id); const i = +el.dataset.i; const usedNow = i >= r.max - r.used; r.used = usedNow ? r.max - i - 1 : r.max - i; save(); render(); break; }
+    case "resn": { const r = c.res.find(x => x.id === el.dataset.id); r.used = Math.max(0, Math.min(r.max, r.used + +el.dataset.d)); save(); render(); break; }
+    case "hd": { const i = +el.dataset.i; const usedNow = i >= c.hd.max - c.hd.used; c.hd.used = usedNow ? c.hd.max - i - 1 : c.hd.max - i; save(); render(); break; }
+    case "short": openOv(shortRestHtml(c), "rest"); break;
+    case "spendhd": { if (c.hd.used >= c.hd.max) break; c.hd.used++; const r = rollExpr(`1d${c.hd.die}`); const v = Math.max(0, r.total + mod(c, "con")); const was = c.hp; c.hp = Math.min(hpMaxOf(c), c.hp + v); logRoll(c, `Hit die: ${r.text} ${sg(mod(c, "con"))} = ${v}`); save(); openOv(shortRestHtml(c), "rest"); toast(`Hit die: ${r.text} ${sg(mod(c, "con"))} = ${v}. +${c.hp - was} HP`); break; }
+    case "shortdone": c.res.forEach(r => { if (r.rest === "short") r.used = 0; }); logRoll(c, "Short rest"); save(); closeOv(); toast("Short rest done."); break;
+    case "long": if (confirm("Take a long rest?")) longRest(c); break;
+    // spells
+    case "cast": { const s = c.spells.find(x => x.id === el.dataset.id); const sel = document.querySelector(`[data-castlvl="${s.id}"]`); cast(c, s, +(sel ? sel.value : s.lvl)); break; }
+    case "castq": { const s = c.spells.find(x => x.id === el.dataset.id); cast(c, s, 0); break; }
+    case "spellroll": { const s = c.spells.find(x => x.id === el.dataset.id); const sel = document.querySelector(`[data-castlvl="${s.id}"]`); const lv = +(sel ? sel.value : s.lvl) || s.lvl;
+      if (s.roll.kind === "atk") rollSpellAttack(s, lv); else rollDamage(s.name, spellExpr(c, s, lv), { dtype: s.roll.type, heal: s.roll.kind === "heal", save: s.roll.kind === "save" ? { ab: s.roll.save, half: !!s.roll.half } : null, noMods: true }); break; }
+    case "cartcast": { const it = c.items.find(i => i.cartSpells && !i.gone); const s = it.cartSpells.find(x => x.name === el.dataset.n); cast(c, Object.assign({ lvl: 1 }, s), s.lvl || 1, "cart"); break; }
+    case "spelledit": ui.edit = ui.edit === "spell:" + el.dataset.id ? null : "spell:" + el.dataset.id; render(); break;
+    case "spelldone": ui.edit = null; render(); break;
+    case "addspell": { const nm = prompt("The spell's name?"); if (!nm) break; const lv = parseInt(prompt("Its level (0 for a cantrip)?", "1"), 10) || 0; const s = { id: uid("sp"), name: nm, lvl: lv, text: "", time: "1 action" }; c.spells.push(s); ui.edit = "spell:" + s.id; save(); render(); break; }
+    // edit sheet
+    case "saveprof": { const ab = el.dataset.ab; c.saveProf = c.saveProf.includes(ab) ? c.saveProf.filter(x => x !== ab) : c.saveProf.concat(ab); save(); render(); break; }
+    case "skillcycle": { const k = el.dataset.k; const lv = skillLv(c, k); c.skills[k] = lv >= 2 ? 0 : lv >= 1 ? 2 : 1; save(); render(); break; }
+    case "addatk": c.attacks.push({ id: uid("at"), name: "New attack", ab: "str", prof: true, dice: "1d6", dtype: "bludgeoning", bonus: 0 }); save(); render(); break;
+    case "addres": c.res.push({ id: uid("rs"), name: "New feature", max: 1, used: 0, rest: "long" }); save(); render(); break;
+    case "addtrait": c.traits.push({ name: "New feature", text: "" }); save(); render(); break;
+    case "del": { const list = c[el.dataset.list]; const item = list[+el.dataset.i]; if (!confirm(`Remove ${item.name || item.title || "this"}?`)) break; list.splice(+el.dataset.i, 1); ui.itemOpen = null; ui.edit = null; save(); render(); break; }
+    // items and coin
+    case "coingain": case "coinspend": { const v = parseInt($("#coinN").value, 10); const k = $("#coinK").value; const why = $("#coinWhy").value.trim(); if (!(v > 0)) { toast("How much?"); break; }
+      if (a === "coingain") { if (c.debtCp > 0) gainCp(c, v * COIN[k], `+${v} ${k}${why ? " — " + why : ""}`); else { c.purse[k] = (+c.purse[k] || 0) + v; logIt(c, `+${v} ${k}${why ? " — " + why : ""}`); } }
+      else { if ((+c.purse[k] || 0) >= v) { c.purse[k] -= v; logIt(c, `−${v} ${k}${why ? " — " + why : ""}`); } else if (purseCp(c.purse) >= v * COIN[k]) { payCp(c.purse, v * COIN[k]); logIt(c, `−${v} ${k} (made change)${why ? " — " + why : ""}`); } else { toast("Not enough in the purse."); break; } }
+      save(); render(); break; }
+    case "additem": { const t = $("#newItem").value.trim(); if (!t) break; const m = t.match(/^(\d+)\s*(?:x|×)?\s+(.+)$/i); const it = { id: uid("it"), name: m ? m[2] : t, qty: m ? +m[1] : 1, where: "on", note: "" };
+      c.items.push(it); logIt(c, `Gained ${it.qty > 1 ? it.qty + " × " : ""}${it.name}`); save(); render(); break; }
+    case "itemopen": ui.itemOpen = ui.itemOpen === el.dataset.id ? null : el.dataset.id; render(); break;
+    case "itemclose": ui.itemOpen = null; render(); break;
+    case "attune": { const it = c.items.find(i => i.id === el.dataset.id); if (!it.attuned && attunedCount(c) >= 3) { el.checked = false; toast("Already attuned to three items."); break; } it.attuned = !it.attuned; logIt(c, `${it.attuned ? "Attuned to" : "Ended attunement to"} ${it.name}`); save(); render(); break; }
+    case "use": { const it = c.items.find(i => i.id === el.dataset.id); if (!(it.qty > 0)) { toast("None left."); break; } it.qty--; logIt(c, `Used ${it.name}${it.qty ? ` (${it.qty} left)` : " (the last one)"}`); save();
+      if (it.use.heal) rollDamage(it.name, it.use.heal, { heal: true, noMods: true }); else render(); break; }
+    case "sold": { const it = c.items.find(i => i.id === el.dataset.id); const p = prompt(`Sold ${it.name} for how many gp? (blank for nothing)`); if (p === null) break; const v = parseFloat(p) || 0;
+      it.gone = true; ui.itemOpen = null; if (v) gainCp(c, Math.round(v * 100), `Sold ${it.name} for ${v} gp`); else logIt(c, `Sold ${it.name}`); save(); render(); break; }
+    case "gone": { const it = c.items.find(i => i.id === el.dataset.id); it.gone = true; it.attuned = false; ui.itemOpen = null; logIt(c, `${it.name}: used up or lost`); save(); render(); break; }
+    case "ungone": { const it = c.items.find(i => i.id === el.dataset.id); it.gone = false; logIt(c, `${it.name}: back`); save(); render(); break; }
+    case "addpic": $("#picIn").dataset.item = el.dataset.id; $("#picIn").click(); break;
+    case "pic": e.stopPropagation(); picSrc(el.dataset.id).then(src => openOv(`<img src="${esc(src)}" alt=""><div style="height:8px"></div><button class="btn wide" data-act="ovclose">Close</button>`, "pic", "pic")); break;
+    case "addlog": { const t = $("#logT").value.trim(); if (t) { logIt(c, t); save(); render(); } break; }
+    // journal and people
+    case "addsession": { const s = { id: uid("ss"), date: today(), title: `Session ${c.sessions.length + 1}`, text: "" }; c.sessions.push(s); ui.edit = "ses:" + s.id; save(); render(); break; }
+    case "sesopen": ui.edit = "ses:" + el.dataset.id; render(); break;
+    case "sesdone": ui.edit = null; render(); break;
+    case "addperson": { const p = { id: uid("pp"), kind: ui.pkind || "person", name: ui.filter || "Someone new", where: "", att: "", text: "" }; c.people.unshift(p); ui.edit = "p:" + p.id; ui.filter = ""; save(); render(); break; }
+    case "popen": ui.edit = "p:" + el.dataset.id; render(); break;
+    case "pdone": ui.edit = null; render(); break;
+    case "pkind": ui.pkind = el.dataset.k; render(); break;
+  }
+});
+
+/* ══ Gnick, from his sheet (Gnick.docx, 2026-10-05), the cheat sheet, the session notes and the DM's Auspicious Cart ══ */
+function seedGnick() {
+  const ch = blankChar("Gnickgnick \"Gnick\" Gnomeson");
+  const ids = { rocks: "it_rocks", darts: "it_darts" };
+  Object.assign(ch, {
+    id: "ch_gnick", short: "Gnick", species: "Forest gnome", cls: "Cleric", subcls: "Trickery Domain (Tymora)", level: 4, bg: "Folk Hero", align: "Chaotic Good",
+    ab: { str: 10, dex: 13, con: 13, int: 15, wis: 16, cha: 15 }, saveProf: ["wis", "cha"],
+    skills: { animal: 1, insight: 1, persuasion: 1, survival: 1 },
+    ac: 17, acNote: "Breastplate 14 + Dex 1 (medium armor) + shield 2", speed: 25, hpMax: 31, hp: 31, hd: { die: 8, max: 4, used: 0 },
+    slots: { 1: { max: 4, used: 0 }, 2: { max: 3, used: 0 } },
+    res: [
+      { id: "rs_luck", name: "Lucky", max: 3, used: 0, rest: "long", note: "feat" },
+      { id: "rs_cd", name: "Channel Divinity", max: 1, used: 0, rest: "short", note: "Turn Undead or Invoke Duplicity. Not on the sheet: check with the DM" },
+      { id: "rs_cart", name: "Cart points", max: 4, used: 0, rest: "long", note: "Auspicious Cart: points = your level" },
+      { id: "rs_wager", name: "Pious Wager", max: 1, used: 0, rest: "long", note: "Auspicious Cart" }
+    ],
+    attacks: [
+      { id: "at_staff", name: "Quarterstaff", ab: "str", prof: true, dice: "1d6", dtype: "bludgeoning", note: "Versatile (1d8 two-handed, so not with the shield)" },
+      { id: "at_sling", name: "Sling", ab: "dex", prof: true, dice: "1d4", dtype: "bludgeoning", range: "30/120 ft", ammo: ids.rocks },
+      { id: "at_dart", name: "Dart", ab: "best", prof: true, dice: "1d4", dtype: "piercing", range: "20/60 ft", ammo: ids.darts },
+      { id: "at_rapier", name: "Rapier (stolen)", ab: "best", prof: false, dice: "1d8", dtype: "piercing", note: "A martial weapon: clerics aren't proficient" }
+    ],
+    spells: [
+      { id: "sp_thaum", name: "Thaumaturgy", lvl: 0, time: "1 action", range: "30 ft", dur: "Up to 1 minute", text: "You manifest a minor wonder, such as booming your voice, flickering flames, or creating harmless tremors." },
+      { id: "sp_spare", name: "Spare the Dying", lvl: 0, time: "1 action", range: "Touch", text: "You touch a living creature that has 0 hit points. The creature becomes stable." },
+      { id: "sp_guid", name: "Guidance", lvl: 0, conc: true, effect: "Guidance", time: "1 action", range: "Touch", dur: "Concentration, up to 1 minute", text: "Touch a willing creature. Once before the spell ends (1 minute), they can roll a d4 and add it to one ability check." },
+      { id: "sp_illus", name: "Minor Illusion", lvl: 0, tag: "Racial", time: "1 action", range: "30 ft", dur: "1 minute", text: "You create a sound or an image of an object within range that lasts for 1 minute." },
+      { id: "sp_flame", name: "Sacred Flame", lvl: 0, time: "1 action", range: "60 ft", roll: { kind: "save", save: "dex", dice: "1d8", type: "radiant", cantrip: true }, text: "Flame-like radiance descends on a creature that you can see within 60 feet. The target must succeed on a Dexterity saving throw or take 1d8 radiant damage. The target gains no benefit from cover for this saving throw." },
+      { id: "sp_charm", name: "Charm Person", lvl: 1, tag: "D", time: "1 action", range: "30 ft", dur: "1 hour", save: "wis", text: "You attempt to charm a humanoid. On a failed Wisdom save, it considers you a friendly acquaintance for an hour." },
+      { id: "sp_disg", name: "Disguise Self", lvl: 1, tag: "D", time: "1 action", range: "Self", dur: "1 hour", text: "You make yourself—including your clothing and armor—look different until the spell ends." },
+      { id: "sp_cmd", name: "Command", lvl: 1, time: "1 action", range: "60 ft", dur: "1 round", save: "wis", text: "Speak a one-word command. On a failed Wisdom save, the target must obey it on their next turn." },
+      { id: "sp_hw", name: "Healing Word", lvl: 1, time: "1 bonus action", range: "60 ft", roll: { kind: "heal", dice: "1d4", up: "1d4", mod: true }, text: "As a bonus action, heal a creature within 60 feet for 1d4 + Wisdom modifier." },
+      { id: "sp_gb", name: "Guiding Bolt", lvl: 1, time: "1 action", range: "120 ft", dur: "1 round", roll: { kind: "atk", dice: "4d6", type: "radiant", up: "1d6" }, text: "Ranged spell attack. On a hit, it does 4d6 radiant damage, and the next attack roll against the target has advantage." },
+      { id: "sp_bless", name: "Bless", lvl: 1, conc: true, effect: "Bless", time: "1 action", range: "30 ft", dur: "Concentration, up to 1 minute", text: "Choose up to three creatures. Whenever a target makes an attack roll or a saving throw, they can add a d4 to the roll." },
+      { id: "sp_mirror", name: "Mirror Image", lvl: 2, tag: "D", effect: "Mirror Image", time: "1 action", range: "Self", dur: "1 minute", text: "Three illusory duplicates appear in your space for 1 minute, potentially taking hits meant for you." },
+      { id: "sp_pwt", name: "Pass without Trace", lvl: 2, tag: "D", conc: true, effect: "Pass without Trace", time: "1 action", range: "Self", dur: "Concentration, up to 1 hour", text: "You and companions within 30 feet gain a +10 bonus to Dexterity (Stealth) checks and can't be tracked except by magic." },
+      { id: "sp_aid", name: "Aid", lvl: 2, effect: "Aid", time: "1 action", range: "30 ft", dur: "8 hours", text: "Choose up to three creatures within 30 feet. Their hit point maximum and current hit points increase by 5 for 8 hours." },
+      { id: "sp_poh", name: "Prayer of Healing", lvl: 2, time: "10 minutes", range: "30 ft", roll: { kind: "heal", dice: "2d8", up: "1d8", mod: true }, text: "Cast time is 10 minutes. Heals up to six creatures for 2d8 + Wisdom modifier." },
+      { id: "sp_sw", name: "Spiritual Weapon", lvl: 2, time: "1 bonus action", range: "60 ft", dur: "1 minute", roll: { kind: "atk", dice: "1d8", type: "force", up: "1d8", upEvery: 2, mod: true }, text: "Create a floating spectral weapon. Make a melee spell attack as a bonus action (deals 1d8 + Wisdom modifier force damage).\n\nFlavor: takes the form of a spectral, glowing version of your hireling, Gunter, clumsily whacking enemies, or a terrifying, rabid squirrel launching itself at foes!" }
+    ],
+    traits: [
+      { name: "Darkvision", src: "Gnome", text: "You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were dim light. You can't discern color in darkness, only shades of gray." },
+      { name: "Gnome Cunning", src: "Gnome", saveAdv: ["int", "wis", "cha"], saveAdvWhen: "against magic", text: "You have advantage on Intelligence, Wisdom, and Charisma saving throws against magic." },
+      { name: "Speak with Small Beasts", src: "Forest gnome", text: "You can communicate simple ideas to Small or smaller beasts." },
+      { name: "Blessing of the Trickster", src: "Trickery", text: "You can use your action to touch a willing creature other than yourself to give them advantage on Dexterity (Stealth) checks for 1 hour." },
+      { name: "Channel Divinity", src: "Cleric 2", text: "Not on your sheet, but a 2014 cleric has it from 2nd level: one use, back on a short or long rest. **Turn Undead**, or the Trickery Domain's **Invoke Duplicity** (an illusory duplicate of yourself for 1 minute, on concentration). Check the details with your DM." },
+      { name: "Lucky", src: "Feat", text: "3 Luck points, back on a long rest. Whenever you make an attack roll, an ability check, or a saving throw, you can spend 1 Luck point to roll an additional d20 and choose which die to use. You can also use a point to roll a d20 when an attack is made against you and choose whether the attacker's roll or your roll applies." },
+      { name: "Sticky Fingers", src: "Gnick", roll: "sticky", text: "Any time you enter a new place, you can roll a d20 Stealth check and a percentile die to try to steal something." },
+      { name: "Village dialect", src: "Gnick", text: "The local dialect of Gnickgnick's village pronounces every silent beginning letter of a word. All silent letters that begin words are pronounced." }
+    ],
+    items: [
+      { id: "it_cart", name: "Auspicious Cart", qty: 1, where: "cart", attune: true, attuned: true, value: "", note: "Given by the DM, 2026-07-24. Drawn by Barthalamule (or not: see below).",
+        pics: ["url:pictures/auspicious-cart-1.png", "url:pictures/auspicious-cart-2.png", "url:pictures/auspicious-cart-3.png"],
+        mods: [{ to: ["satk", "dc"], bonus: "1" }],
+        artifact: { kind: "soul-touched artifact", state: "Dormant", wager: true, text:
+`This cart is inhabited by the soul of a traveling fortune teller who lived on the open road.
+
+This soul-touched artifact is originally in a dormant state. It has the opportunity to move into an awakened and then exalted state; as it does, it gains new abilities and attributes, maintaining those from previous states. The artifact changes states as its bearer performs feats in alignment with the goals and aspirations of the soul inhabiting it. Additionally, this artifact may develop additional attributes (not listed below) based on its evolving relationship with its owner; these attributes are only present as long as the owner has the artifact in their possession.
+
+**Dormant.** In its dormant state, the *Auspicious Cart* gives you the following benefits:
+
+- This cart can navigate with or without being drawn by an animal. You can telepathically direct it in any direction as long as it is within a mile of you, although it is only capable of moving where and how a mundane cart might. Additionally, while someone sits in the driver's seat, it will follow their directions rather than yours.
+- You gain a +1 bonus to spell attack rolls and spell save DCs while you are attuned.
+- You gain a pool of points equal to your level, which refills each time you take a long rest. These points can be used to cast spells from your cart without needing to prepare them and without the need of concentration, expending a number of points equal to the level of the spell. The list of spells you can cast this way includes any non-damaging 1st level divination spells. You must be touching the cart to cast any spells this way.
+- Once per long rest (or at the DM's discretion), when you are about to make an attack roll, ability check, or saving throw, you can choose to participate in a *Pious Wager*. If the AC or DC of the roll is below 15, it is now 15; the result of the roll will have additional effects, as determined by the table below. Money values gained or lost can be represented in any form of wealth, as determined by the DM (coin, gemstones, art objects, etc.).
+
+If you lose more money than you have, you enter divine debt, represented by a negative money value. Your divine debt is multiplied by 10 as it is accumulated; for example, if you lose 20gp from a *Pious Wager* while having no money, you gain 200gp of divine debt. Any wealth you accumulate disappears instantly to settle your debt. For each 100gp you are in divine debt, you gain a level of exhaustion that cannot be removed by any means except by settling your debt. If you die in this way, your soul is forfeit to Beshaba, the goddess of misfortune, and you cannot be returned to life until your financial debt is repaid to her (by you or any other interested parties).` },
+        cartSpells: [
+          { name: "Detect Magic", lvl: 1, text: "Sense the presence of magic within 30 feet of you, for up to 10 minutes." },
+          { name: "Identify", lvl: 1, text: "Learn the properties of a magic item you touch, or what spells are affecting a creature or object." },
+          { name: "Comprehend Languages", lvl: 1, text: "Understand the literal meaning of any spoken language you hear, and read any written language you touch, for 1 hour." },
+          { name: "Detect Evil and Good", lvl: 1, text: "Sense aberrations, celestials, elementals, fey, fiends and undead within 30 feet, and consecrated or desecrated places, for up to 10 minutes." },
+          { name: "Detect Poison and Disease", lvl: 1, text: "Sense poisons, poisonous creatures and diseases within 30 feet, for up to 10 minutes." },
+          { name: "Speak with Animals", lvl: 1, text: "Understand and talk with beasts for 10 minutes." }
+        ] },
+      { id: "it_whistle", name: "Tin Whistle of Returning Fortune", qty: 1, note: "A slightly dented tin whistle etched with faint curling ivy patterns; warm to the touch at dawn. Thin, reedy tone. Every fifth note played on it is wrong — slightly off-key, mistimed or discordant. Gnick assumes he needs more practice.\n\nIt can't be permanently lost or destroyed: if broken, discarded, buried, sold or confiscated, it's back among Gnick's things at dawn, without any fuss.\n\nThe DM's side (Gnick doesn't know): given by a fae working for Beshaba. Five is sacred to Tymora, so spoiling the fifth note is a quiet mockery. It doesn't harm; it unsettles, and makes those around Gnick curse their luck." },
+      { id: "it_medal", name: "Bronze Squirrel Medallion", qty: 1, note: "Holy symbol, blessed by Tymora. From the good squirrel king." },
+      { id: "it_bp", name: "Breastplate", qty: 1, note: "Medium armor, AC 14 + Dex (max 2). Worn." },
+      { id: "it_shield", name: "Shield", qty: 1, note: "+2 AC." },
+      { id: "it_staff", name: "Quarterstaff", qty: 1, note: "The walking stick that impaled the fox?" },
+      { id: "it_sling", name: "Sling", qty: 1 },
+      { id: ids.rocks, name: "Small rocks for the sling", qty: 20 },
+      { id: ids.darts, name: "Darts", qty: 10 },
+      { id: "it_heal", name: "Potion of Healing", qty: 2, use: { label: "Drink", heal: "2d4+2" } },
+      { id: "it_dim", name: "Potion of Diminution", qty: 1, note: "Makes you tiny and gives a buff to Stealth (cheat sheet, 2026-07-25)." },
+      { id: "it_pack", name: "Explorer's pack", qty: 1 },
+      { id: "it_crow", name: "Crowbar", qty: 1 },
+      { id: "it_grap", name: "Grappling hook", qty: 1 },
+      { id: "it_sack", name: "Sack", qty: 1 },
+      { id: "it_pouch", name: "Belt pouches", qty: 3 },
+      { id: "it_dice", name: "Dice set", qty: 1 },
+      { id: "it_clothes", name: "Clothes", qty: 1 },
+      { id: "it_flask", name: "Flask", qty: 1 },
+      { id: "it_pens", name: "Ink pens", qty: 7 },
+      { id: "it_wood", name: "Woodcarver's tools", qty: 1, note: "Proficient (Folk Hero)." },
+      { id: "it_turnip", name: "Turnips", qty: 3, note: "Gained 2026-07-25." },
+      { id: "it_jade", name: "Jade jewel", qty: 1, note: "Gained 2026-07-25." },
+      { id: "it_hand", name: "Statue hand", qty: 1, note: "Gained 2026-07-25." },
+      { id: "it_eye", name: "Eye gem", qty: 1, note: "From a fire elemental, 2026-10-03." },
+      { id: "it_rations", name: "Rations", qty: 1, note: "\"Some more rations\", 2026-10-03: how many?" },
+      { id: "it_statuette", name: "Gold statuette", qty: 1, note: "A serene female elven figure, about the size of an Oscar. 2026-10-03." },
+      { id: "it_perry", name: "Picture of Perry", qty: 1, note: "From your 2026-03-21 notes." },
+      { id: "it_femur", name: "Femur knife", qty: 1, note: "From your 2026-03-21 notes." },
+      { id: "it_kknife", name: "Kitchen knife", qty: 1, note: "From your 2026-03-21 notes." },
+      { id: "it_rapier", name: "Rapier", qty: 1, value: "25 gp", note: "Stolen (2026-03-21 notes)." },
+      { id: "it_crane", name: "Magic origami crane", qty: 1, note: "It levitates. From your 2026-03-21 notes." },
+      { id: "it_bone", name: "Bone die", qty: 1, gone: true, note: "From your session 3 notes. No longer has it (2026-10-31)." }
+    ],
+    purse: { cp: 28, sp: 28, ep: 0, gp: 56, pp: 0 },
+    log: [
+      { id: "lg5", at: "2026-10-05", text: "Purse per Gnick.docx: 28 cp, 28 sp, 56 gp" },
+      { id: "lg4", at: "2026-10-03", text: "Gained an eye gem (from a fire elemental), some more rations, a gold statuette (serene elven figure)" },
+      { id: "lg3", at: "2026-07-25", text: "Gained 3 turnips; 12 gp, 8 sp, 11 cp; a Potion of Diminution; 50 gp from a Pious Wager (divine wager); a jade jewel and a statue hand" },
+      { id: "lg2", at: "2026-07-24", text: "The DM gave Gnick the Auspicious Cart" },
+      { id: "lg1", at: "2026-03-21", text: "Session 3: sold the wooden squirrel to a guard for 10 gp; sold a leg of armor; got a bone die; stole a rapier" }
+    ],
+    sessions: [
+      { id: "ss1", date: "2026-03-21", title: "Sessions 2 and 3", text: "**Stuff I have now:** picture of Perry, femur knife, kitchen knife, rapier (25 g), magic origami crane that levitates.\n\nTalia's real name is Talia, even though she was not trying to give me her real name.\n\nBeans is the guy who wants the jar thing. The jar thing is important.\n\nI led the detective knights back to the kidnapping site. Almost went terribly.\n\n**Session 3**\n- Sold the wooden squirrel for 10 gold to a guard\n- Sold a leg of armor\n- Bone die\n- Stole a rapier" },
+      { id: "ss2", date: "2026-07-25", title: "The Auspicious Cart", text: "The DM gave Gnick the Auspicious Cart (posted in #gnickgnick-gnomeson on 2026-07-24).\n\n**Gained:** 3 turnips; 12 gp, 8 sp, 11 cp; a Potion of Diminution (makes me tiny, buff to Stealth); 50 gold from a divine wager; a jade jewel and a statue hand." },
+      { id: "ss3", date: "2026-10-03", title: "The fire elemental", text: "**Gained:** an eye gem from the fire elemental; some more rations; a gold statuette (serene female elven figure, Oscar-sized)." }
+    ],
+    people: [
+      { id: "pp1", kind: "person", name: "Talia", where: "", att: "", text: "Her real name is Talia, even though she wasn't trying to give me her real name." },
+      { id: "pp2", kind: "person", name: "Beans", where: "", att: "", text: "The guy who wants the jar thing. The jar thing is important." },
+      { id: "pp3", kind: "person", name: "Perry", where: "", att: "", text: "Gnick has a picture of Perry." },
+      { id: "pp4", kind: "group", name: "The detective knights", where: "", att: "", text: "Gnick led them back to the kidnapping site. Almost went terribly." },
+      { id: "pp5", kind: "person", name: "Gunter", where: "", att: "", text: "Former hireling. Human in his 90s, Lawful Evil, formerly of the Brick Carrier Union. \"I follow so I can lead.\" Dumb as rocks, very impressionable, smug, good at napping. Fights with a stick (+2, 1d4). Shows up as Gnick's Spiritual Weapon." },
+      { id: "pp6", kind: "person", name: "Barthalamule", where: "", att: "Friendly", text: "Gnick's mule." },
+      { id: "pp7", kind: "person", name: "Sean", where: "", att: "", text: "Gnick's twin brother. Gnick thinks he's an ally. (Player knowledge: Sean has become a cleric of Beshaba.)" },
+      { id: "pp8", kind: "person", name: "The Squirrel King", where: "The squirrel kingdom, next to Gnopolis", att: "Friendly", text: "Gnick saved him from a fox by pure heroic chance; the good squirrels' eternal favor, and the squirrel medal Tymora blessed. All squirrels are friends, except those of the dark forest." },
+      { id: "pp9", kind: "group", name: "Tymora, Lady of Fortune", where: "", att: "Friendly", text: "Gnick's god, and Gnopolis's." },
+      { id: "pp10", kind: "group", name: "Beshaba", where: "", att: "Hostile", text: "Goddess of misfortune. A fae working for her gave Gnick the tin whistle. Divine debt from the Pious Wager is owed to her." },
+      { id: "pp11", kind: "person", name: "Gnick's family", where: "Gnopolis", att: "Friendly", text: "Father Finnegan, mother Cara. Older brothers Patrick and Liam, older sister Shannon; twin Sean; younger sister Caragh and a younger brother." },
+      { id: "pp12", kind: "place", name: "Gnopolis", where: "A forest glen", att: "", text: "Gnick's village. Everyone believes in the strong power of good luck; their deity is Tymora." }
+    ],
+    story: {
+      profs: "Languages: Gnomish (and Common).\nArmor: light and medium, shields. Weapons: all simple weapons.\nTools: woodcarver's tools, land vehicles.",
+      traits: "- I'm always willing to lend a helping hand, it'll come back to me eventually.\n- Knows when to hold 'em a little less when to fold 'em.\n- My impulse control may not be the best.\n- Kindness is for the strong, but sometimes luck needs to be evened out.",
+      ideals: "- Fortune favors the bold\n- The world is my oyster\n- It's my job to bring about good luck for whomever I can",
+      bonds: "- I will protect the small folk\n- Squirrels are my friends\n- Tymora has chosen me, I will live up to it\n- My family is my inspiration",
+      flaws: "- Gullible/Trusting\n- Accidental Kleptomaniac",
+      looks: "Age 26, 3 ft, 40 lb. Green eyes, white skin, red hair. Favorite color green. Really likes shiny things.",
+      backstory: "Gnickgnick (who goes by Gnick) hails from a small village deep in a forest glen named Gnopolis. All of the members of the village believe in the strong power of good luck, and their village's deity is Tymora. Gnick always seemed especially destined to be lucky, if not rambunctious. One day he was visiting the neighboring squirrel kingdom when he noticed they were in a panic. He bent down to speak with the squirrel king. When he did so, the butt of his walking stick lifted from the ground, impaling a fox who had run up behind him, and had opened his mouth to swallow the squirrel king whole. In so doing, he gained the eternal favor of the good squirrel king and the favor of Tymora as well, as it was a pure show of heroic chance. He was given a squirrel medal that Tymora blessed, which became Gnick's holy symbol. His village hailed him as a hero, and Gnick began his journeys finding both luck and chaos wherever he has gone. On one of his journeys he came across a Fae, who pretended to be one of Tymora's friends but who was working for Beshaba. The whistle was designed to make those around Gnick curse luck whenever it shows back up after someone tries to take it away or destroy it.",
+      more: "Treasure: his golden heart and charm; anything shiny he can get his hands on.\nLoves his tin whistle and has yet to notice any pattern or problem with it, aside from his inability to play it well."
+    }
+  });
+  return ch;
+}
+
+/* ══ start ══ */
+db.chars = db.chars.map(norm);
+// one-time fixes to a Gnick saved before they were made
+db.fixes = db.fixes || [];
+if (!db.fixes.includes("gnick-march-items")) {
+  const g = db.chars.find(ch => ch.id === "ch_gnick");
+  if (g) for (const it of g.items) {
+    if (["it_perry", "it_femur", "it_kknife", "it_rapier", "it_crane"].includes(it.id)) delete it.check;
+    if (it.id === "it_bone" && it.check) { delete it.check; it.gone = true; logIt(g, "Bone die: no longer has it"); }
+  }
+  db.fixes.push("gnick-march-items"); save();
+}
+render();
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (!hadController || reloaded) return; reloaded = true; location.reload(); });
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then(reg => { reg.update(); setInterval(() => { try { reg.update(); } catch (e) {} }, 30 * 60 * 1000); }).catch(() => {});
+}
+</script>
+</body>
+</html>
