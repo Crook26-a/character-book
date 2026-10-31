@@ -238,7 +238,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 2;
+const VERSION = 3;
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -1030,7 +1030,7 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   const el = e.target; const c = C();
   // typed fields don't redraw the page when they lose focus: the tap that took the focus away would land on a button that's been replaced
-  if (el.dataset.f) { setPath(c, el.dataset.f, valOf(el)); if (el.dataset.f.startsWith("slots.")) { const k = el.dataset.f.split(".")[1]; c.slots[k].used = Math.min(+c.slots[k].used || 0, +c.slots[k].max || 0); } save(); if (el.tagName === "SELECT" || el.type === "checkbox") render(); return; }
+  if (el.dataset.f) { setPath(c, el.dataset.f, valOf(el)); if (el.dataset.f === "level") c.res.forEach(r => { if (r.byLevel) r.max = +c.level || 1; }); if (el.dataset.f.startsWith("slots.")) { const k = el.dataset.f.split(".")[1]; c.slots[k].used = Math.min(+c.slots[k].used || 0, +c.slots[k].max || 0); } save(); if (el.tagName === "SELECT" || el.type === "checkbox") render(); return; }
   if (el.dataset.coin) { const k = el.dataset.coin; const was = +c.purse[k] || 0; c.purse[k] = Math.max(0, parseInt(el.value, 10) || 0); if (was !== c.purse[k]) logIt(c, `Purse corrected: ${k} ${was} → ${c.purse[k]}`); save(); const t = $("#purseTotal"); if (t) t.textContent = gpText(purseCp(c.purse)) + " in all"; return; }
   if (el.id === "condPick" && el.value) { c.conds.push(el.value); save(); render(); return; }
   if (el.dataset.act === "spellrollkind") { const s = c.spells[+el.dataset.i]; s.roll = el.value ? Object.assign({ dice: "1d8", type: "", mod: false, save: "dex" }, s.roll || {}, { kind: el.value }) : null; save(); render(); return; }
@@ -1171,7 +1171,7 @@ function seedGnick() {
     res: [
       { id: "rs_luck", name: "Lucky", max: 3, used: 0, rest: "long", note: "feat" },
       { id: "rs_cd", name: "Channel Divinity", max: 1, used: 0, rest: "short", note: "Turn Undead or Invoke Duplicity. Not on the sheet: check with the DM" },
-      { id: "rs_cart", name: "Cart points", max: 4, used: 0, rest: "long", note: "Auspicious Cart: points = your level" },
+      { id: "rs_cart", name: "Cart points", max: 4, used: 0, rest: "long", byLevel: true, note: "Auspicious Cart: points = your level" },
       { id: "rs_wager", name: "Pious Wager", max: 1, used: 0, rest: "long", note: "Auspicious Cart" }
     ],
     attacks: [
@@ -1318,6 +1318,24 @@ if (!db.fixes.includes("gnick-march-items")) {
     if (it.id === "it_bone" && it.check) { delete it.check; it.gone = true; logIt(g, "Bone die: no longer has it"); }
   }
   db.fixes.push("gnick-march-items"); save();
+}
+// Gnick reaches 5th level (2026-10-31): rolled 7 on the d8, +1 Con
+if (!db.fixes.includes("gnick-level-5")) {
+  const g = db.chars.find(ch => ch.id === "ch_gnick");
+  if (g && +g.level === 4) {
+    g.level = 5; g.hpMax = (+g.hpMax || 31) + 8; g.hp = (+g.hp || 0) + 8; g.hd.max = 5;
+    g.slots[3] = { max: 2, used: 0 };
+    g.res.forEach(r => { if (r.byLevel || r.id === "rs_cart") { r.byLevel = true; r.max = 5; } });
+    const add = (s, after) => { if (g.spells.some(x => x.name === s.name)) return; const i = g.spells.findIndex(x => x.id === after); g.spells.splice(i < 0 ? g.spells.length : i + 1, 0, s); };
+    add({ id: "sp_blink", name: "Blink", lvl: 3, tag: "D", time: "1 action", range: "Self", dur: "1 minute", text: "Roll a d20 at the end of each of your turns while it lasts. On an 11 or higher, you vanish from this plane into the Ethereal Plane until the start of your next turn, then come back to an unoccupied space within 10 feet of where you left." }, "sp_sw");
+    add({ id: "sp_dispel", name: "Dispel Magic", lvl: 3, tag: "D", time: "1 action", range: "120 ft", dur: "Instantaneous", text: "End one spell of 3rd level or lower on a creature, object or magical effect you can see. For a spell of 4th level or higher, make a Wisdom check against DC 10 + its level to end it.\n\nCast with a higher slot, it automatically ends spells of that level or lower." }, "sp_blink");
+    add({ id: "sp_mhw", name: "Mass Healing Word", lvl: 3, time: "1 bonus action", range: "60 ft", roll: { kind: "heal", dice: "1d4", up: "1d4", mod: true }, text: "As you call out words of restoration, up to six creatures of your choice that you can see within range regain hit points equal to 1d4 + your Wisdom modifier. No effect on undead or constructs." }, "sp_dispel");
+    const cd = g.traits.findIndex(t => t.name === "Channel Divinity");
+    if (!g.traits.some(t => t.name === "Destroy Undead")) g.traits.splice(cd < 0 ? g.traits.length : cd + 1, 0, { name: "Destroy Undead", src: "Cleric 5", text: "When an undead fails its saving throw against your Turn Undead, it is destroyed outright if its challenge rating is 1/2 or lower." });
+    logIt(g, "Reached 5th level: rolled 7 + 1 Con = 8 more hit points (39). 3rd-level slots; Blink and Dispel Magic (domain); prepared Mass Healing Word");
+    g.sessions.push({ id: uid("ss"), date: "2026-10-31", title: "5th level", text: "Gnick reached 5th level. Hit points 31 → 39 (rolled 7, +1 Con).\n\n- Proficiency bonus +3\n- Two 3rd-level slots\n- Domain spells: Blink, Dispel Magic\n- Prepared Mass Healing Word (8 prepared now)\n- Destroy Undead (CR 1/2)\n- Sacred Flame 2d8; the cart's pool is 5 points" });
+  }
+  db.fixes.push("gnick-level-5"); save();
 }
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
