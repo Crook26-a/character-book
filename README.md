@@ -42,3 +42,7 @@ This work includes material taken from the System Reference Document 5.1 ("SRD 5
 ## Sync
 
 **Sync** (top right) keeps every device the same: all characters (everything on their sheets), added pictures, and the homebrew library, kept in a secret gist in your GitHub. Set up once on the PCs tab with a token that can only touch gists, then scan the QR code on each other device. On Sync, each character's newer copy wins. The token stays on the device, never in a backup or in the gist.
+
+## Your own backgrounds and roll tables (v24)
+
+PCs tab → Homebrew: **+ A background** (skills, tool, languages, ability scores it raises for 2024 style, an origin feat, a feature for 2014 style, and its equipment as one list or an A/B choice) and **+ A table** for everyone. The Field Book's Rules tab makes the same two, and Sync brings them here (its notes stay behind). The builder lists your backgrounds, marked "yours" or "Field Book"; **Apply a background…** (Play tab → Who they are) gives one to a character already made, from a ticked list of what it would add (what the sheet already has, ability scores, and equipment start unticked). Roll tables are rows like "01–02 | what happens" (00 is 100; a line without a number joins the row above; the note says if a number has no row); a character can have their own too, and all of them roll from the Play tab's Roll tables, with any dice in a result tappable.

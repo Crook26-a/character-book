@@ -1,0 +1,5 @@
+1. a background of your own, in the library: {"id":"bg_ms5jvau","name":"Sailor","skills":["athletics","perception"],"abilities":["str","dex","wis"],"tool":"Navigator's tools","feat":"Alert","eqA":"Club, Rope, and 10 GP","eqB":"50 GP"}
+2. the builder offers it; a Human Fighter, Sailor: Sailor; 17/15/13/10/12/8; skills athletics, perception; 54 gp; traits Alert
+3. a made-up d100 table for everyone: what it reads, and a roll: d100, 4 rows; nothing for 99; skipped a line before the first row. | Odd luck d100: 36Nothing happens, but it feels like something almost did. Roll againDone
+4. Apply a background to Gnick: the list, then the Sailor's skills and feat: offered name+ skill:athletics+ skill:perception+ tool+ feat+ asi- eq-; now Sailor, athletics 1, perception 1, Alert true
+5. the Field Book's background and table show up here: library lists Dockhand true, Harbor rumors true; Play tab has 2 tables to roll

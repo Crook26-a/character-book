@@ -250,7 +250,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 23;
+const VERSION = 24;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -482,6 +482,7 @@ function pushRoll(c) {
 function rollSummary(r) {
   if (r.type === "d20") return `${r.label}: ${d20Total(r)}${usedD(r) === 20 ? " (nat 20)" : usedD(r) === 1 ? " (nat 1)" : ""}`;
   if (r.type === "dmg") return `${r.label}: ${r.total}${r.heal ? " healing" : r.dtype ? " " + r.dtype : ""}`;
+  if (r.type === "table") return `${r.label} (d${r.die}: ${r.n}): ${r.text.length > 70 ? r.text.slice(0, 70) + "…" : r.text || "no row"}`;
   return r.label;
 }
 function rollDamage(label, expr, o = {}) {
@@ -540,6 +541,8 @@ function tidyDice(expr) { // "1d4+1d4+3" reads as "2d4+3"
 function showRoll() { openOv(rollHtml(), "roll"); }
 function rollHtml() {
   const c = C(); const r = R; if (!r) return "";
+  if (r.type === "table") return `<div class="rr-h">${esc(r.label)} <small>d${r.die}: ${r.n}</small></div>${r.text ? `<div class="txt" style="margin-bottom:10px">${diceLinks(r.text)}</div>` : lookup(`a row for ${r.n}`, "The table skips that number: fix it with Edit, or roll again.")}
+    <div class="row"><button class="btn grow" data-act="tblagain">Roll again</button><button class="btn main grow" data-act="ovclose">Done</button></div>`;
   if (r.type === "plain") return `<div class="rr-h">${esc(r.label)}</div><div class="brk">${esc(r.base.text)}</div>${r.note ? `<p class="note">${esc(r.note)}</p>` : ""}<button class="btn wide main" data-act="ovclose">Done</button>`;
   if (r.type === "dmg") {
     const tgt = r.save ? `<p class="note">They make a ${AB_NAME[r.save.ab]} save against DC ${r.save.dc || dcOf(c)}${r.save.half === true ? ": half on a success" : r.save.half === false ? ": nothing on a success" : ""}.</p>` : "";
@@ -853,11 +856,12 @@ function playHtml(c) {
     ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return todoHtml(c) + hpPanel + effPanel + stats
-    + sec("who", "Who they are", "", whoHtml(c), false)
+    + sec("who", "Who they are", "", whoHtml(c) + `<button class="btn wide" data-act="applybg">Apply a background…</button>`, false)
     + sec("res", "Slots, features, and rests", "", resBody, true)
     + sec("atk", "Attacks", `${c.attacks.length}`, atkBody + `<button class="btn wide" data-act="addatk">+ An attack</button>`, true)
     + sec("abil", "Abilities, saves, and skills", "", abil, true)
     + sec("feat", "Features and traits", `${c.traits.length}`, feats, false)
+    + sec("tables", "Roll tables", `${tablesFor(c).length}`, tablesHtml(c), false)
     + sec("rolls", "Recent rolls", "", recent, false);
 }
 // a list in a sentence, with the Oxford comma (Joseph, 2026-11-01): "A", "A and B", "A, B, and C"
@@ -1135,10 +1139,10 @@ function libraryHtml() {
   const fl = fromFB("loot").length, fs = fromFB("spells").length;
   return `<div class="panel"><h2>Homebrew <small>your own items and spells</small></h2>
     <p class="note"><b>From the Field Book</b> on this device: ${fl || fs ? `${fl} item${fl === 1 ? "" : "s"} and ${fs} spell${fs === 1 ? "" : "s"}, always current (nothing to bring in). Its DM notes stay behind.` : "nothing yet. Whatever you write there shows up here by itself."}</p>
-    <p class="note"><b>From the survey:</b> ${L ? "" : "nothing yet."}</p>
-    ${L ? `<p class="note">${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}${L.from ? ` from ${esc(L.from)}` : ""}, brought in ${esc(L.at)}. They show first when you add a spell, an item, or an attack.</p>` : ""}
+    <p class="note"><b>From the survey:</b> ${L && L.at ? "" : "nothing yet."}</p>
+    ${L && L.at ? `<p class="note">${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}${L.from ? ` from ${esc(L.from)}` : ""}, brought in ${esc(L.at)}. They show first when you add a spell, an item, or an attack.</p>` : ""}
     <p class="note">In the survey: <b>Library → Send to the Field Book</b> makes the file (a survey save works too). Its DM notes stay behind.</p>
-    ${EM() ? libEditHtml() : ""}<button class="btn wide" data-act="libin">Bring in the survey's library…</button>${L ? `<button class="btn wide danger" data-act="libclear">Forget the homebrew</button>` : ""}</div>`;
+    ${EM() ? libEditHtml() : ""}<button class="btn wide" data-act="libin">Bring in the survey's library…</button>${L && L.at ? `<button class="btn wide danger" data-act="libclear">Forget the homebrew</button>` : ""}${ownLibHtml()}</div>`;
 }
 
 const NO_ROLL = ["Bless", "Bane", "Guidance", "Resistance"]; // the SRD data gives these dice that aren't damage; the survey fixes them at load too
@@ -1445,14 +1449,17 @@ function bldLists(ed) {
 function bldPicked() {
   const b = BLD, L = bldLists(b.ed), find = (arr, k) => arr.find(x => x.key === k) || null;
   const cls = find(L.classes, b.cls), sp = L.species.find(x => x.key === b.sp && !x.of) || null, subs = sp ? L.species.filter(x => x.of === sp.name && x.ed === sp.ed) : [];
-  return { L, cls, bg: find(L.backgrounds, b.bg), sp, subs, sub: find(subs, b.sub), subcls: cls ? find(L.subclasses.filter(s => s.of === cls.name), b.subcls) : null };
+  return { L, cls, bg: find(bldBgs(), b.bg), sp, subs, sub: find(subs, b.sub), subcls: cls ? find(L.subclasses.filter(s => s.of === cls.name), b.subcls) : null };
 }
 const e14 = x => !!x && x.ed === "2014";
+// the backgrounds to pick from: the SRD's, then yours (the library's and the Field Book's), marked
+const bldBgs = () => [...bldLists(BLD.ed).backgrounds, ...libBackgrounds().map(x => ({ ...bgShape(x), ed: "yours", key: "hb:" + x.id, label: yoursLabel(x) }))];
+const bgGivesAsi = bg => !!bg && (bg.ed === "2024" || (bg.ed === "yours" && bg.abilities.length > 0));
 const subAt1 = cls => e14(cls) && subclassAt({ rules: "2014", cls: cls.name }) === 1;   // 2014 clerics, sorcerers, and warlocks
 // where the ability increases come from: a 2014 race, a 2024 background, both (you pick; the 2024 book says the
 // background), or neither: "free" (+2 and +1 anywhere) when it's typed or a mix gives none
 function bldAsi() {
-  const b = BLD, { sp, bg } = bldPicked(), race = e14(sp), back = !!bg && bg.ed === "2024";
+  const b = BLD, { sp, bg } = bldPicked(), race = e14(sp), back = bgGivesAsi(bg);
   if (race && back) return b.asiFrom === "race" ? "race" : "bg";
   if (race) return "race"; if (back) return "bg";
   return (b.ed === "2014" ? b.sp === OTHER : b.ed === "2024" ? b.bg === OTHER : !!(b.sp || b.bg)) ? "free" : "none";
@@ -1470,7 +1477,7 @@ function bldScores() {
   if (src === "race") {
     for (const r of [sp, sub]) if (r) for (const [k, v] of Object.entries(r.bonus || {})) add(k, v);
     if (sp && sp.choose) { add(b.rc1, 1); if (b.rc2 !== b.rc1) add(b.rc2, 1); }
-  } else if (src === "bg" && b.plan === "111") { for (const k of bg.abilities) add(k, 1); }
+  } else if (src === "bg" && b.plan === "111" && bg.abilities.length === 3) { for (const k of bg.abilities) add(k, 1); }
   else if (src !== "none") { add(b.plus2, 2); if (b.plus1 !== b.plus2) add(b.plus1, 1); }
   for (const k in o) if (o[k] != null) o[k] = Math.min(b.method === "type" ? 30 : 20, o[k]);
   return o;
@@ -1543,7 +1550,9 @@ function builderHtml() {
     return s;
   };
   const bgHtml = () => {
-    let s = `<h3>${n.bg}. Background</h3>${sel("bg", opts(L.backgrounds), b.bg, "Choose a background", true)}`;
+    let s = `<h3>${n.bg}. Background</h3>${sel("bg", opts(bldBgs()), b.bg, "Choose a background", true)}`;
+    if (bg && bg.ed === "yours") s += `<p class="note">${esc([bg.desc, bg.skills.length && `Skills: ${listAnd(bg.skills.map(k => SKILL[k].name))}`, bg.tool && `Tool: ${bg.tool}`, bg.languages && `Languages: ${bg.languages}`,
+      bg.feat && `Origin feat: ${bg.feat}`, bg.feature && `Feature: ${bg.feature.name}`, bg.abilities.length && `Ability scores: ${listAnd(bg.abilities.map(k => AB_NAME[k]), "or")} (in step 4)`].filter(Boolean).join(". "))}.</p>`; else
     if (e14(bg)) s += `<p class="note">Skills: ${esc(listAnd(bg.skills.map(k => SKILL[k].name)))}.${bg.tool ? ` Tools: ${esc(bg.tool)}.` : ""} Languages: ${esc(bg.languages.toLowerCase())}. Feature: ${esc(bg.feature.name)}.</p>`;
     else if (bg) { const f = rFeat(bg.feat, "2024"); s += `<p class="note">Origin feat: <b>${esc(bg.feat)}</b>${f ? ` (${esc(f.desc.split(/(?<=\.)\s/)[0])})` : ""}. Skills: ${esc(listAnd(bg.skills.map(k => SKILL[k].name)))}. Tool: ${esc(bg.tool)}. Ability scores: ${esc(listAnd(bg.abilities.map(k => AB_NAME[k]), "or"))} (in step 4).</p>`; }
     else if (b.bg === OTHER) s += txt("bgT", "Background", "e.g. Sailor");
@@ -1580,8 +1589,8 @@ function builderHtml() {
     if (vals.length) h += `<p class="note">Give each score to an ability.</p><div class="row">${ABS.map(([k]) => `<label class="fld n"><span>${AB_SHORT[k]}</span><select data-bld="pick.${k}"><option value="">—</option>${vals.map((v, i) => `<option value="${i}" ${String(b.pick[k]) === String(i) ? "selected" : used.includes(String(i)) ? "disabled" : ""}>${v}</option>`).join("")}</select></label>`).join("")}</div>`;
   }
   // the increases, from wherever this build's rules put them
-  if (e14(sp) && bg && bg.ed === "2024") h += `<div class="lab">Increases from</div>${seg("asiFrom", [["bg", `the ${esc(bg.name)} background (2024)`], ["race", `the ${esc(sp.name)} race (2014)`]], b.asiFrom === "race" ? "race" : "bg")}`;
-  if (src === "bg") h += `<div class="lab">${esc(bg.name)}: ${esc(listAnd(bg.abilities.map(k => AB_NAME[k]), "or"))}</div>${seg("plan", [["21", "+2 to one, +1 to another"], ["111", "+1 to all three"]], b.plan)}${b.plan === "21" ? plus(bg.abilities) : ""}`;
+  if (e14(sp) && bgGivesAsi(bg)) h += `<div class="lab">Increases from</div>${seg("asiFrom", [["bg", `the ${esc(bg.name)} background (2024)`], ["race", `the ${esc(sp.name)} race (2014)`]], b.asiFrom === "race" ? "race" : "bg")}`;
+  if (src === "bg") h += `<div class="lab">${esc(bg.name)}: ${esc(listAnd(bg.abilities.map(k => AB_NAME[k]), "or"))}</div>${bg.abilities.length === 3 ? seg("plan", [["21", "+2 to one, +1 to another"], ["111", "+1 to all three"]], b.plan) : ""}${b.plan === "21" || bg.abilities.length !== 3 ? plus(bg.abilities) : ""}`;
   else if (src === "race" && sp.choose) h += `<div class="lab">${esc(sp.name)}: two other ability scores +1</div>${plus(allAbs.filter(k => !(k in sp.bonus)), "rc1", "rc2", 1, 1)}`;
   else if (src === "free") h += `<div class="lab">Ability score increases${mix ? " (the 2024 rule: +2 and +1)" : ` (if your ${only14 ? "race" : "background"} gives them)`}</div>${plus(allAbs)}`;
   h += `<p class="note" id="bldSc">${bldScNote()}</p>`;
@@ -1594,7 +1603,7 @@ function builderHtml() {
   h += `<h3>6. Equipment</h3>`;
   if (e14(cls)) h += `<div class="lab">${esc(cls.name)}${tag(cls)}</div>${cls.kit.map((line, i) => line["-"] ? `<p class="note" style="margin:2px 0 6px">${esc(line["-"])}</p>` : `<div style="margin-bottom:6px">${Object.entries(line).map(([k, t]) => `<label class="check"><input type="radio" name="bldk${i}" data-act="bldkit" data-i="${i}" data-v="${k}" ${(b.kit[i] || "a") === k ? "checked" : ""}> (${k}) ${esc(t)}</label>`).join("")}</div>`).join("")}`;
   else if (cls) h += `<div class="lab">${esc(cls.name)}${tag(cls)}</div>${Object.entries(cls.equipment).map(([k, t]) => `<label class="check"><input type="radio" name="bldeqc" data-act="bldset" data-f="eqC" data-v="${k}" ${b.eqC === k ? "checked" : ""}> (${k}) ${esc(t)}</label>`).join("")}`;
-  if (e14(bg)) h += `<div class="lab">${esc(bg.name)}${tag(bg)}</div><p class="note" style="margin:2px 0 6px">${esc(bg.equipment)}</p>`;
+  if (bg && typeof bg.equipment === "string") h += bg.equipment.trim() ? `<div class="lab">${esc(bg.name)}${tag(bg)}</div><p class="note" style="margin:2px 0 6px">${esc(bg.equipment)}</p>` : "";
   else if (bg) h += `<div class="lab">${esc(bg.name)}${tag(bg)}</div>${Object.entries(bg.equipment).map(([k, t]) => `<label class="check"><input type="radio" name="bldeqb" data-act="bldset" data-f="eqB" data-v="${k}" ${b.eqB === k ? "checked" : ""}> (${k}) ${esc(t)}</label>`).join("")}`;
   h += txt("eqT", cls || bg ? "Anything else they carry" : "What they carry", "e.g. Longsword, Shield, 2 Daggers, and 10 GP") + `<p class="note">Commas between things. What the SRD has comes with its stats; GP goes in the purse.${e14(cls) ? " Choices like “any simple weapon” come in to be named." : ""}</p>`;
   if (cls) {
@@ -1605,7 +1614,7 @@ function builderHtml() {
     }
   } else if (b.cls === OTHER) h += `<h3>7. Spells</h3><p class="note">If your class casts spells, add them from the Spells tab once they're made.</p>`;
   const langHint = [e14(sp) ? `${sp.name}: ${(sp.languages.match(/speak, read, and write ([^.]+)/i) || [, "see the race"])[1]}` : sp ? "Common, plus two the 2024 rules let you choose" : "",
-    e14(bg) && bg.languages ? `${bg.name}: ${bg.languages.toLowerCase()}` : ""].filter(Boolean).join("; ");
+    (e14(bg) || (bg && bg.ed === "yours")) && bg.languages ? `${bg.name}: ${bg.languages.toLowerCase()}` : ""].filter(Boolean).join("; ");
   h += `<h3>8. Who they are</h3><div class="row"><label class="fld"><span>Name</span><input data-bld="name" value="${esc(b.name)}"></label><label class="fld"><span>Alignment</span>${sel("align", ALIGNMENTS, b.align)}</label></div>
     <label class="fld"><span>Languages${langHint ? ` (${esc(langHint)})` : ""}</span><input data-bld="langs" value="${esc(b.langs)}"></label>`;
   const credits = [b.ed !== "2014" && creditHtml(), b.ed !== "2024" && `<p class="note" style="font-size:11.5px">${esc(SRD51_CREDIT)}</p>`].filter(Boolean).join("");
@@ -1642,7 +1651,7 @@ function bldMake() {
   for (const [k] of ABS) if (sc[k] == null) sc[k] = 10;
   const ch = blankChar(b.name.trim() || UNNAMED), races = [sp, sub].filter(Boolean);
   const kitText = cls ? (e14(cls) ? cls.kit.map((line, i) => line["-"] || line[b.kit[i] || "a"]) : [cls.equipment[b.eqC]]) : [];
-  const kit = [...kitText.map(bldItems), bg && bldItems(e14(bg) ? bg.equipment : bg.equipment[b.eqB]), bldItems(b.eqT)].filter(Boolean), items = kit.flatMap(k => k.items), acx = bldAC(items, sc, cls);
+  const kit = [...kitText.map(bldItems), bg && bldItems(typeof bg.equipment === "string" ? bg.equipment : bg.equipment[b.eqB]), bldItems(b.eqT)].filter(Boolean), items = kit.flatMap(k => k.items), acx = bldAC(items, sc, cls);
   const hd = cls ? cls.hd : +b.hd || 8, tough = races.some(r => r.traits.some(t => t.name === "Dwarven Toughness")) ? 1 : 0, hp = Math.max(1, hd + abMod(sc.con) + tough);
   const speciesName = e14(sp) || (!sp && b.ed === "2014") ? (subName || spName) + (b.lineage.trim() ? ` (${b.lineage.trim()})` : "") : spName + (sp && b.lineage.trim() ? ` (${b.lineage.trim()})` : "");
   const rules = cls ? cls.ed : b.ed === "2014" ? "2014" : "2024";
@@ -1657,8 +1666,8 @@ function bldMake() {
   ch.traits = [...races.flatMap(r => r.traits.filter(t => !/table$/.test(t.name)).map(t => ({ name: t.name, text: t.desc, src: r.name }))),
     ...(cls ? cls.features.filter(f => f.lv.includes(1) && !SKIP_FEATURE.test(f.name)).map(f => ({ name: f.name, text: f.desc, src: `${cls.name} 1` })) : []),
     ...(subcls && subAt1(cls) ? subcls.features.filter(f => f.lv.includes(1)).map(f => ({ name: f.name, text: f.desc, src: `${subcls.name} 1` })) : []),
-    ...(e14(bg) ? [{ name: bg.feature.name, text: bg.feature.desc, src: bg.name }]
-      : [bg && bg.feat, sp && sp.ed === "2024" && b.vfeat].filter(Boolean).map(n => { const f = rFeat(n, "2024"); return { name: n, text: f ? f.desc : "", src: "Origin feat" }; }))];
+    ...(bg && bg.feature ? [{ name: bg.feature.name, text: bg.feature.desc, src: bg.name }] : []),
+    ...[bg && bg.feat, sp && sp.ed === "2024" && b.vfeat].filter(Boolean).map(n => { const f = rFeat(n, "2024") || rFeat(n, "2014"); return { name: n, text: f ? f.desc : "", src: "Origin feat" }; })];
   ch.res = cls ? USE_COLS.filter(col => parseInt((cls.table[col] || {})["1"])).map(col => ({ id: uid("rs"), name: useName(col), max: parseInt(cls.table[col]["1"]), used: 0, rest: restOf(cls, col) })) : [];
   const tools = [cls && cls.tools, bg && bg.tool].filter(Boolean).join("; ");
   ch.story.profs = [cls && `Armor: ${cls.armor || "none"}`, cls && `Weapons: ${cls.weapons}`, tools && `Tools: ${tools}`, `Languages: ${b.langs}`].filter(Boolean).join("\n");
@@ -1673,6 +1682,148 @@ const TODO_DONE = { "a name": c => c.name.trim() && c.name !== UNNAMED, "a class
 const todoOf = c => (c.todo || []).filter(t => !(TODO_DONE[t] && TODO_DONE[t](c)));
 const todoHtml = c => { const t = todoOf(c); return t.length ? `<div class="panel" style="border:2px dashed var(--gold)"><b>Not finished yet.</b> Still to choose: ${esc(listAnd(t))}. Fill it in with Edit (top right).
   <div class="acts" style="margin-top:6px"><button class="btn small" data-act="tododone">It's done</button></div></div>` : ""; };
+
+/* ══ Your own backgrounds and roll tables (Joseph, 2026-11-01). Made here (the homebrew library, which syncs) or in the
+   Field Book's Rules tab (read straight from this device's storage, like its items). A background works in the
+   builder like the SRD's, and "Apply a background" gives one to a character already made, from a list of what it
+   would add. A roll table is rows like "01–02 | what happens": the library's are everyone's, a character's own
+   (c.tables) are theirs. ══ */
+const libOwn = () => (db.lib = db.lib || { spells: [], loot: [] });
+const ownBgs = () => (db.lib && db.lib.backgrounds) || [];
+const ownTables = () => (db.lib && db.lib.tables) || [];
+const libBackgrounds = () => mergeHb(ownBgs(), fromFB("backgrounds"));
+// a background of yours, shaped like the SRD's: ability scores and an origin feat if it gives them (2024 style), a
+// feature if it has one (2014 style), and its equipment as one list or an A/B choice
+const bgShape = x => ({ ...x, skills: x.skills || [], abilities: x.abilities || [], tool: x.tool || "", languages: x.languages || "", feat: x.feat || "",
+  feature: x.featureName ? { name: x.featureName, desc: x.featureText || "" } : null, equipment: x.eqB ? { A: x.eqA || "", B: x.eqB } : (x.eqA || "") });
+const yoursLabel = x => `${x.name} (${x.fb ? "Field Book" : "yours"})`;
+
+// "01–02 | You cast…", "1-5 Gold", "00 | …" (00 is 100); a line that doesn't start with a number joins the row above
+// (a table copied from a page), and lines before the first row (a heading) are skipped
+function parseTable(text) {
+  const rows = [], skipped = [], n = v => v === "00" ? 100 : +v;
+  for (const raw of String(text || "").split(/\r?\n/)) {
+    const l = raw.trim(); if (!l) continue;
+    const m = /^(\d{1,3})(?:\s*[–—-]\s*(\d{1,3}))?(?:\s*[|:.)\t]\s*|\s+)(.+)$/.exec(l);
+    if (m) { const a = n(m[1]), b = m[2] ? n(m[2]) : a; rows.push({ lo: Math.min(a, b), hi: Math.max(a, b), text: m[3].trim() }); }
+    else if (rows.length) rows[rows.length - 1].text += " " + l;
+    else skipped.push(l);
+  }
+  const die = rows.reduce((a, r) => Math.max(a, r.hi), 0), hit = new Array(die + 1).fill(0);
+  for (const r of rows) for (let k = r.lo; k <= r.hi; k++) hit[k]++;
+  return { rows, die, gaps: spans([...Array(die).keys()].map(k => k + 1).filter(k => !hit[k])), twice: spans([...Array(die).keys()].map(k => k + 1).filter(k => hit[k] > 1)), skipped };
+}
+// [3, 4, 5, 9] → ["3–5", "9"]
+function spans(ns) { const out = []; for (const k of ns) { const l = out[out.length - 1]; if (l && l[1] === k - 1) l[1] = k; else out.push([k, k]); } return out.map(([a, b]) => a === b ? `${a}` : `${a}–${b}`); }
+function tableNote(p) {
+  if (!p.rows.length) return "No rows yet: one per line, like “01–02 | what happens”.";
+  return [`d${p.die}, ${p.rows.length} row${p.rows.length === 1 ? "" : "s"}`, p.gaps.length && `nothing for ${listAnd(p.gaps)}`, p.twice.length && `more than one row for ${listAnd(p.twice)}`,
+    p.skipped.length && `skipped ${p.skipped.length === 1 ? "a line" : `${p.skipped.length} lines`} before the first row`].filter(Boolean).join("; ") + ".";
+}
+const tableRow = (p, k) => p.rows.find(r => k >= r.lo && k <= r.hi) || null;
+// every table this character can roll: their own, the library's, and the Field Book's
+const tablesFor = c => [...(c.tables || []).map(t => ({ ...t, where: "char" })), ...ownTables().map(t => ({ ...t, where: "lib" })), ...fromFB("tables").map(t => ({ ...t, where: "fb" }))];
+function rollTable(t) {
+  const p = parseTable(t.text), c = C(); if (!p.rows.length) return toast("That table has no rows yet.");
+  const k = rnd(p.die), row = tableRow(p, k);
+  R = { type: "table", label: t.name || "Table", tid: t.id, die: p.die, n: k, text: row ? row.text : "", at: Date.now() };
+  pushRoll(c); save(); showRoll();
+}
+// a row's dice ("2d6", "1d4 + 2") as buttons to roll
+const diceLinks = t => fmt(t).replace(/\b(\d*d\d+(?:\s*[+−-]\s*\d+)?)\b/g, m => `<button class="btn tiny" data-act="tdice" data-e="${esc(m)}">${esc(m)}</button>`);
+function tablesHtml(c) {
+  const ts = tablesFor(c), whose = t => t.where === "char" ? `${c.short || c.name}'s` : t.where === "fb" ? "Field Book" : "library";
+  return (ts.length ? ts.map(t => `<div class="card"><div class="atkrow"><span class="nm">${esc(t.name || "Table")}<span class="tag">${esc(whose(t))}</span><span class="sub">${esc(tableNote(parseTable(t.text)))}</span></span>
+      <button class="btn main" data-act="tblroll" data-id="${t.id}">Roll</button>${t.where === "fb" ? "" : `<button class="btn small" data-act="tbledit" data-id="${t.id}" data-w="${t.where}">Edit</button>`}</div></div>`).join("")
+    : `<p class="empty">No tables yet. Make one here, in the library on the PCs tab, or in the Field Book's Rules tab.</p>`)
+    + `<div class="row"><button class="btn grow" data-act="tbladd" data-w="char">+ A table for ${esc(c.short || c.name)}</button><button class="btn grow" data-act="tbladd" data-w="lib">+ One for everyone</button></div>`;
+}
+let TBL = null;   // the table being written: { w: "char" | "lib", id }
+const tblList = w => w === "char" ? (C().tables = C().tables || []) : (libOwn().tables = libOwn().tables || []);
+const tblObj = () => TBL ? tblList(TBL.w).find(t => t.id === TBL.id) || null : null;
+function tableFormHtml() {
+  const t = tblObj(); if (!t) return "";
+  return `<div class="rr-h">${TBL.w === "char" ? `${esc(C().short || C().name)}'s table` : "A table for everyone"}</div>
+    <label class="fld"><span>Name</span><input data-tbl="name" value="${esc(t.name)}" placeholder="Wild Magic Surge"></label>
+    <label class="fld"><span>The table: one row per line</span><textarea data-tbl="text" rows="12" placeholder="01–02 | What happens on a 1 or a 2&#10;03–04 | …&#10;…&#10;99–00 | What happens on a 99 or 100">${esc(t.text)}</textarea></label>
+    <p class="note" id="tblNote">${esc(tableNote(parseTable(t.text)))}</p>
+    <p class="note">The die is the highest number (00 is 100). A line that doesn't start with a number joins the row above, so a table copied from a page comes in whole. Dice in a row, like 2d6, can be tapped to roll.</p>
+    <button class="btn wide" data-act="tbltry">Roll it once</button><div id="tblTry"></div>
+    <div class="row"><button class="btn main grow" data-act="tbldone">Done</button><button class="btn danger" data-act="tbldel">Delete</button></div>`;
+}
+let BGE = null;   // the background of yours being written (its id)
+const bgObj = () => ownBgs().find(x => x.id === BGE) || null;
+function bgFormHtml() {
+  const x = bgObj(); if (!x) return "";
+  const box = (k, os) => `<div class="row" style="flex-wrap:wrap;gap:0 12px;margin-bottom:8px">${os.map(([v, l]) => `<label class="check" style="margin:2px 0"><input type="checkbox" data-bgm="${k}" data-v="${v}" ${(x[k] || []).includes(v) ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div>`;
+  const f = (k, label, ph, list) => `<label class="fld"><span>${label}</span><input data-bgf="${k}" ${list ? `list="${list}"` : ""} value="${esc(x[k] || "")}" placeholder="${esc(ph || "")}"></label>`;
+  const ta = (k, label, ph, rows) => `<label class="fld"><span>${label}</span><textarea data-bgf="${k}" rows="${rows || 3}" placeholder="${esc(ph || "")}">${esc(x[k] || "")}</textarea></label>`;
+  return `<div class="rr-h">Your background</div>
+    ${f("name", "Name", "Sailor")}${ta("desc", "What it is", "Years at sea, and what they taught you", 2)}
+    <div class="lab">Skill proficiencies</div>${box("skills", SKILLS.map(s => [s[0], s[1]]))}
+    <div class="row">${f("tool", "Tool proficiency", "Navigator's tools")}${f("languages", "Languages", "One of your choice")}</div>
+    <div class="lab">Ability scores it raises (2024 style: tick three; none for 2014 style, where the race gives them)</div>${box("abilities", ABS.map(([k, n]) => [k, n]))}
+    ${f("feat", "Origin feat (2024 style)", "Tough", "bgfeats")}<datalist id="bgfeats">${HAS_RULES ? [...RULES.feats, ...RULES["2014"].feats].map(q => `<option value="${esc(q.name)}">`).join("") : ""}</datalist>
+    ${f("featureName", "Feature (2014 style)", "Ship's Passage")}${ta("featureText", "What the feature does", "", 3)}
+    ${ta("eqA", "Equipment", "A belaying pin, 50 feet of silk rope, a lucky charm, and 10 GP", 2)}${f("eqB", "Or instead (B), if it offers a choice", "50 GP")}
+    <p class="note">Commas between things: what the SRD has comes in with its stats, and GP goes in the purse. Changes save as you type.</p>
+    <div class="row"><button class="btn main grow" data-act="bgdone">Done</button><button class="btn danger" data-act="bgdel">Delete</button></div>`;
+}
+// the library's own panel: your backgrounds and everyone's tables (the Field Book's are changed there)
+function ownLibHtml() {
+  const bgs = libBackgrounds(), ts = [...ownTables(), ...fromFB("tables")];
+  const fbNote = x => x.fb ? `<span class="sub">From the Field Book: change it there.</span>` : "";
+  return `<h3 style="margin-top:14px">Your backgrounds</h3>
+    ${bgs.length ? bgs.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc(listAnd((x.skills || []).map(k => (SKILL[k] || {}).name)))}${x.featureName ? ` · ${esc(x.featureName)}` : x.feat ? ` · ${esc(x.feat)}` : ""}</span>${fbNote(x)}</span>${x.fb ? "" : `<button class="btn small" data-act="bgedit" data-id="${x.id}">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet. They show in the builder's background list, marked as yours.</p>`}
+    <button class="btn wide" data-act="bgadd">+ A background</button>
+    <h3 style="margin-top:14px">Roll tables for everyone</h3>
+    ${ts.length ? ts.map(t => `<div class="card"><div class="atkrow"><span class="nm">${esc(t.name || "Table")}<span class="sub">${esc(tableNote(parseTable(t.text)))}</span>${fbNote(t)}</span>${t.fb ? "" : `<button class="btn small" data-act="tbledit" data-id="${t.id}" data-w="lib">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet. Every character can roll these from the Play tab's Roll tables.</p>`}
+    <button class="btn wide" data-act="tbladd" data-w="lib">+ A table</button>`;
+}
+// giving a character already made a background: what it would add, each ticked unless the sheet has it already;
+// ability scores and equipment start unticked (a sheet that's been played usually has them)
+let ABG = null;   // { key, picks: {}, plus2, plus1, eq }
+function applyBgList() {
+  return [...libBackgrounds().map(x => ({ ...bgShape(x), key: "hb:" + x.id, label: yoursLabel(x) })),
+    ...(HAS_RULES ? [...RULES.backgrounds.map(x => ({ ...x, key: x.name + "@2024", label: `${x.name} (2024)` })), ...RULES["2014"].backgrounds.map(x => ({ ...x, key: x.name + "@2014", label: `${x.name} (2014)` }))] : [])];
+}
+function applyBgItems(c, bg) {
+  const profs = String(c.story.profs || "").toLowerCase(), out = [{ k: "name", label: `Background: ${bg.name}${c.bg && c.bg !== bg.name ? ` (instead of ${c.bg})` : ""}`, had: c.bg === bg.name }];
+  for (const s of bg.skills || []) out.push({ k: "skill:" + s, label: `Skill: ${SKILL[s].name}`, had: skillLv(c, s) >= 1 });
+  if (bg.tool) out.push({ k: "tool", label: `Tool: ${bg.tool}`, had: profs.includes(bg.tool.toLowerCase()) });
+  if (bg.languages) out.push({ k: "langs", label: `Languages: ${bg.languages}`, had: profs.includes(bg.languages.toLowerCase()) });
+  if (bg.feature && bg.feature.name) out.push({ k: "feature", label: `Feature: ${bg.feature.name}`, had: c.traits.some(t => t.name === bg.feature.name) });
+  if (bg.feat) out.push({ k: "feat", label: `Origin feat: ${bg.feat}`, had: c.traits.some(t => t.name === bg.feat) });
+  if ((bg.abilities || []).length) out.push({ k: "asi", label: `Ability scores: +2 and +1 among ${listAnd(bg.abilities.map(k => AB_NAME[k]), "or")}`, off: true });
+  if (typeof bg.equipment === "string" ? bg.equipment.trim() : bg.equipment && Object.keys(bg.equipment).length) out.push({ k: "eq", label: "Its equipment", off: true });
+  return out;
+}
+function applyBgHtml() {
+  const c = C(), list = applyBgList(), bg = list.find(x => x.key === ABG.key) || null;
+  const sel = (k, os, cur) => `<select data-abg="${k}"><option value="">—</option>${os.map(([v, l]) => `<option value="${esc(v)}" ${cur === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  let h = `<div class="rr-h">Apply a background <small>${esc(c.short || c.name)}</small></div>
+    <label class="fld"><span>Background</span>${sel("key", list.map(x => [x.key, x.label]), ABG.key)}</label>`;
+  if (bg) {
+    h += `<p class="note">Tick what to add. What the sheet already has starts unticked, and so do ability scores and equipment, since a character already made usually has them.</p>`
+      + applyBgItems(c, bg).map(it => `<label class="check"><input type="checkbox" data-abgp="${it.k}" ${ABG.picks[it.k] ? "checked" : ""}> ${esc(it.label)}${it.had ? " <small>(already on the sheet)</small>" : ""}</label>`).join("");
+    if (ABG.picks.asi) h += `<div class="row"><label class="fld"><span>+2</span>${sel("plus2", bg.abilities.map(k => [k, AB_NAME[k]]), ABG.plus2)}</label><label class="fld"><span>+1</span>${sel("plus1", bg.abilities.filter(k => k !== ABG.plus2).map(k => [k, AB_NAME[k]]), ABG.plus1)}</label></div>`;
+    if (ABG.picks.eq && typeof bg.equipment !== "string") h += `<label class="fld"><span>Which equipment</span>${sel("eq", Object.entries(bg.equipment).map(([k, t]) => [k, `(${k}) ${t}`]), ABG.eq || "A")}</label>`;
+  }
+  return h + `<button class="btn wide main" data-act="abgapply" ${bg ? "" : "disabled"}>Apply</button><button class="btn wide" data-act="ovclose">Not now</button>`;
+}
+function applyBg(c) {
+  const bg = applyBgList().find(x => x.key === ABG.key); if (!bg) return;
+  const p = ABG.picks, did = [], addProf = line => { c.story.profs = [String(c.story.profs || "").trim(), line].filter(Boolean).join("\n"); };
+  if (p.name) { c.bg = bg.name; did.push("the name"); }
+  const sk = (bg.skills || []).filter(s => p["skill:" + s]); for (const s of sk) c.skills[s] = Math.max(1, skillLv(c, s)); if (sk.length) did.push(listAnd(sk.map(s => SKILL[s].name)));
+  if (p.tool) { addProf(`Tools: ${bg.tool}`); did.push(bg.tool); }
+  if (p.langs) { addProf(`Languages: ${bg.languages}`); did.push("languages"); }
+  if (p.feature) { c.traits.push({ name: bg.feature.name, text: bg.feature.desc, src: bg.name }); did.push(bg.feature.name); }
+  if (p.feat) { const f = rFeat(bg.feat, "2024") || rFeat(bg.feat, "2014"); c.traits.push({ name: bg.feat, text: f ? f.desc : "", src: "Origin feat" }); did.push(bg.feat); }
+  if (p.asi) for (const [k, v] of [[ABG.plus2, 2], [ABG.plus1, 1]]) if (k) { c.ab[k] = Math.min(20, (+c.ab[k] || 10) + v); did.push(`${AB_SHORT[k]} +${v}`); }
+  if (p.eq) { const kit = bldItems(typeof bg.equipment === "string" ? bg.equipment : bg.equipment[ABG.eq || "A"]); c.items.push(...kit.items); c.purse.gp = (+c.purse.gp || 0) + kit.gp; did.push(`${kit.items.length} item${kit.items.length === 1 ? "" : "s"}${kit.gp ? ` and ${kit.gp} gp` : ""}`); }
+  logIt(c, `Background ${bg.name}: ${did.length ? listAnd(did) : "nothing added"}`); ABG = null; save(); closeOv(); render(); toast(`${bg.name}: ${did.length ? listAnd(did) : "nothing"} added.`);
+}
 
 /* ── PCs: every character you play, on one shelf ── */
 function pcsHtml() {
@@ -1899,6 +2050,8 @@ function valOf(el) { if (el.dataset.t === "b") return el.checked; if (el.type ==
 document.addEventListener("input", e => {
   const el = e.target; const c = (el.dataset && el.dataset.ch && db.chars.find(x => x.id === el.dataset.ch)) || C();
   if (el.dataset && el.dataset.lib && db.lib) { setPath(db.lib, el.dataset.lib, el.value); save(); return; }
+  if (el.dataset && el.dataset.tbl && TBL) { const t = tblObj(); if (t) { t[el.dataset.tbl] = el.value; save(); const n = $("#tblNote"); if (n) n.textContent = tableNote(parseTable(t.text)); } return; }
+  if (el.dataset && el.dataset.bgf && BGE) { const x = bgObj(); if (x) { x[el.dataset.bgf] = el.value; save(); } return; }
   if (el.dataset.f && el.type !== "checkbox" && el.tagName !== "SELECT") { setPath(c, el.dataset.f, valOf(el)); save(); }
   if (el.dataset.wager) { ui.wager[el.dataset.wager] = el.value; const o = $("#wagerOut"); if (o) o.innerHTML = wagerOutHtml(c); }
   // the level-up: what's typed is kept as it's typed; only the hit-point line and the button change under the fingers
@@ -1923,6 +2076,11 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   const el = e.target; const c = (el.dataset && el.dataset.ch && db.chars.find(x => x.id === el.dataset.ch)) || C();
   if (el.dataset && el.dataset.lib) return;
+  if (el.dataset && (el.dataset.tbl || el.dataset.bgf)) return;
+  if (el.dataset && el.dataset.bgm && BGE) { const x = bgObj(); if (x) { const s = new Set(x[el.dataset.bgm] || []); if (el.checked) s.add(el.dataset.v); else s.delete(el.dataset.v); x[el.dataset.bgm] = [...s]; save(); } return; }
+  if (el.dataset && el.dataset.abg && ABG) { ABG[el.dataset.abg] = el.value; if (el.dataset.abg === "key") { const bg = applyBgList().find(x => x.key === el.value); ABG.picks = bg ? Object.fromEntries(applyBgItems(c, bg).map(it => [it.k, !it.had && !it.off])) : {}; ABG.plus2 = ABG.plus1 = ""; ABG.eq = "A"; }
+    if (el.dataset.abg === "plus2" && ABG.plus1 === el.value) ABG.plus1 = ""; $("#ov .box").innerHTML = applyBgHtml(); return; }
+  if (el.dataset && el.dataset.abgp && ABG) { ABG.picks[el.dataset.abgp] = el.checked; $("#ov .box").innerHTML = applyBgHtml(); return; }
   if (el.dataset.lu && LV && (el.tagName === "SELECT" || el.type === "checkbox")) {
     let v = el.type === "checkbox" ? el.checked : el.value;
     if (v === "__other") { v = (prompt("Type it:", "") || "").trim(); }
@@ -1968,7 +2126,7 @@ $("#libIn").onchange = async e => {
   const L = takeLibrary(d); if (!L) return toast("No library in that file: in the survey, Library → Send to the Field Book.");
   // the same entry brought in again replaces the old copy; the rest of what was there stays
   const old = db.lib || { spells: [], loot: [] }; const merge = (a, b) => a.filter(x => !b.some(y => y.id === x.id)).concat(b);
-  db.lib = { spells: merge(old.spells, L.spells), loot: merge(old.loot, L.loot), from: L.from || old.from || "", at: L.at };
+  db.lib = { spells: merge(old.spells, L.spells), loot: merge(old.loot, L.loot), from: L.from || old.from || "", at: L.at, backgrounds: old.backgrounds || [], tables: old.tables || [] };
   save(true); render(); toast(`Brought in ${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}.`);
 };
 $("#picIn").onchange = async e => {
@@ -2107,6 +2265,20 @@ document.addEventListener("click", e => {
     case "bldskill": { const k = el.dataset.k, n = bldSkillCap(); BLD.skills = BLD.skills.includes(k) ? BLD.skills.filter(x => x !== k) : BLD.skills.length < n ? BLD.skills.concat(k) : BLD.skills; showBuilder(); break; }
     case "bldspell": { const key = el.dataset.k, id = el.dataset.id; BLD[key] = BLD[key].includes(id) ? BLD[key].filter(x => x !== id) : BLD[key].concat(id); showBuilder(); break; }
     case "bldmake": bldMake(); break;
+    case "tblroll": { const t = tablesFor(c).find(x => x.id === el.dataset.id); if (t) rollTable(t); break; }
+    case "tblagain": { const t = R && tablesFor(c).find(x => x.id === R.tid); if (t) rollTable(t); break; }
+    case "tdice": rollPlain(R && R.label ? R.label : "Roll", el.dataset.e); break;
+    case "tbladd": { const t = { id: uid("tb"), name: "", text: "" }; tblList(el.dataset.w).push(t); TBL = { w: el.dataset.w, id: t.id }; save(); openOv(tableFormHtml(), "table"); break; }
+    case "tbledit": TBL = { w: el.dataset.w, id: el.dataset.id }; openOv(tableFormHtml(), "table"); break;
+    case "tbltry": { const t = tblObj(), p = t && parseTable(t.text); if (!p || !p.rows.length) { toast("No rows yet."); break; } const k = rnd(p.die), row = tableRow(p, k); $("#tblTry").innerHTML = `<p class="verdict ${row ? "ok" : ""}">d${p.die}: ${k}. ${esc(row ? row.text : "No row for that number.")}</p>`; break; }
+    case "tbldone": { const t = tblObj(); if (t && !String(t.name).trim() && !String(t.text).trim()) { const L = tblList(TBL.w); L.splice(L.indexOf(t), 1); } else if (t && !String(t.name).trim()) t.name = "Table"; TBL = null; save(); closeOv(); render(); break; }
+    case "tbldel": { const t = tblObj(); if (t && confirm(`Delete ${t.name || "this table"}?`)) { const L = tblList(TBL.w); L.splice(L.indexOf(t), 1); TBL = null; save(); closeOv(); render(); } break; }
+    case "bgadd": { const x = { id: uid("bg"), name: "", skills: [], abilities: [] }; (libOwn().backgrounds = libOwn().backgrounds || []).push(x); BGE = x.id; save(); openOv(bgFormHtml(), "bgform"); break; }
+    case "bgedit": BGE = el.dataset.id; openOv(bgFormHtml(), "bgform"); break;
+    case "bgdone": { const x = bgObj(); if (x && !String(x.name || "").trim()) { const L = libOwn().backgrounds; L.splice(L.indexOf(x), 1); toast("Not kept: it had no name."); } BGE = null; save(); closeOv(); render(); break; }
+    case "bgdel": { const x = bgObj(); if (x && confirm(`Delete ${x.name || "this background"}? Characters who have it keep what it gave them.`)) { const L = libOwn().backgrounds; L.splice(L.indexOf(x), 1); BGE = null; save(); closeOv(); render(); } break; }
+    case "applybg": ABG = { key: "", picks: {}, plus2: "", plus1: "", eq: "A" }; openOv(applyBgHtml(), "applybg"); break;
+    case "abgapply": applyBg(c); break;
     case "tododone": c.todo = []; save(); render(); toast("Marked as finished."); break;
     case "tosurvey": exportAll(db.chars.find(x => x.id === el.dataset.id)); toast("In the survey: Party tab → Bring in from the Character Book…", 4000); break;
     case "levelupof": db.cur = el.dataset.id; save(); render(); startLevelUp(C()); break;
@@ -2117,7 +2289,7 @@ document.addEventListener("click", e => {
     case "lures": { const r = c.res.find(x => x.id === el.dataset.id); LV.res[r.id] = Math.max(0, (LV.res[r.id] ?? r.max) + +el.dataset.d); showLevelUp(c); break; }
     case "luapply": applyLevelUp(c); break;
     case "libin": $("#libIn").click(); break;
-    case "libclear": if (confirm("Forget the homebrew? Spells and items already on a sheet stay there.")) { db.lib = null; save(); render(); } break;
+    case "libclear": if (confirm("Forget the survey's homebrew? Spells and items already on a sheet stay there, and so do your own backgrounds and tables.")) { db.lib = ownBgs().length || ownTables().length ? { spells: [], loot: [], backgrounds: ownBgs(), tables: ownTables() } : null; save(); render(); } break;
     case "pkownspell": { const nm = prompt("The spell's name?"); if (!nm) break; closeOv(); const lv = parseInt(prompt("Its level (0 for a cantrip)?", "1"), 10) || 0; const s = { id: uid("sp"), name: nm, lvl: lv, text: "", time: "1 action" }; c.spells.push(s); ui.edit = "spell:" + s.id; save(); render(); break; }
     // edit sheet
     case "saveprof": { const ab = el.dataset.ab; c.saveProf = c.saveProf.includes(ab) ? c.saveProf.filter(x => x !== ab) : c.saveProf.concat(ab); save(); render(); break; }
