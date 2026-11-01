@@ -1,5 +1,5 @@
 // Service worker: caches the whole app so it opens instantly, even offline.
-const CACHE = "character-book-v6";
+const CACHE = "character-book-v7";
 const ASSETS = ["./", "./index.html", "./srd.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png",
   "./pictures/auspicious-cart-1.png", "./pictures/auspicious-cart-2.png", "./pictures/auspicious-cart-3.png"];
 

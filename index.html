@@ -241,7 +241,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 6;
+const VERSION = 7;
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -794,7 +794,8 @@ function playHtml(c) {
     ${c.res.map(r => `<div class="res"><span class="nm">${esc(r.name)}<small>${resLeft(r)} of ${r.max} · ${r.rest === "short" ? "short or long rest" : r.rest === "one" ? "one back each short rest, all on a long" : r.rest === "long" ? "long rest" : "doesn't come back on its own"}${r.note ? " · " + esc(r.note) : ""}</small></span>${r.max <= 12 ? pips(r.max, r.used, "res", `data-id="${r.id}"`) : `<button class="btn tiny" data-act="resn" data-id="${r.id}" data-d="1">Use</button><span class="big">${resLeft(r)}</span><button class="btn tiny" data-act="resn" data-id="${r.id}" data-d="-1">+1</button>`}</div>`).join("")}
     <div class="res"><span class="nm">Hit dice (d${c.hd.die})<small>${c.hd.max - c.hd.used} of ${c.hd.max}</small></span>${pips(c.hd.max, c.hd.used, "hd", "")}</div>
     ${res(c, "Lucky") ? `<div class="row" style="margin:8px 0"><button class="btn small" data-act="luckvs">Lucky: an attack against me</button></div>` : ""}
-    <div class="row" style="margin:10px 0"><button class="btn grow" data-act="short">Short rest…</button><button class="btn grow" data-act="long">Long rest</button></div>`;
+    <div class="row" style="margin:10px 0"><button class="btn grow" data-act="short">Short rest…</button><button class="btn grow" data-act="long">Long rest</button></div>
+    ${(+c.level || 1) < 20 ? `<button class="btn wide" data-act="levelup">Level up to ${(+c.level || 1) + 1}…</button>` : ""}`;
   const atkBody = c.attacks.map((a, i) => { const am = a.ammo ? c.items.find(x => x.id === a.ammo) : null;
     const main = a.save ? `<button class="btn main" data-act="atksave" data-i="${i}">${AB_SHORT[a.save.ab] || a.save.ab} ${esc(a.save.dc)}</button>`
       : rollsToHit(a) ? `<button class="btn main" data-act="atk" data-i="${i}"><span class="big">${sg(atkOf(c, a))}</span></button>` : "";
@@ -840,6 +841,7 @@ function editHtml(c) {
   return `<p class="note">Changes save as you type.</p>
     <div class="row">${fld("Name", "name", c.name)}${fld("Short name", "short", c.short || "")}</div>
     <div class="row">${fld("Player", "player", c.player || "")}${fld("Campaign", "campaign", c.campaign || "")}</div>
+    <div class="row"><label class="fld"><span>Rules</span><select data-f="rules">${["2024", "2014"].map(r => `<option ${(c.rules || "2024") === r ? "selected" : ""}>${r}</option>`).join("")}</select></label>${fld("Extra HP each level", "hpPerLevel", c.hpPerLevel || 0, { n: 1 })}</div>
     <div class="row">${pick("Species", "species", SPECIES, c.species)}${pick("Class", "cls", CLASSES, c.cls)}${fld("Level", "level", c.level, { n: 1 })}</div>
     <div class="row">${pick("Subclass", "subcls", SUBCLASSES[c.cls] ? [SUBCLASSES[c.cls]] : [], c.subcls)}${pick("Background", "bg", BACKGROUNDS, c.bg)}${pick("Alignment", "align", ALIGNMENTS, c.align)}</div>
     <div class="row">${fld("Armor class", "ac", c.ac, { n: 1 })}${fld("Speed", "speed", c.speed, { n: 1 })}${fld("HP max", "hpMax", c.hpMax, { n: 1 })}${fld("Hit dice", "hd.max", c.hd.max, { n: 1 })}${fld("Die", "hd.die", c.hd.die, { n: 1 })}</div>
@@ -1097,7 +1099,7 @@ function pickerHtml(kind) {
     <input id="pkQ" placeholder="${kind === "spell" ? "Search spells" : "Search weapons"}" value="${esc(ui_pk.q)}" style="margin-bottom:8px">
     ${kind === "spell" ? `<div class="row" style="margin-bottom:8px;align-items:center"><label class="check" style="margin:0"><input type="checkbox" id="pkCls" ${ui_pk.cls ? "checked" : ""}> Only ${esc(c.cls || "my class")} spells</label>
       <select id="pkLv" style="width:auto"><option value="">Any level</option>${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => `<option value="${l}" ${ui_pk.lv === String(l) ? "selected" : ""}>${l ? ord(l) + " level" : "Cantrips"}</option>`).join("")}</select></div>` : ""}
-    <div id="pkOut">${pickerResults(kind)}</div>
+    ${ui_pk.note && kind === "spell" ? `<p class="verdict ok">${esc(ui_pk.note)}</p>` : ""}<div id="pkOut">${pickerResults(kind)}</div>
     <button class="btn wide" data-act="${kind === "spell" ? "pkownspell" : "pkownatk"}">${kind === "spell" ? "A spell of your own…" : "An attack of your own"}</button>
     ${creditHtml()}<button class="btn wide" data-act="ovclose">Close</button>`;
 }
@@ -1122,6 +1124,112 @@ function itemSuggestHtml(q) {
   return search(itemPool(), name, 8).map(x => `<button class="card tap" data-act="pkitem" data-id="${esc(x.id)}" style="padding:7px 10px"><span class="nm" style="font-size:15.5px">${m ? m[1] + " × " : ""}${esc(x.name)}${x.hb ? `<span class="tag g">Homebrew</span>` : x.rarity ? `<span class="tag g">${esc(x.rarity)}</span>` : ""}</span><span class="sub">${esc([x.kind, x.value, /attunement/i.test(x.att || "") || x.attune === true ? "attunement" : ""].filter(Boolean).join(" · "))}</span></button>`).join("");
 }
 
+/* ══ level up: what changes by itself, and what's yours to decide ══
+   The tables below are the same in the 2014 and 2024 Player's Handbooks unless a line says otherwise. Class features
+   level by level aren't in the SRD data the app has, so the level-up gives a place to add them rather than guessing. */
+const FULL_SLOTS = [null, [2], [3], [4, 2], [4, 3], [4, 3, 2], [4, 3, 3], [4, 3, 3, 1], [4, 3, 3, 2], [4, 3, 3, 3, 1], [4, 3, 3, 3, 2], [4, 3, 3, 3, 2, 1], [4, 3, 3, 3, 2, 1],
+  [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1, 1], [4, 3, 3, 3, 3, 1, 1, 1, 1], [4, 3, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 3, 2, 2, 1, 1]];
+// Paladin and Ranger: from 2nd level in 2014; the 2024 books give them 2 first-level slots at 1st
+const HALF_SLOTS = [null, [2], [2], [3], [3], [4, 2], [4, 2], [4, 3], [4, 3], [4, 3, 2], [4, 3, 2], [4, 3, 3], [4, 3, 3], [4, 3, 3, 1], [4, 3, 3, 1], [4, 3, 3, 2], [4, 3, 3, 2], [4, 3, 3, 3, 1], [4, 3, 3, 3, 1], [4, 3, 3, 3, 2], [4, 3, 3, 3, 2]];
+const FULL_CASTERS = ["Bard", "Cleric", "Druid", "Sorcerer", "Wizard"], HALF_CASTERS = ["Paladin", "Ranger"];
+const CANTRIP_CLASSES = ["Bard", "Cleric", "Druid", "Sorcerer", "Warlock", "Wizard"];
+const PREPARE_2014 = { Cleric: "wis", Druid: "wis", Wizard: "int" }; // 2014: ability modifier + level (Paladin: + half the level)
+const pactAt = L => ({ n: L >= 17 ? 4 : L >= 11 ? 3 : L >= 2 ? 2 : 1, lvl: Math.min(5, Math.ceil(L / 2)) });
+function slotsAt(c, L) {
+  if (c.pact || c.cls === "Warlock") { const p = pactAt(L); return { [p.lvl]: p.n }; }
+  const t = FULL_CASTERS.includes(c.cls) ? FULL_SLOTS : HALF_CASTERS.includes(c.cls) ? HALF_SLOTS : null; if (!t) return null;
+  if (t === HALF_SLOTS && L === 1 && c.rules === "2014") return {};
+  return Object.fromEntries(t[L].map((n, i) => [i + 1, n]));
+}
+const asiAt = (c, L) => [4, 8, 12, 16, 19].includes(L) || (c.cls === "Fighter" && [6, 14].includes(L)) || (c.cls === "Rogue" && L === 10);
+const subclassAt = c => c.rules === "2014" ? ({ Cleric: 1, Sorcerer: 1, Warlock: 1, Druid: 2, Wizard: 2 }[c.cls] || 3) : 3;
+const slotLine = s => Object.keys(s || {}).filter(k => s[k]).map(k => `${ord(+k)} ${s[k]}`).join(" · ") || "none";
+let LV = null; // the level-up being worked out
+function startLevelUp(c) {
+  if ((+c.level || 1) >= 20) return toast("Already 20th level.");
+  LV = { hp: null, how: "", asi: "two", a: "", b: "", feat: "", featText: "", subcls: "", feats: [], res: {}, atk: {} };
+  openOv(levelUpHtml(c), "levelup");
+}
+function levelUpHtml(c) {
+  const L = +c.level || 1, N = L + 1, die = c.hd.die, con = mod(c, "con"), avg = die / 2 + 1, extra = +c.hpPerLevel || 0;
+  const pOld = prof(c), pNew = +c.profBonus ? pOld : 2 + Math.floor((N - 1) / 4);
+  const sOld = slotsAt(c, L), sNew = slotsAt(c, N);
+  const newTop = sNew && Math.max(0, ...Object.keys(sNew).map(Number)) > Math.max(0, ...Object.keys(sOld || {}).map(Number)) ? Math.max(...Object.keys(sNew).map(Number)) : 0;
+  const auto = [`Hit dice: ${N}d${die}`, pNew !== pOld ? `Proficiency bonus ${sg(pOld)} → ${sg(pNew)}` : "",
+    sNew ? `${c.pact || c.cls === "Warlock" ? "Pact slots" : "Spell slots"}: ${slotLine(sNew)}${slotLine(sNew) !== slotLine(sOld) ? ` (was ${slotLine(sOld)})` : ""}` : "",
+    [5, 11, 17].includes(N) && c.spells.some(s => s.lvl === 0 && s.roll && s.roll.cantrip) ? "Cantrip damage goes up a die" : "",
+    c.res.filter(r => r.byLevel).map(r => `${r.name}: ${N}`).join(", ")].filter(Boolean);
+  const abSel = (k, cur) => `<select data-lu="${k}" style="width:auto">${`<option value="">—</option>` + ABS.map(([a, n]) => `<option value="${a}" ${cur === a ? "selected" : ""} ${(+c.ab[a] || 0) >= 20 ? "disabled" : ""}>${n} (${c.ab[a]})</option>`).join("")}</select>`;
+  const isCaster = c.spells.length || sNew; const prep = c.rules === "2014" && PREPARE_2014[c.cls];
+  let h = `<div class="rr-h">Level up <small>${esc(c.cls)} ${L} → ${N}${c.rules ? ` · ${esc(c.rules)} rules` : ""}</small></div>
+    <p class="note"><b>By itself:</b> ${esc(auto.join("; "))}.</p>
+    <h3>Hit points</h3>
+    <div class="row" style="margin-bottom:8px"><button class="btn" data-act="luroll">Roll the d${die}</button><button class="btn" data-act="luavg">Take the average (${avg})</button>
+      <label class="fld n" style="margin:0"><span>Or the die</span><input type="number" inputmode="numeric" min="1" max="${die}" data-lu="hp" value="${LV.hp ?? ""}"></label></div>
+    <div id="luHp">${luHpHtml(c)}</div>
+    <label class="fld" style="max-width:300px"><span>Extra each level (Tough, a hill dwarf…)</span><input type="number" inputmode="numeric" data-lu="extra" value="${extra || ""}"></label>`;
+  if (asiAt(c, N)) h += `<h3>Ability Score Improvement${N === 19 && c.rules !== "2014" ? " (2024: or an Epic Boon)" : ""}</h3>
+    <div class="seg" style="margin-bottom:8px">${[["two", "+1 to two"], ["one", "+2 to one"], ["feat", "A feat instead"]].map(([k, l]) => `<button class="${LV.asi === k ? "on" : ""}" data-act="luasi" data-k="${k}">${l}</button>`).join("")}</div>
+    ${LV.asi === "feat" ? `<div class="row">${`<label class="fld"><span>Feat</span><input data-lu="feat" value="${esc(LV.feat)}"></label>`}</div><label class="fld"><span>What it does</span><textarea data-lu="featText" rows="3">${esc(LV.featText)}</textarea></label><p class="note">If the feat raises a score, change it in Edit the sheet after.</p>`
+      : `<div class="row" style="margin-bottom:10px;align-items:center">${abSel("a", LV.a)}${LV.asi === "two" ? abSel("b", LV.b) : ""}<span class="note" style="margin:0">Scores can't go over 20.</span></div>`}`;
+  if (N === subclassAt(c) && !c.subcls) h += `<h3>Subclass</h3><div class="row">${`<label class="fld"><span>Your ${esc(c.cls)} subclass</span><select data-lu="subcls"><option value="">—</option>${SUBCLASSES[c.cls] ? `<option ${LV.subcls === SUBCLASSES[c.cls] ? "selected" : ""}>${esc(SUBCLASSES[c.cls])}</option>` : ""}<option value="__other">Other…</option>${LV.subcls && LV.subcls !== SUBCLASSES[c.cls] ? `<option selected>${esc(LV.subcls)}</option>` : ""}</select></label>`}</div>`;
+  if (isCaster) {
+    const lines = [newTop ? `You can now cast ${ord(newTop)}-level spells.` : "",
+      CANTRIP_CLASSES.includes(c.cls) && [4, 10].includes(N) ? "You learn one more cantrip." : "",
+      prep ? `You can prepare ${Math.max(1, mod(c, PREPARE_2014[c.cls]) + N)} spells now (${AB_SHORT[PREPARE_2014[c.cls]]} ${sg(mod(c, PREPARE_2014[c.cls]))} + level ${N}), one more than before, not counting domain or always-prepared spells.`
+        : "Your class table says how many spells you know or prepare at this level; you may also swap one."].filter(Boolean);
+    h += `<h3>Spells</h3><p class="note">${esc(lines.join(" "))} After you level up, the spell list opens so you can add them.</p>`;
+  }
+  h += `<h3>Your ${esc(c.cls)}'s new features</h3><p class="note">Your class table lists what ${N}th level gives a ${esc(c.cls)}${c.subcls ? ` and ${esc(c.subcls)}` : ""}. The app doesn't have the class tables, so add them here.</p>
+    ${LV.feats.map((f, i) => `<div class="panel" style="background:var(--paper-lit)"><label class="fld"><span>Feature</span><input data-lu="feats.${i}.name" value="${esc(f.name)}"></label><label class="fld"><span>What it does</span><textarea data-lu="feats.${i}.text" rows="2">${esc(f.text)}</textarea></label>
+      <div class="row" style="margin-bottom:8px;align-items:center"><label class="check" style="margin:0"><input type="checkbox" data-lu="feats.${i}.uses" ${f.uses ? "checked" : ""}> It has uses</label>${f.uses ? `<input type="number" inputmode="numeric" data-lu="feats.${i}.max" value="${f.max || 1}" style="width:70px"><select data-lu="feats.${i}.rest" style="width:auto">${[["long", "back on a long rest"], ["short", "short or long rest"], ["one", "one per short rest"]].map(([k, l]) => `<option value="${k}" ${f.rest === k ? "selected" : ""}>${l}</option>`).join("")}</select>` : ""}</div></div>`).join("")}
+    <button class="btn wide" data-act="lufeat">+ A feature</button>`;
+  const grow = c.res.filter(r => !r.byLevel);
+  if (grow.length) h += `<p class="note" style="margin-top:6px">Did any of these grow?</p>${grow.map(r => { const v = LV.res[r.id] ?? r.max; return `<div class="res"><span class="nm">${esc(r.name)}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="-1">−</button><span class="big">${v}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="1">+</button></div>`; }).join("")}`;
+  const written = c.attacks.filter(a => asWritten(a));
+  if (written.length) h += `<p class="note" style="margin-top:10px">Attacks written as on the sheet don't follow the level: change any that do (Sneak Attack, a proficiency bonus).</p>${written.map(a => `<div class="row"><span class="grow" style="align-self:center">${esc(a.name)}</span>${a.save ? "" : `<label class="fld n"><span>To hit</span><input type="number" data-lu="atk.${a.id}.hit" value="${esc(LV.atk[a.id]?.hit ?? a.hit ?? "")}"></label>`}<label class="fld n" style="flex:0 0 110px"><span>Damage</span><input data-lu="atk.${a.id}.dmgx" value="${esc(LV.atk[a.id]?.dmgx ?? a.dmgx ?? "")}"></label></div>`).join("")}`;
+  h += `<div style="height:8px"></div><div id="luGo">${luGoHtml(c)}</div><button class="btn wide" data-act="ovclose">Not now</button>`;
+  return h;
+}
+// redraw the panel where it is (a choice that changes what's asked)
+function showLevelUp(c) { const b = $("#ov .box"); const top = b.scrollTop; b.innerHTML = levelUpHtml(c); b.scrollTop = top; }
+const luGain = c => LV.hp == null || LV.hp === "" ? null : Math.max(1, +LV.hp + mod(c, "con")) + (+c.hpPerLevel || 0);
+function luHpHtml(c) {
+  const g = luGain(c), con = mod(c, "con"), extra = +c.hpPerLevel || 0;
+  return g != null ? `<p class="verdict ok">+${g} hit points (${LV.how || `rolled ${LV.hp}`}${con ? ` ${sg(con)} Con` : ""}${extra ? ` ${sg(extra)} extra` : ""}): ${hpMaxOf(c)} → ${hpMaxOf(c) + g}.</p>`
+    : `<p class="note">Roll it, take the average, or type the die you rolled; Con (${sg(con)}) is added.</p>`;
+}
+function luGoHtml(c) {
+  const N = (+c.level || 1) + 1, g = luGain(c);
+  const ready = g != null && (!asiAt(c, N) || (LV.asi === "feat" ? LV.feat.trim() : LV.asi === "one" ? LV.a : LV.a && LV.b && LV.a !== LV.b));
+  return `<button class="btn wide main" data-act="luapply" ${ready ? "" : "disabled"}>Reach level ${N}</button>
+    ${ready ? "" : `<p class="note" style="text-align:center">${g == null ? "Hit points first." : "Pick the ability score increase."}</p>`}`;
+}
+function applyLevelUp(c) {
+  const L = +c.level || 1, N = L + 1, gain = luGain(c);
+  const did = [`hit points +${gain}`];
+  c.level = N; c.hpMax = (+c.hpMax || 0) + gain; c.hp = (+c.hp || 0) + gain; c.hd.max = N;
+  const s = slotsAt(c, N);
+  if (s) { const old = c.slots; c.slots = {}; for (const k of Object.keys(s)) c.slots[k] = { max: s[k], used: Math.min((old[k] || {}).used || 0, s[k]) }; did.push(`slots ${slotLine(s)}`); }
+  if ((c.pact || c.cls === "Warlock") && { 11: 6, 13: 7, 15: 8, 17: 9 }[N]) { const lv = { 11: 6, 13: 7, 15: 8, 17: 9 }[N]; c.res.push({ id: uid("rs"), name: `Mystic Arcanum (${ord(lv)} level)`, max: 1, used: 0, rest: "long" }); did.push(`Mystic Arcanum (${ord(lv)})`); }
+  c.res.forEach(r => { if (r.byLevel) r.max = N; else if (LV.res[r.id] != null) r.max = LV.res[r.id]; });
+  if (asiAt(c, N)) {
+    if (LV.asi === "feat") { c.traits.push({ name: LV.feat.trim(), text: LV.featText.trim(), src: `Feat, level ${N}` }); did.push(`feat: ${LV.feat.trim()}`); }
+    else { const add = LV.asi === "one" ? [[LV.a, 2]] : [[LV.a, 1], [LV.b, 1]]; for (const [k, v] of add) c.ab[k] = Math.min(20, (+c.ab[k] || 10) + v); did.push(add.map(([k, v]) => `${AB_SHORT[k]} +${v}`).join(", ")); }
+  }
+  if (LV.subcls) { c.subcls = LV.subcls; did.push(LV.subcls); }
+  for (const f of LV.feats.filter(f => f.name && f.name.trim())) {
+    c.traits.push({ name: f.name.trim(), text: (f.text || "").trim(), src: `${c.cls} ${N}` }); did.push(f.name.trim());
+    if (f.uses) c.res.push({ id: uid("rs"), name: f.name.trim(), max: +f.max || 1, used: 0, rest: f.rest || "long" });
+  }
+  for (const [id, v] of Object.entries(LV.atk)) { const a = c.attacks.find(x => x.id === id); if (!a) continue; if (v.hit !== undefined && v.hit !== "") a.hit = +v.hit; if (v.dmgx) a.dmgx = v.dmgx; }
+  logIt(c, `Reached level ${N}: ${did.join("; ")}`);
+  c.sessions.push({ id: uid("ss"), date: today(), title: `Level ${N}`, text: `${c.short || c.name} reached level ${N}.\n\n${did.map(d => "- " + d).join("\n")}` });
+  const caster = c.spells.length || s; LV = null; save(); closeOv();
+  toast(`Level ${N}!`, 3000);
+  if (caster) { ui.tab = "spells"; render(); ui_pk.q = ""; ui_pk.lv = ""; ui_pk.note = `Level ${N}: add your new spells.`; openOv(pickerHtml("spell"), "pick:spell"); }
+}
+
 /* ── PCs: every character you play, on one shelf ── */
 function pcsHtml() {
   const cards = db.chars.map(ch => {
@@ -1132,6 +1240,7 @@ function pcsHtml() {
       <span class="sub">HP ${ch.hp}/${hpMaxOf(ch)}${ch.temp ? ` +${ch.temp}` : ""} · AC ${acOf(ch)}${left ? ` · ${left} slot${left === 1 ? "" : "s"}` : ""} · ${gpText(purseCp(ch.purse))}${ch.conc ? ` · ◉ ${esc(ch.conc)}` : ""}</span>
       ${ch.player || ch.campaign ? `<span class="sub">${esc([ch.campaign, ch.player ? "played by " + ch.player : ""].filter(Boolean).join(" · "))}</span>` : ""}
       <div class="acts"><button class="btn small ${on ? "" : "main"}" data-act="switchpc" data-id="${ch.id}">${on ? "Play" : "Play them"}</button>
+        ${(+ch.level || 1) < 20 ? `<button class="btn small" data-act="levelupof" data-id="${ch.id}">Level up…</button>` : ""}
         ${db.chars.length > 1 ? `<button class="btn small danger" data-act="delpc" data-id="${ch.id}">Delete…</button>` : ""}</div></div>`;
   }).join("");
   return `<p class="note">Every character you play. Tap one to play them; the other tabs follow whoever is playing now.</p>${cards}
@@ -1154,7 +1263,7 @@ function menuHtml() {
 }
 function blankChar(name) {
   return { id: uid("ch"), name, short: "", species: "", cls: "Fighter", subcls: "", level: 1, bg: "", align: "", ab: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
-    saveProf: [], skills: {}, ac: 10, acNote: "", speed: 30, initBonus: 0, hpMax: 10, hp: 10, temp: 0, hd: { die: 10, max: 1, used: 0 }, death: { ok: 0, fail: 0 },
+    rules: "2024", hpPerLevel: 0, saveProf: [], skills: {}, ac: 10, acNote: "", speed: 30, initBonus: 0, hpMax: 10, hp: 10, temp: 0, hd: { die: 10, max: 1, used: 0 }, death: { ok: 0, fail: 0 },
     conds: [], exh: 0, conc: null, effects: [], res: [], slots: {}, attacks: [], spells: [], traits: [], items: [], purse: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }, debtCp: 0, marked: false,
     log: [], sessions: [], people: [], story: { profs: "", traits: "", ideals: "", bonds: "", flaws: "", looks: "", backstory: "", more: "" }, rolls: [], inspiration: false };
 }
@@ -1185,6 +1294,13 @@ document.addEventListener("input", e => {
   const el = e.target; const c = C();
   if (el.dataset.f && el.type !== "checkbox" && el.tagName !== "SELECT") { setPath(c, el.dataset.f, valOf(el)); save(); }
   if (el.dataset.wager) { ui.wager[el.dataset.wager] = el.value; const o = $("#wagerOut"); if (o) o.innerHTML = wagerOutHtml(c); }
+  // the level-up: what's typed is kept as it's typed; only the hit-point line and the button change under the fingers
+  if (el.dataset.lu && LV && el.type !== "checkbox" && el.tagName !== "SELECT") {
+    if (el.dataset.lu === "extra") c.hpPerLevel = +el.value || 0;
+    else { setPath(LV, el.dataset.lu, el.value); if (el.dataset.lu === "hp") LV.how = ""; }
+    if (el.dataset.lu === "hp" || el.dataset.lu === "extra") { save(); $("#luHp").innerHTML = luHpHtml(c); }
+    $("#luGo").innerHTML = luGoHtml(c);
+  }
   if (el.id === "pkQ") { ui_pk.q = el.value; const o = $("#pkOut"); if (o) o.innerHTML = pickerResults(ovKind === "pick:spell" ? "spell" : "attack"); }
   if (el.id === "newItem") { const o = $("#itemSug"); if (o) o.innerHTML = itemSuggestHtml(el.value); }
   if (el.id === "pFilter") { ui.filter = el.value; clearTimeout(ui.ft); ui.ft = setTimeout(() => { render(); const f = $("#pFilter"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }, 300); }
@@ -1192,6 +1308,11 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("change", e => {
   const el = e.target; const c = C();
+  if (el.dataset.lu && LV && (el.tagName === "SELECT" || el.type === "checkbox")) {
+    let v = el.type === "checkbox" ? el.checked : el.value;
+    if (v === "__other") { v = (prompt("Type it:", "") || "").trim(); }
+    setPath(LV, el.dataset.lu, v); showLevelUp(c); return;
+  }
   if (el.id === "pkCls" || el.id === "pkLv") { ui_pk.cls = $("#pkCls").checked; ui_pk.lv = $("#pkLv").value; $("#pkOut").innerHTML = pickerResults("spell"); return; }
   // a dropdown's Other…: type your own, which then stays in the list for that field
   if (el.tagName === "SELECT" && el.value === "__other") { const was = getPath(c, el.dataset.f) || ""; const v = prompt("Type it:", was); if (v != null && v.trim()) { setPath(c, el.dataset.f, v.trim()); save(); } render(); return; }
@@ -1300,7 +1421,7 @@ document.addEventListener("click", e => {
     case "cartcast": { const it = c.items.find(i => i.cartSpells && !i.gone); const s = it.cartSpells.find(x => x.name === el.dataset.n); cast(c, Object.assign({ lvl: 1 }, s), s.lvl || 1, "cart"); break; }
     case "spelledit": ui.edit = ui.edit === "spell:" + el.dataset.id ? null : "spell:" + el.dataset.id; render(); break;
     case "spelldone": ui.edit = null; render(); break;
-    case "addspell": ui_pk.q = ""; openOv(pickerHtml("spell"), "pick:spell"); setTimeout(() => { const q = $("#pkQ"); if (q) q.focus(); }, 30); break;
+    case "addspell": ui_pk.q = ""; ui_pk.note = ""; openOv(pickerHtml("spell"), "pick:spell"); setTimeout(() => { const q = $("#pkQ"); if (q) q.focus(); }, 30); break;
     case "pkspell": { const s = spellPool().find(x => x.id === el.dataset.id); if (!s) break; const sp = spellFromData(s);
       // keep the list in level order, so the Spells tab reads the same as before
       const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp);
@@ -1311,6 +1432,14 @@ document.addEventListener("click", e => {
       c.items.push(it); logIt(c, `Gained ${it.qty > 1 ? it.qty + " × " : ""}${it.name}`);
       const a = attackFromData(x); if (a && !c.attacks.some(y => y.name === a.name) && confirm(`Add ${a.name} to the attacks too?`)) c.attacks.push(a);
       save(); render(); toast(`${it.name} added.`); break; }
+    case "levelup": startLevelUp(c); break;
+    case "levelupof": db.cur = el.dataset.id; save(); render(); startLevelUp(C()); break;
+    case "luroll": { const r = rnd(c.hd.die); LV.hp = r; LV.how = `rolled ${r} on the d${c.hd.die}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = r; break; }
+    case "luavg": { const v = c.hd.die / 2 + 1; LV.hp = v; LV.how = `the average, ${v}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = v; break; }
+    case "luasi": LV.asi = el.dataset.k; if (LV.asi === "one") LV.b = ""; showLevelUp(c); break;
+    case "lufeat": LV.feats.push({ name: "", text: "", uses: false, max: 1, rest: "long" }); showLevelUp(c); break;
+    case "lures": { const r = c.res.find(x => x.id === el.dataset.id); LV.res[r.id] = Math.max(0, (LV.res[r.id] ?? r.max) + +el.dataset.d); showLevelUp(c); break; }
+    case "luapply": applyLevelUp(c); break;
     case "libin": $("#libIn").click(); break;
     case "libclear": if (confirm("Forget the homebrew? Spells and items already on a sheet stay there.")) { db.lib = null; save(); render(); } break;
     case "pkownspell": { const nm = prompt("The spell's name?"); if (!nm) break; closeOv(); const lv = parseInt(prompt("Its level (0 for a cantrip)?", "1"), 10) || 0; const s = { id: uid("sp"), name: nm, lvl: lv, text: "", time: "1 action" }; c.spells.push(s); ui.edit = "spell:" + s.id; save(); render(); break; }
@@ -1356,7 +1485,7 @@ function seedGnick() {
   const ch = blankChar("Gnickgnick \"Gnick\" Gnomeson");
   const ids = { rocks: "it_rocks", darts: "it_darts" };
   Object.assign(ch, {
-    id: "ch_gnick", short: "Gnick", player: "Joseph", species: "Forest gnome", cls: "Cleric", subcls: "Trickery Domain (Tymora)", level: 4, bg: "Folk Hero", align: "Chaotic Good",
+    id: "ch_gnick", short: "Gnick", player: "Joseph", rules: "2014", species: "Forest gnome", cls: "Cleric", subcls: "Trickery Domain (Tymora)", level: 4, bg: "Folk Hero", align: "Chaotic Good",
     ab: { str: 10, dex: 13, con: 13, int: 15, wis: 16, cha: 15 }, saveProf: ["wis", "cha"],
     skills: { animal: 1, insight: 1, persuasion: 1, survival: 1 },
     ac: 17, acNote: "Breastplate 14 + Dex 1 (medium armor) + shield 2", speed: 25, hpMax: 31, hp: 31, hd: { die: 8, max: 4, used: 0 },
@@ -1530,6 +1659,7 @@ if (!db.fixes.includes("gnick-level-5")) {
   }
   db.fixes.push("gnick-level-5"); save();
 }
+if (!db.fixes.includes("gnick-rules")) { const g = db.chars.find(ch => ch.id === "ch_gnick"); if (g) g.rules = "2014"; db.fixes.push("gnick-rules"); save(); }
 if (!db.fixes.includes("gnick-player")) { const g = db.chars.find(ch => ch.id === "ch_gnick"); if (g && !g.player) g.player = "Joseph"; db.fixes.push("gnick-player"); save(); }
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
