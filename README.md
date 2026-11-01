@@ -10,3 +10,9 @@ The sheet you play from, beside **Ordinate Survey** (the DM's app) and the **Fie
 Everything stays on the device. Save a backup from the character menu (tap the name at the top); bring it in on another device the same way.
 
 Files: `index.html` (the whole app), `sw.js` (offline cache; bump `CACHE` with each release), `manifest.webmanifest`, the icons, and `pictures\` (the cart's pictures from the DM).
+
+## Pinned ideas (Joseph, 2026-10-31)
+
+1. **Pick from lists, not type:** the fields become dropdowns of the SRD (spells, items, species, classes…), plus a "homebrew" option that pulls from Ordinate Survey's own library.
+2. **Level up:** a level-up that tells you what to decide (hit points, spells, features, ability scores) and does the rest itself.
+3. **Edit everything:** an edit mode where every part of the sheet can be changed: spell slots, names, the kind of each spell, all of it.
