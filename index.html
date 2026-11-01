@@ -249,7 +249,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 18;
+const VERSION = 19;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1022,6 +1022,7 @@ function itemsHtml(c) {
   const log = EM() ? c.log.map((l, j) => `<div class="row" style="align-items:center"><label class="fld n" style="flex:0 0 130px"><span>When</span><input type="date" data-f="log.${j}.at" value="${esc(l.at)}"></label>${fld("What happened", `log.${j}.text`, l.text)}<button class="btn small danger" data-act="logdel" data-id="${l.id}" style="margin-bottom:10px">✕</button></div>`).join("") : c.log.slice(0, 80).map(l => `<div class="logl"><span class="d">${esc(l.at)}</span><span class="t">${esc(l.text)}</span><button class="chip" data-act="logedit" data-id="${l.id}" aria-label="Change it">✎</button><button class="chip" data-act="logdel" data-id="${l.id}" aria-label="Delete it">✕</button></div>`).join("");
   return purse + arts
     + srcSeg(libLoot().length) + `<div class="row" style="margin-bottom:10px"><input id="newItem" placeholder="Add an item: 3 turnips, a dagger…" style="flex:1" autocomplete="off"><button class="btn main" data-act="additem">Add</button></div>
+      <button class="btn wide" data-act="itemlist">Browse items…</button>
       <div id="itemSug"></div>
       <p class="note">Attuned to ${att} of 3.</p>` + list
     + sec("log", "What came and went", `${c.log.length}`, `<div class="row" style="margin-bottom:10px"><input id="logT" placeholder="Something to write down" style="flex:1"><button class="btn" data-act="addlog">Add</button></div>${log}`, false);
@@ -1208,29 +1209,35 @@ const creditHtml = () => HAS_SRD ? `<p class="note" style="font-size:11.5px">${e
 const ui_pk = { q: "", cls: true, lv: "" };
 function pickerHtml(kind) {
   const c = C();
-  return `<div class="rr-h">${kind === "spell" ? "Add a spell" : "Add an attack"}</div>
-    ${srcSeg(kind === "spell" ? libSpells().length : libWeapons().length)}
-    <input id="pkQ" placeholder="${kind === "spell" ? "Search spells" : "Search weapons"}" value="${esc(ui_pk.q)}" style="margin-bottom:8px">
+  const kinds = kind === "item" ? [...new Set(itemPool().map(x => x.kind).filter(Boolean))].sort() : [];
+  if (kind === "item" && ui_pk.kind && !kinds.includes(ui_pk.kind)) ui_pk.kind = "";   // a kind this side has none of would show nothing
+  return `<div class="rr-h">${{ spell: "Add a spell", attack: "Add an attack", item: "Add an item" }[kind]}</div>
+    ${srcSeg(kind === "spell" ? libSpells().length : kind === "item" ? libLoot().length : libWeapons().length)}
+    <input id="pkQ" placeholder="${{ spell: "Search spells", attack: "Search weapons", item: "Search items" }[kind]}" value="${esc(ui_pk.q)}" style="margin-bottom:8px">
+    ${kind === "item" ? `<select id="pkKind" style="width:auto;margin-bottom:8px"><option value="">Every kind</option>${kinds.map(k => `<option ${ui_pk.kind === k ? "selected" : ""}>${esc(k)}</option>`).join("")}</select>` : ""}
     ${kind === "spell" ? `<div class="row" style="margin-bottom:8px;align-items:center"><label class="check" style="margin:0${fromLib() ? ";display:none" : ""}"><input type="checkbox" id="pkCls" ${ui_pk.cls ? "checked" : ""}> Only ${esc(c.cls || "my class")} spells</label>
       <select id="pkLv" style="width:auto"><option value="">Any level</option>${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => `<option value="${l}" ${ui_pk.lv === String(l) ? "selected" : ""}>${l ? ord(l) + " level" : "Cantrips"}</option>`).join("")}</select></div>` : ""}
     ${kind === "spell" && c.rules === "2014" ? lookup("2014 spell text", "These are the SRD 5.2's 2024 wordings, and some 2014 spells read differently. Check a new one against your 2014 Player's Handbook and change its text under Edit if it differs.") : ""}
     ${ui_pk.note && kind === "spell" ? `<p class="verdict ok">${esc(ui_pk.note)}</p>` : ""}<div id="pkOut">${pickerResults(kind)}</div>
-    <button class="btn wide" data-act="${kind === "spell" ? "pkownspell" : "pkownatk"}">${kind === "spell" ? "A spell of your own…" : "An attack of your own"}</button>
+    ${kind === "item" ? "" : `<button class="btn wide" data-act="${kind === "spell" ? "pkownspell" : "pkownatk"}">${kind === "spell" ? "A spell of your own…" : "An attack of your own"}</button>`}
     ${creditHtml()}<button class="btn wide" data-act="ovclose">Close</button>`;
 }
 function pickerResults(kind) {
-  if (fromLib() && !(kind === "spell" ? libSpells() : libWeapons()).length) return emptyLib(kind === "spell" ? "spells" : "weapons");
+  if (fromLib() && !(kind === "spell" ? libSpells() : kind === "item" ? libLoot() : libWeapons()).length) return emptyLib({ spell: "spells", item: "items", attack: "weapons" }[kind]);
+  // items: the whole list (a kind narrows it), so you can look through what there is, not only search
+  if (kind === "item") { const rows = search(itemPool().filter(x => !ui_pk.kind || x.kind === ui_pk.kind), ui_pk.q, 2000);
+    return rows.length ? `<p class="note">${rows.length} item${rows.length === 1 ? "" : "s"}</p>` + rows.map(x => itemPickCard(x)).join("") : `<p class="empty">No items match.</p>${lookup(`that item ${fromLib() ? "in your library" : "in the SRD"}`, `${fromLib() ? "Try From the SRD." : "Try From the library."} Or type it in the Add box on the Items tab, and put its rules in its notes.`)}`; }
   const c = C();
   if (kind === "spell") {
     let pool = spellPool();
     if (ui_pk.cls && c.cls) pool = pool.filter(s => s.hb || new RegExp(`\\b${c.cls}\\b`, "i").test(s.cls || ""));
     if (ui_pk.lv !== "") pool = pool.filter(s => String(+s.lv || 0) === ui_pk.lv);
     const got = new Set(c.spells.map(s => s.name));
-    const rows = search(pool, ui_pk.q, 60);
+    const rows = search(pool, ui_pk.q, 2000);
     return rows.length ? rows.map(s => `<button class="card tap" data-act="pkspell" data-id="${esc(s.id)}" ${got.has(s.name) ? "disabled style='opacity:.5'" : ""}><span class="nm">${esc(s.name)}${s.hb ? `<span class="tag g">${s.fb ? "Field Book" : "Homebrew"}</span>` : ""}${got.has(s.name) ? `<span class="tag">have it</span>` : ""}</span>
       <span class="sub">${+s.lv ? ord(+s.lv) + " level" : "Cantrip"} · ${esc(s.school || "")}${s.conc ? " · concentration" : ""}${s.dmg && !NO_ROLL.includes(s.name) ? ` · ${esc(s.dmg)} ${esc(s.dtype || "")}` : ""}${s.campaign ? " · " + esc(s.campaign) : ""}</span></button>`).join("") : `<p class="empty">No spells match${ui_pk.cls && c.cls ? ` among ${esc(c.cls)} spells (untick the box to see every class)` : ""}${ui_pk.lv !== "" ? " at that level" : ""}.</p>${(fromLib() ? lookup("that spell in your library", "Try From the SRD, or write it in the Field Book.") : lookup("every spell", `It has the SRD's ${SRD_SPELLS.length} spells; spells from other books (Xanathar's, Tasha's…) aren't in it. Try From the library, or look yours up in its book, then use “A spell of your own…” and copy its text in.`))}`;
   }
-  const rows = search(weaponPool(), ui_pk.q, 60);
+  const rows = search(weaponPool(), ui_pk.q, 2000);
   return rows.length ? rows.map(x => { const w = baseWeapon(x); const ws = w && weaponStats(w);
     return `<button class="card tap" data-act="pkatk" data-id="${esc(x.id)}"><span class="nm">${esc(x.name)}${x.hb ? `<span class="tag g">${x.fb ? "Field Book" : "Homebrew"}</span>` : x.kind === "magic item" ? `<span class="tag g">${esc(x.rarity || "magic")}</span>` : ""}</span>
       <span class="sub">${esc(ws ? `${ws.dice} ${ws.type} · ${ws.props}` : `${x.dmg} ${x.dtype || ""}`)}</span></button>`; }).join("") : `<p class="empty">No weapons match.</p>${(fromLib() ? lookup("that weapon in your library", "Try From the SRD, or write it in the Field Book with its damage.") : lookup("that weapon", "It has the SRD's weapons. Try From the library, or look up its damage and properties in your book, then use “An attack of your own”."))}`;
@@ -1240,8 +1247,10 @@ function itemSuggestHtml(q) {
   const found = search(itemPool(), name, 8);
   if (fromLib() && !libLoot().length) return name.length < 2 ? "" : emptyLib("items");
   if (!found.length) return name.length < 3 ? "" : lookup(`“${esc(name)}” ${fromLib() ? "in your library" : "in the SRD"}`, `${fromLib() ? "Try From the SRD." : "Try From the library."} Add makes it just as you typed it; if it has rules, look them up in its book or ask your DM, and put them in its notes.`);
-  return found.map(x => `<button class="card tap" data-act="pkitem" data-id="${esc(x.id)}" style="padding:7px 10px"><span class="nm" style="font-size:15.5px">${m ? m[1] + " × " : ""}${esc(x.name)}${x.hb ? `<span class="tag g">${x.fb ? "Field Book" : "Homebrew"}</span>` : x.rarity ? `<span class="tag g">${esc(x.rarity)}</span>` : ""}</span><span class="sub">${esc([x.kind, x.value, /attunement/i.test(x.att || "") || x.attune === true ? "attunement" : ""].filter(Boolean).join(" · "))}</span></button>`).join("");
+  return found.map(x => itemPickCard(x, m ? m[1] : "")).join("");
 }
+// one item to pick: name, where it's from or its rarity, then kind, worth, and attunement
+const itemPickCard = (x, n) => `<button class="card tap" data-act="pkitem" data-id="${esc(x.id)}" style="padding:7px 10px"><span class="nm" style="font-size:15.5px">${n ? n + " × " : ""}${esc(x.name)}${x.hb ? `<span class="tag g">${x.fb ? "Field Book" : "Homebrew"}</span>` : x.rarity ? `<span class="tag g">${esc(x.rarity)}</span>` : ""}</span><span class="sub">${esc([x.kind, x.value, /attunement/i.test(x.att || "") || x.attune === true ? "attunement" : ""].filter(Boolean).join(" · "))}</span></button>`;
 
 /* ══ level up: what changes by itself, and what's yours to decide ══
    The tables below are the same in the 2014 and 2024 Player's Handbooks unless a line says otherwise. Class features
@@ -1589,7 +1598,7 @@ document.addEventListener("input", e => {
     if (el.dataset.lu === "hp" || el.dataset.lu === "extra") { save(); $("#luHp").innerHTML = luHpHtml(c); }
     $("#luGo").innerHTML = luGoHtml(c);
   }
-  if (el.id === "pkQ") { ui_pk.q = el.value; const o = $("#pkOut"); if (o) o.innerHTML = pickerResults(ovKind === "pick:spell" ? "spell" : "attack"); }
+  if (el.id === "pkQ") { ui_pk.q = el.value; const o = $("#pkOut"); if (o) o.innerHTML = pickerResults(String(ovKind).slice(5)); }
   if (el.id === "newItem") { const o = $("#itemSug"); if (o) o.innerHTML = itemSuggestHtml(el.value); }
   if (el.id === "pFilter") { ui.filter = el.value; clearTimeout(ui.ft); ui.ft = setTimeout(() => { render(); const f = $("#pFilter"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }, 300); }
   if (el.dataset.act === "realdie" && R) { const v = parseInt(el.value, 10); R.real = v >= 1 && v <= 20 ? v : null; save(); const pos = el.selectionStart; $("#ov .box").innerHTML = rollHtml(); const n = $('#ov [data-act="realdie"]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {} } }
@@ -1602,6 +1611,7 @@ document.addEventListener("change", e => {
     if (v === "__other") { v = (prompt("Type it:", "") || "").trim(); }
     setPath(LV, el.dataset.lu, v); showLevelUp(c); return;
   }
+  if (el.id === "pkKind") { ui_pk.kind = el.value; $("#pkOut").innerHTML = pickerResults("item"); return; }
   if (el.id === "pkCls" || el.id === "pkLv") { ui_pk.cls = $("#pkCls").checked; ui_pk.lv = $("#pkLv").value; $("#pkOut").innerHTML = pickerResults("spell"); return; }
   // a dropdown's Other…: type your own, which then stays in the list for that field
   if (el.tagName === "SELECT" && el.value === "__other") { const was = getPath(c, el.dataset.f) || ""; const v = prompt("Type it:", was); if (v != null && v.trim()) { setPath(c, el.dataset.f, v.trim()); save(); } render(); return; }
@@ -1773,6 +1783,7 @@ document.addEventListener("click", e => {
     // edit sheet
     case "saveprof": { const ab = el.dataset.ab; c.saveProf = c.saveProf.includes(ab) ? c.saveProf.filter(x => x !== ab) : c.saveProf.concat(ab); save(); render(); break; }
     case "skillcycle": { const k = el.dataset.k; const lv = skillLv(c, k); c.skills[k] = lv >= 2 ? 0 : lv >= 1 ? 2 : 1; save(); render(); break; }
+    case "itemlist": ui_pk.q = ""; openOv(pickerHtml("item"), "pick:item"); break;
     case "pksrc": { ui.src = el.dataset.src; saveUi();
       if (String(ovKind).startsWith("pick:")) { openOv(pickerHtml(ovKind.slice(5)), ovKind); break; }
       const v = ($("#newItem") || {}).value || ""; render(); const n = $("#newItem"); if (n) { n.value = v; $("#itemSug").innerHTML = itemSuggestHtml(v); } break; }
