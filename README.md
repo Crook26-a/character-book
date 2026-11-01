@@ -28,3 +28,7 @@ This work includes material from the System Reference Document 5.2 ("SRD 5.2") b
 - **To the survey:** PCs tab → a character's **Send to the survey** (any backup works too). In the survey: Party tab → **Bring in from the Character Book…**. A character already in the party is updated; anyone else joins.
 - **From the survey:** Party tab → **Send to the Character Book** (one character) or **Send everyone…**. Here: PCs tab → **Bring in a backup…**. A character already here is updated, not replaced.
 - Updating either way: the sheet's numbers are the incoming copy's; attacks, resources, spells and items go by name (matches updated, new ones added, nothing removed). The survey keeps its secret favor, XP, crew role, notes and fight stats, and never sends them; this app keeps its journal, people, effects and the cart's wager.
+
+## Sync
+
+**Sync** (top right) keeps every device the same: all characters (everything on their sheets), added pictures, and the homebrew library, kept in a secret gist in your GitHub. Set up once on the PCs tab with a token that can only touch gists, then scan the QR code on each other device. On Sync, each character's newer copy wins. The token stays on the device, never in a backup or in the gist.

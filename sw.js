@@ -1,6 +1,6 @@
 // Service worker: caches the whole app so it opens instantly, even offline.
-const CACHE = "character-book-v13";
-const ASSETS = ["./", "./index.html", "./srd.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png",
+const CACHE = "character-book-v14";
+const ASSETS = ["./", "./index.html", "./srd.js", "./qrcode.min.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png",
   "./pictures/auspicious-cart-1.png", "./pictures/auspicious-cart-2.png", "./pictures/auspicious-cart-3.png"];
 
 self.addEventListener("install", e => {

@@ -45,7 +45,7 @@
   #who b { display: block; font-size: 26px; line-height: 1.05; font-weight: normal; overflow-wrap: anywhere; }
   #who b::after { content: " ▾"; font-size: 15px; color: var(--ink-faint); }
   #who small { display: block; margin-top: 3px; }
-  #themeBtn, #editBtn { flex: none; background: none; border: 1px solid var(--rule); color: var(--ink); border-radius: 3px; padding: 6px 10px; font: inherit; font-size: 14px; cursor: pointer; }
+  #themeBtn, #editBtn, #syncBtn { flex: none; background: none; border: 1px solid var(--rule); color: var(--ink); border-radius: 3px; padding: 6px 10px; font: inherit; font-size: 14px; cursor: pointer; }
   #editBtn.on { background: var(--lead); border-color: var(--lead); color: #fff; }
   /* edit mode: everything you put in is a field */
   .editing-bar { background: var(--lead-soft); border: 1px dashed var(--lead); border-radius: 3px; padding: 8px 10px; margin: 0 0 12px; font-size: 14px; }
@@ -229,7 +229,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="headrow"><button id="who" data-act="menu"></button><span style="display:flex;gap:6px;flex:none"><button id="editBtn" data-act="editmode" aria-pressed="false">Edit</button><button id="themeBtn" aria-label="Light or dark">◐</button></span></div>
+    <div class="headrow"><button id="who" data-act="menu"></button><span style="display:flex;gap:6px;flex:none"><button id="syncBtn" data-act="sync" title="Send this device's changes and bring in the others'">Sync</button><button id="editBtn" data-act="editmode" aria-pressed="false">Edit</button><button id="themeBtn" aria-label="Light or dark">◐</button></span></div>
     <div id="install" hidden style="margin-top:8px"></div>
   </header>
   <div id="strip"></div>
@@ -243,12 +243,13 @@
 <input type="file" id="picIn" accept="image/*" multiple hidden>
 <input type="file" id="libIn" accept=".json,application/json" hidden>
 <script src="srd.js"></script>
+<script src="qrcode.min.js"></script>
 <script>
 "use strict";
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 13;
+const VERSION = 14;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -335,7 +336,7 @@ let db = (() => { try { const t = localStorage.getItem(STORE); if (t) return JSO
 if (!db || !Array.isArray(db.chars) || !db.chars.length) db = { v: 1, cur: "ch_gnick", chars: [seedGnick()] };
 let saveT = null;
 function save(now) {
-  const go = () => { try { localStorage.setItem(STORE, JSON.stringify(db)); } catch (e) { toast("This device wouldn't save. Save a backup from the character menu."); } };
+  const go = () => { try { stamp(); localStorage.setItem(STORE, JSON.stringify(db)); } catch (e) { toast("This device wouldn't save. Save a backup from the character menu."); } };
   clearTimeout(saveT); if (now) go(); else saveT = setTimeout(go, 250);
 }
 window.addEventListener("pagehide", () => save(true));
@@ -1342,6 +1343,7 @@ function pcsHtml() {
   }).join("");
   return `<p class="note">Every character you play. Tap one to play them; the other tabs follow whoever is playing now.</p>${cards}
     <button class="btn wide main" data-act="newchar">+ A new character</button>
+    ${syncPanelHtml()}
     ${libraryHtml()}
     <div class="panel"><h2>Backups</h2><p class="note">Everything lives on this device. Save a backup now and then (it carries the pictures too), and bring it in on another phone or computer.</p>
       <button class="btn wide" data-act="export">Save a backup file</button><button class="btn wide" data-act="import">Bring in a backup…</button></div>`;
@@ -1423,6 +1425,88 @@ function fromSurvey(old, inc) {
   for (const k of Object.keys(old.story)) if (!(old.story[k] || "").trim() && inc.story && inc.story[k]) old.story[k] = inc.story[k];
   if (!old.campaign && inc.campaign) old.campaign = inc.campaign;
   logIt(old, "Updated from Ordinate Survey");
+}
+/* ══ Sync: one button keeps every device the same (Joseph, 2026-11-01: "I will want to press a button to save it and push,
+   but I don't want to have to do anything except for that button"). Everything this app holds goes to one secret gist
+   in Joseph's GitHub: every character (with all that's on their sheet), the homebrew library, and added pictures. Each
+   character and the library carry the time they last changed (stamp(), on every save); on Sync the newer copy wins,
+   character by character, deletions travel too, and the merged whole goes back up. Set up once per device: a token
+   that can only touch gists (pasted on one device), then a QR code for the others. The token stays on the device,
+   never in a backup or the gist. Not the maps: this app has none. ══ */
+const SYNC_KEY = STORE + ":sync", SYNC_FILE = "character-book-sync.json", PICS_FILE = "character-book-pics.json", SYNC_DESC = "Character Book sync";
+const syncCfg = () => { try { return JSON.parse(localStorage.getItem(SYNC_KEY) || "null"); } catch (e) { return null; } };
+const setSyncCfg = v => { try { if (v) localStorage.setItem(SYNC_KEY, JSON.stringify(v)); else localStorage.removeItem(SYNC_KEY); } catch (e) {} };
+const hashOf = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+// when each character (and the library) last changed: noticed on save by comparing with what was there before
+function stamp() {
+  const m = db.meta = db.meta || {}; m.chars = m.chars || {}; m.deleted = m.deleted || {}; const now = Date.now();
+  // an edit is always newer than the copy it was made from, even when another device's clock runs ahead of this one's
+  for (const ch of db.chars) { const h = hashOf(JSON.stringify(ch)), e = m.chars[ch.id]; if (!e) m.chars[ch.id] = { at: now, hash: h }; else if (e.hash !== h) { e.hash = h; e.at = Math.max(now, e.at + 1); } }
+  for (const id of Object.keys(m.chars)) if (!db.chars.some(c => c.id === id)) { m.deleted[id] = Math.max(now, m.chars[id].at + 1); delete m.chars[id]; }
+  const lh = db.lib ? hashOf(JSON.stringify(db.lib)) : ""; if (!m.lib || m.lib.hash !== lh) m.lib = { at: m.lib ? Math.max(now, m.lib.at + 1) : now, hash: lh };
+}
+async function gh(path, opts = {}) {
+  const cfg = syncCfg(); const r = await fetch("https://api.github.com" + path, { ...opts, headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${cfg.token}`, ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
+  if (r.status === 401 || r.status === 403) throw new Error("GitHub turned the token down: make a new one (Sync panel on the PCs tab).");
+  if (!r.ok) throw new Error(`GitHub said ${r.status}.`);
+  return r.json();
+}
+const fileText = async f => !f ? null : f.truncated ? (await fetch(f.raw_url)).text() : f.content;
+let syncing = false;
+async function doSync() {
+  const cfg = syncCfg(); if (!cfg || !cfg.token) { ui.tab = "pcs"; render(); toast("Set up Sync first: it's on the PCs tab."); return; }
+  if (!navigator.onLine) { toast("No signal: Sync when you're back online. Everything is still saved here."); return; }
+  if (syncing) return; syncing = true; const btn = $("#syncBtn"); if (btn) btn.textContent = "Syncing…";
+  try {
+    save(true);
+    // find the gist (this device may only have the token so far), and what's in it
+    let gist = cfg.gistId ? await gh(`/gists/${cfg.gistId}`).catch(() => null) : null;
+    if (!gist) { const list = await gh("/gists?per_page=100"); const found = list.find(g => g.description === SYNC_DESC); if (found) gist = await gh(`/gists/${found.id}`); }
+    const remote = gist ? JSON.parse((await fileText(gist.files[SYNC_FILE])) || "{}") : {};
+    const rpics = gist ? JSON.parse((await fileText(gist.files[PICS_FILE])) || "{}") : {};
+    const m = db.meta; const firstHere = !cfg.synced; let got = 0, sent = 0, gone = 0;
+    // characters: the newer copy wins; a new device's first sync takes the cloud's copy of anyone the cloud already has
+    const rc = remote.chars || {}, rdel = remote.deleted || {};
+    for (const [id, at] of Object.entries(rdel)) { const mine = m.chars[id]; if (mine && mine.at <= at) { db.chars = db.chars.filter(c => c.id !== id); delete m.chars[id]; gone++; } m.deleted[id] = Math.max(m.deleted[id] || 0, at); }
+    for (const [id, r] of Object.entries(rc)) {
+      if (rdel[id] && rdel[id] >= r.at) continue;
+      if (m.deleted[id] && m.deleted[id] >= r.at) continue;
+      const mine = m.chars[id], i = db.chars.findIndex(c => c.id === id);
+      if (i < 0 || !mine || r.at > mine.at || firstHere) { const ch = norm(r.data); if (i < 0) db.chars.push(ch); else if (JSON.stringify(db.chars[i]) !== JSON.stringify(ch)) db.chars[i] = ch; else continue; m.chars[id] = { at: r.at, hash: hashOf(JSON.stringify(ch)) }; got++; }
+    }
+    for (const ch of db.chars) if (!rc[ch.id] || m.chars[ch.id].at > rc[ch.id].at) sent++;
+    if (remote.lib && (!m.lib || remote.lib.at > m.lib.at || (firstHere && remote.lib.data))) { db.lib = remote.lib.data; m.lib = { at: remote.lib.at, hash: db.lib ? hashOf(JSON.stringify(db.lib)) : "" }; }
+    if (!db.chars.length) db.chars = [seedGnick()]; if (!db.chars.some(c => c.id === db.cur)) db.cur = db.chars[0].id;
+    // pictures: each one either way that the other side hasn't got
+    const picIds = new Set(); db.chars.forEach(ch => ch.items.forEach(i => (i.pics || []).forEach(id => !id.startsWith("url:") && picIds.add(id))));
+    for (const [id, url] of Object.entries(rpics)) if (picIds.has(id) && !(await IDB.get(id).catch(() => null))) { try { await IDB.put(id, await (await fetch(url)).blob()); } catch (e) {} }
+    const pics = { ...rpics }; let newPics = 0;
+    for (const id of picIds) if (!pics[id]) { const b = await IDB.get(id).catch(() => null); if (b) { pics[id] = await new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(b); }); newPics++; } }
+    // the whole, back up
+    const out = { app: "character-book-sync", version: VERSION, saved: new Date().toISOString(), deleted: m.deleted,
+      chars: Object.fromEntries(db.chars.map(ch => [ch.id, { at: m.chars[ch.id].at, data: ch }])), lib: { at: (m.lib || {}).at || 0, data: db.lib || null } };
+    const files = { [SYNC_FILE]: { content: JSON.stringify(out) } }; if (newPics || !gist) files[PICS_FILE] = { content: JSON.stringify(pics) };
+    gist = gist ? await gh(`/gists/${gist.id}`, { method: "PATCH", body: JSON.stringify({ files }) }) : await gh("/gists", { method: "POST", body: JSON.stringify({ description: SYNC_DESC, public: false, files }) });
+    setSyncCfg({ ...cfg, gistId: gist.id, synced: Date.now() }); localStorage.setItem(STORE, JSON.stringify(db));
+    render(); toast(`Synced: ${got ? `${got} brought in` : "nothing new to bring in"}${sent ? `, ${sent} sent` : ""}${gone ? `, ${gone} deleted here` : ""}.`, 3500);
+  } catch (e) { toast("Sync didn't finish: " + e.message, 5000); }
+  finally { syncing = false; const b = $("#syncBtn"); if (b) b.textContent = "Sync"; }
+}
+// the QR code for another device: this page's address with the token and gist after # (never sent to any server)
+function syncLink() { const cfg = syncCfg(); return location.origin + location.pathname + "#sync=" + btoa(JSON.stringify({ t: cfg.token, g: cfg.gistId || "" })); }
+function qrSvg(text) { if (typeof qrcode !== "function") return ""; const q = qrcode(0, "L"); q.addData(text); q.make(); return q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); }
+function syncPanelHtml() {
+  const cfg = syncCfg();
+  if (!cfg) return `<div class="panel"><h2>Sync <small>every device the same</small></h2>
+    <p class="note">One button (top right) then keeps your characters, their pictures and the homebrew the same on every device, kept in a secret gist in your GitHub. Set it up once:</p>
+    <ol class="note" style="padding-left:20px"><li>On GitHub, <b>make a token that can only touch gists</b>: <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>. Name it "Character Book", pick an expiry, then under <b>Account permissions</b> set <b>Gists</b> to <b>Read and write</b>. Generate it and copy it.</li>
+      <li>Paste it here and press Connect.</li><li>On your other devices, scan the QR code that appears.</li></ol>
+    <div class="row" style="margin-bottom:10px"><input id="syncTok" placeholder="github_pat_…" autocomplete="off" style="flex:1"><button class="btn main" data-act="syncconnect">Connect</button></div></div>`;
+  const when = cfg.synced ? new Date(cfg.synced).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "not yet";
+  return `<div class="panel"><h2>Sync <small>last: ${esc(when)}</small></h2>
+    <p class="note">Press <b>Sync</b> (top right) on any device: its changes go up and the others' come down. The newer copy of each character wins, so if you change the same character on two devices between syncs, the later change is the one kept.</p>
+    ${ui.qr ? `<div style="background:#fff;padding:10px;border-radius:3px;max-width:260px;margin:0 auto 8px">${qrSvg(syncLink())}</div><p class="note" style="text-align:center">Scan this with the other device's camera, open the link in Chrome, and it's set up there too. Anyone with this code can read and change your sheets, so don't share it.</p>` : ""}
+    <div class="row" style="margin-bottom:10px"><button class="btn grow" data-act="syncqr">${ui.qr ? "Hide the code" : "Set up another device (QR code)"}</button><button class="btn danger" data-act="syncoff">Stop syncing here</button></div></div>`;
 }
 async function exportAll(only) {
   const chars = only ? [only] : db.chars;
@@ -1630,6 +1714,13 @@ document.addEventListener("click", e => {
       c.items.push(it); logIt(c, `Gained ${it.qty > 1 ? it.qty + " × " : ""}${it.name}`);
       const a = attackFromData(x); if (a && !c.attacks.some(y => y.name === a.name) && confirm(`Add ${a.name} to the attacks too?`)) c.attacks.push(a);
       save(); render(); toast(`${it.name} added.`); break; }
+    case "sync": doSync(); break;
+    case "syncconnect": { const t = ($("#syncTok").value || "").trim(); if (!t) { toast("Paste the token first."); break; }
+      setSyncCfg({ token: t }); fetch("https://api.github.com/gists?per_page=1", { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${t}` } })
+        .then(r => { if (!r.ok) throw new Error(r.status); render(); doSync(); })
+        .catch(() => { setSyncCfg(null); render(); toast("GitHub didn't take that token: check Gists is set to Read and write."); }); break; }
+    case "syncqr": ui.qr = !ui.qr; render(); break;
+    case "syncoff": if (confirm("Stop syncing on this device? Everything stays here; the other devices keep syncing.")) { setSyncCfg(null); ui.qr = false; render(); } break;
     case "editmode": ui.editMode = !ui.editMode; ui.edit = null; ui.itemOpen = null; render(); scrollTo(0, 0); if (!ui.editMode) toast("Saved."); break;
     case "libdel": { const list = db.lib[el.dataset.kind]; const x = list[+el.dataset.j]; if (confirm(`Take ${x.name} out of the homebrew? (A sheet that has it keeps its copy.)`)) { list.splice(+el.dataset.j, 1); save(); render(); } break; }
     case "levelup": startLevelUp(c); break;
@@ -1893,6 +1984,11 @@ document.addEventListener("click", async e => {
   const ev = installEvt; installEvt = null; ev.prompt(); try { await ev.userChoice; } catch (x) {} showInstall();
 });
 showInstall();
+// a device set up from another's QR code: the address carries the token and gist after #; keep them, clear the address, sync
+if (location.hash.startsWith("#sync=")) {
+  try { const s = JSON.parse(atob(decodeURIComponent(location.hash.slice(6)))); if (s.t) { setSyncCfg({ token: s.t, gistId: s.g || "" }); toast("Sync is set up on this device: bringing your sheets in…", 4000); setTimeout(doSync, 300); } } catch (e) { toast("That code didn't read: make a new one on the other device."); }
+  history.replaceState(null, "", location.pathname);
+}
 </script>
 </body>
 </html>

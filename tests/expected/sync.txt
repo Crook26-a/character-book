@@ -1,0 +1,4 @@
+1. set up, and the first Sync sends everything up: cloud has: Gnick
+2. the other device hurt Gnick and made Wren: Sync brings both: here: Gnick 10 HP, Gnickgnick "Gnick" Gnomeson, Wren
+3. this device heals Gnick and deletes Wren: Sync sends both: cloud: Gnick 25 HP; deleted: ch_wren
+4. the panel and the QR code for another device: Sync
