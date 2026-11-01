@@ -22,3 +22,9 @@ Files: `index.html` (the whole app), `srd.js` (the SRD 5.2 spells and items the 
 ## Credit
 
 This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
+
+## With Ordinate Survey (both ways)
+
+- **To the survey:** PCs tab → a character's **Send to the survey** (any backup works too). In the survey: Party tab → **Bring in from the Character Book…**. A character already in the party is updated; anyone else joins.
+- **From the survey:** Party tab → **Send to the Character Book** (one character) or **Send everyone…**. Here: PCs tab → **Bring in a backup…**. A character already here is updated, not replaced.
+- Updating either way: the sheet's numbers are the incoming copy's; attacks, resources, spells and items go by name (matches updated, new ones added, nothing removed). The survey keeps its secret favor, XP, crew role, notes and fight stats, and never sends them; this app keeps its journal, people, effects and the cart's wager.

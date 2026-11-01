@@ -247,7 +247,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 10;
+const VERSION = 11;
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -1335,6 +1335,7 @@ function pcsHtml() {
       ${ch.player || ch.campaign ? `<span class="sub">${esc([ch.campaign, ch.player ? "played by " + ch.player : ""].filter(Boolean).join(" · "))}</span>` : ""}
       <div class="acts"><button class="btn small ${on ? "" : "main"}" data-act="switchpc" data-id="${ch.id}">${on ? "Play" : "Play them"}</button>
         ${(+ch.level || 1) < 20 ? `<button class="btn small" data-act="levelupof" data-id="${ch.id}">Level up…</button>` : ""}
+        <button class="btn small" data-act="tosurvey" data-id="${ch.id}">Send to the survey</button>
         ${db.chars.length > 1 ? `<button class="btn small danger" data-act="delpc" data-id="${ch.id}">Delete…</button>` : ""}</div></div>`;
   }).join("");
   return `<p class="note">Every character you play. Tap one to play them; the other tabs follow whoever is playing now.</p>${cards}
@@ -1361,11 +1362,74 @@ function blankChar(name) {
     conds: [], exh: 0, conc: null, effects: [], res: [], slots: {}, attacks: [], spells: [], traits: [], items: [], purse: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }, debtCp: 0, marked: false,
     log: [], sessions: [], people: [], story: { profs: "", traits: "", ideals: "", bonds: "", flaws: "", looks: "", backstory: "", more: "" }, rolls: [], inspiration: false };
 }
-async function exportAll() {
-  const pics = {}; const ids = new Set(); db.chars.forEach(ch => ch.items.forEach(i => (i.pics || []).forEach(id => !id.startsWith("url:") && ids.add(id))));
+/* ══ Ordinate Survey, both ways ══
+   Every file this saves also carries .survey: each character the way the survey's Party tab keeps a sheet, with the
+   numbers worked out here (AC, to-hit, saves, skills), so the survey's "Bring in from the Character Book…" can read it.
+   The survey's "Send to the Character Book" makes a backup marked from:"Ordinate Survey": a character already here is
+   updated (the sheet's numbers are the survey's; lists go by name, matches updated and new ones added, nothing taken
+   away), and what only this app has stays: the journal, people, effects, the cart's wager, item pictures and notes. */
+const asc = n => (n >= 0 ? "+" : "-") + Math.abs(n);
+function toSurvey(c) {
+  const ab = k => +c.ab[k] || 10;
+  const savesTxt = [ABS.filter(([k]) => c.saveProf.includes(k)), ABS.filter(([k]) => !c.saveProf.includes(k))]
+    .map(list => list.map(([k]) => `${AB_SHORT[k]} ${asc(saveOf(c, k))}`).join(", "));
+  const byLv = l => SKILLS.filter(([k]) => skillLv(c, k) === l).map(([k, n]) => `${n} ${asc(skillOf(c, k))}`).join(", ");
+  const others = SKILLS.filter(([k]) => skillLv(c, k) !== 1 && skillLv(c, k) !== 2).map(([k, n]) => `${n} ${asc(skillOf(c, k))}`).join(", ");
+  const dark = c.traits.find(t => /darkvision/i.test(t.name)); const range = dark && /(\d+)\s*(?:feet|ft)/i.exec(dark.text || "");
+  const langs = /Languages?:\s*([^\n]*)/i.exec(c.story.profs || "");
+  const persona = [["Trait", c.story.traits], ["Ideal", c.story.ideals], ["Bond", c.story.bonds], ["Flaw", c.story.flaws]].filter(([, v]) => (v || "").trim()).map(([k, v]) => `${k}: ${v.replace(/\s*\n\s*-?\s*/g, " ").replace(/^-\s*/, "").trim()}`).join("\n");
+  const attacks = c.attacks.map(a => ({ name: a.name, hit: a.save ? `${AB_SHORT[a.save.ab].toUpperCase()} ${a.save.dc}` : rollsToHit(a) ? asc(atkOf(c, a)) : "", dmg: dmgOfAtk(c, a), dtype: a.dtype || "" }))
+    .concat(c.spells.filter(s => s.lvl === 0 && s.roll && s.roll.kind !== "heal" && !c.attacks.some(a => a.name.toLowerCase().startsWith(s.name.toLowerCase())))
+      .map(s => ({ name: s.name, hit: s.roll.kind === "save" ? `${AB_SHORT[s.roll.save].toUpperCase()} ${dcOf(c)}` : asc(satkOf(c)), dmg: spellExpr(c, s, 0), dtype: s.roll.type || "" })));
+  const slots = Array.from({ length: 10 }, (_, L) => ({ max: +((c.slots[L] || {}).max) || 0, used: +((c.slots[L] || {}).used) || 0 }));
+  const saveWord = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
+  return {
+    cbId: c.id, name: c.name, short: c.short || "", player: c.player || "", species: c.species || "", cls: c.cls || "", subcls: c.subcls || "", level: +c.level || 1, bg: c.bg || "", align: c.align || "",
+    ac: String((+c.ac || 10) + activeMods(c).filter(m => m.src === "item" && (m.to || []).includes("ac")).reduce((a, m) => a + flatOf(m.bonus), 0)),
+    hp: c.hp, hpMax: String(c.hpMax), temp: +c.temp || 0, speed: +c.speed || 30, init: asc(initOf(c)), pp: String(passiveOf(c, "perception")),
+    dc: c.spells.length ? String(dcOf(c)) : "", satk: c.spells.length ? asc(satkOf(c)) : "",
+    str: ab("str"), dex: ab("dex"), con: ab("con"), int: ab("int"), wis: ab("wis"), cha: ab("cha"),
+    saves: `${savesTxt[0]} (proficient)${savesTxt[1] ? "; " + savesTxt[1] : ""}`,
+    skills: [byLv(1) ? `Proficient: ${byLv(1)}.` : "", byLv(2) ? `Expertise: ${byLv(2)}.` : "", others ? `Also ${others}.` : ""].filter(Boolean).join(" "),
+    senses: range ? `Darkvision ${range[1]} ft.` : "", langs: langs ? langs[1].trim() : "", looks: c.story.looks || "", persona,
+    notes: [c.story.backstory, c.traits.length ? "Features: " + c.traits.map(t => t.name).join(", ") + "." : ""].filter(Boolean).join("\n\n"),
+    purse: { ...c.purse }, death: { s: +c.death.ok || 0, f: +c.death.fail || 0 }, conds: c.conds.slice(), slots, attacks,
+    res: c.res.map(r => ({ name: r.name, max: +r.max || 0, used: +r.used || 0, rest: r.rest })).concat([{ name: `Hit Point Dice (d${c.hd.die})`, max: +c.hd.max || 1, used: +c.hd.used || 0, rest: "long" }]),
+    spells: c.spells.map(s => ({ name: s.name, lv: s.lvl, time: s.time || "", range: s.range || "", dur: s.dur || "", conc: !!s.conc, save: s.roll && s.roll.kind === "save" ? saveWord[s.roll.save] : s.save ? saveWord[s.save] : "",
+      atk: !!(s.roll && s.roll.kind === "atk"), dmg: s.roll ? s.roll.dice : "", dtype: s.roll && s.roll.type || "", desc: s.text || "" })),
+    inv: c.items.filter(i => !i.gone).map(i => ({ name: i.name, qty: +i.qty || 0, attuned: !!i.attuned }))
+  };
+}
+// a sheet from the survey into one that's already here: the numbers are the survey's, lists merge by name, nothing goes
+function fromSurvey(old, inc) {
+  for (const k of ["name", "player", "species", "cls", "subcls", "bg", "align", "level", "ac", "speed", "initBonus", "hpMax", "hp", "temp"]) if (inc[k] !== undefined && inc[k] !== "") old[k] = inc[k];
+  old.ab = { ...inc.ab }; old.saveProf = inc.saveProf.slice();
+  for (const [k, v] of Object.entries(inc.skills || {})) old.skills[k] = v; // a bard's half proficiency stays where the survey shows none
+  old.hd = { ...old.hd, ...inc.hd }; old.death = { ...inc.death }; old.conds = inc.conds.slice(); old.purse = { ...inc.purse };
+  old.slots = JSON.parse(JSON.stringify(inc.slots)); if (inc.pact) old.pact = true;
+  const same = (a, b) => String(a.name || "").trim().toLowerCase() === String(b.name || "").trim().toLowerCase();
+  for (const a of inc.attacks) {
+    if (old.spells.some(s => same(s, a))) continue; // a cantrip the survey lists as an attack is a spell here
+    const m = old.attacks.find(x => same(x, a));
+    if (!m) old.attacks.push(a); else if (asWritten(m)) { m.dmgx = a.dmgx; m.dtype = a.dtype; if (a.save) { m.save = a.save; delete m.hit; } else { m.hit = a.hit; delete m.save; } }
+  }
+  for (const r of inc.res) { const m = old.res.find(x => same(x, r)); if (m) Object.assign(m, { max: r.max, used: r.used, rest: r.rest }); else old.res.push(r); }
+  for (const s of inc.spells) if (!old.spells.some(x => same(x, s))) old.spells.push(s);
+  // the survey's Senses and Defenses are its summary of features this sheet already has
+  for (const t of inc.traits) if (!["Senses", "Defenses"].includes(t.name) && !old.traits.some(x => same(x, t))) old.traits.push(t);
+  for (const it of inc.items) { const m = old.items.find(x => !x.gone && same(x, it)); if (m) { m.qty = it.qty; if (it.attune) { m.attune = true; m.attuned = !!it.attuned; } } else old.items.push(it); }
+  for (const k of Object.keys(old.story)) if (!(old.story[k] || "").trim() && inc.story && inc.story[k]) old.story[k] = inc.story[k];
+  if (!old.campaign && inc.campaign) old.campaign = inc.campaign;
+  logIt(old, "Updated from Ordinate Survey");
+}
+async function exportAll(only) {
+  const chars = only ? [only] : db.chars;
+  const pics = {}; const ids = new Set(); chars.forEach(ch => ch.items.forEach(i => (i.pics || []).forEach(id => !id.startsWith("url:") && ids.add(id))));
   for (const id of ids) { try { const b = await IDB.get(id); if (b) pics[id] = await new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(b); }); } catch (e) {} }
-  const blob = new Blob([JSON.stringify({ app: "character-book", version: VERSION, saved: new Date().toISOString(), db, pics })], { type: "application/json" });
-  const name = `character-book-${today()}.json`; const file = new File([blob], name, { type: "application/json" });
+  const out = { app: "character-book", version: VERSION, saved: new Date().toISOString(), db: only ? { v: 1, chars } : db, pics, survey: chars.map(toSurvey) };
+  const blob = new Blob([JSON.stringify(out)], { type: "application/json" });
+  const name = only ? `character-book-${(only.short || only.name).replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "character"}-for-the-survey-${today()}.json` : `character-book-${today()}.json`;
+  const file = new File([blob], name, { type: "application/json" });
   if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e.name === "AbortError") return; } }
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
@@ -1373,6 +1437,14 @@ async function importFile(f) {
   let d; try { d = JSON.parse(await f.text()); } catch (e) { return toast("That isn't a Character Book backup."); }
   if (!d || d.app !== "character-book" || !d.db || !Array.isArray(d.db.chars)) return toast("That isn't a Character Book backup.");
   const names = d.db.chars.map(x => x.name).join(", ");
+  if (d.from === "Ordinate Survey") {
+    // from the DM's survey: a character already here is updated, anyone else is added; nothing here is lost
+    const sameAs = (x, ch) => x.id === ch.id || [x.name, x.short].some(n => n && n.trim().toLowerCase() === String(ch.name || "").trim().toLowerCase());
+    const plan = d.db.chars.map(ch => ({ ch, old: db.chars.find(x => sameAs(x, ch)) }));
+    if (!confirm(plan.map(p => `${p.ch.name}: ${p.old ? `updates ${p.old.name}` : "added"}`).join("\n") + "\n\nFrom Ordinate Survey. Bring them in?")) return;
+    for (const p of plan) { if (p.old) fromSurvey(p.old, norm(p.ch)); else db.chars.push(norm(p.ch)); }
+    save(true); closeOv(); toast("From the survey: " + names); return;
+  }
   if (!confirm(`Bring in ${names}? A character already here with the same id is replaced by the backup's copy.`)) return;
   for (const [id, url] of Object.entries(d.pics || {})) { try { const b = await (await fetch(url)).blob(); await IDB.put(id, b); } catch (e) {} }
   for (const ch of d.db.chars) { const i = db.chars.findIndex(x => x.id === ch.id); if (i >= 0) db.chars[i] = norm(ch); else db.chars.push(norm(ch)); }
@@ -1559,6 +1631,7 @@ document.addEventListener("click", e => {
     case "editmode": ui.editMode = !ui.editMode; ui.edit = null; ui.itemOpen = null; render(); scrollTo(0, 0); if (!ui.editMode) toast("Saved."); break;
     case "libdel": { const list = db.lib[el.dataset.kind]; const x = list[+el.dataset.j]; if (confirm(`Take ${x.name} out of the homebrew? (A sheet that has it keeps its copy.)`)) { list.splice(+el.dataset.j, 1); save(); render(); } break; }
     case "levelup": startLevelUp(c); break;
+    case "tosurvey": exportAll(db.chars.find(x => x.id === el.dataset.id)); toast("In the survey: Party tab → Bring in from the Character Book…", 4000); break;
     case "levelupof": db.cur = el.dataset.id; save(); render(); startLevelUp(C()); break;
     case "luroll": { const r = rnd(c.hd.die); LV.hp = r; LV.how = `rolled ${r} on the d${c.hd.die}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = r; break; }
     case "luavg": { const v = c.hd.die / 2 + 1; LV.hp = v; LV.how = `the average, ${v}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = v; break; }
