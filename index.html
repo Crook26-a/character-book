@@ -249,7 +249,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 16;
+const VERSION = 17;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1106,7 +1106,12 @@ function pick(label, path, list, cur) {
 }
 
 // homebrew: the survey's library, brought in from its "Send to the Field Book" file or a survey save
-const libSpells = () => (db.lib && db.lib.spells) || [], libLoot = () => (db.lib && db.lib.loot) || [];
+// and the Field Book on this device (Joseph, 2026-11-01): the same website, so its storage is readable here; its items
+// and spells, always current, without its DM notes. The same entry in both: the more recently edited one.
+const fbData = () => { try { return JSON.parse(localStorage.getItem("fieldbook") || "null"); } catch (e) { return null; } };
+const fromFB = cat => { const o = fbData(); return o && Array.isArray(o[cat]) ? o[cat].filter(x => x && String(x.name || "").trim()).map(x => { const y = { ...x, fb: true }; delete y.notes; return y; }) : []; };
+const mergeHb = (a, b) => { const by = new Map(a.map(x => [x.id, x])); for (const x of b) { const o = by.get(x.id); if (!o || (x.fbEdited || 0) > (o.fbEdited || 0)) by.set(x.id, x); } return [...by.values()]; };
+const libSpells = () => mergeHb((db.lib && db.lib.spells) || [], fromFB("spells")), libLoot = () => mergeHb((db.lib && db.lib.loot) || [], fromFB("loot"));
 function takeLibrary(d) {
   const src = d && d.format === "ordinate-fieldbook" ? d : d && d.library ? d.library : null;
   if (!src) return null;
@@ -1125,8 +1130,11 @@ function libEditHtml() {
 }
 function libraryHtml() {
   const L = db.lib;
-  return `<div class="panel"><h2>Homebrew <small>from Ordinate Survey's library</small></h2>
-    ${L ? `<p class="note">${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}${L.from ? ` from ${esc(L.from)}` : ""}, brought in ${esc(L.at)}. They show first when you add a spell, an item, or an attack.</p>` : `<p class="note">Nothing yet. Your own spells and items from the survey come up beside the SRD's when you add one.</p>`}
+  const fl = fromFB("loot").length, fs = fromFB("spells").length;
+  return `<div class="panel"><h2>Homebrew <small>your own items and spells</small></h2>
+    <p class="note"><b>From the Field Book</b> on this device: ${fl || fs ? `${fl} item${fl === 1 ? "" : "s"} and ${fs} spell${fs === 1 ? "" : "s"}, always current (nothing to bring in). Its DM notes stay behind.` : "nothing yet. Whatever you write there shows up here by itself."}</p>
+    <p class="note"><b>From the survey:</b> ${L ? "" : "nothing yet."}</p>
+    ${L ? `<p class="note">${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}${L.from ? ` from ${esc(L.from)}` : ""}, brought in ${esc(L.at)}. They show first when you add a spell, an item, or an attack.</p>` : ""}
     <p class="note">In the survey: <b>Library → Send to the Field Book</b> makes the file (a survey save works too). Its DM notes stay behind.</p>
     ${EM() ? libEditHtml() : ""}<button class="btn wide" data-act="libin">Bring in the survey's library…</button>${L ? `<button class="btn wide danger" data-act="libclear">Forget the homebrew</button>` : ""}</div>`;
 }
@@ -1209,19 +1217,19 @@ function pickerResults(kind) {
     if (ui_pk.lv !== "") pool = pool.filter(s => String(+s.lv || 0) === ui_pk.lv);
     const got = new Set(c.spells.map(s => s.name));
     const rows = search(pool, ui_pk.q, 60);
-    return rows.length ? rows.map(s => `<button class="card tap" data-act="pkspell" data-id="${esc(s.id)}" ${got.has(s.name) ? "disabled style='opacity:.5'" : ""}><span class="nm">${esc(s.name)}${s.hb ? `<span class="tag g">Homebrew</span>` : ""}${got.has(s.name) ? `<span class="tag">have it</span>` : ""}</span>
-      <span class="sub">${+s.lv ? ord(+s.lv) + " level" : "Cantrip"} · ${esc(s.school || "")}${s.conc ? " · concentration" : ""}${s.dmg && !NO_ROLL.includes(s.name) ? ` · ${esc(s.dmg)} ${esc(s.dtype || "")}` : ""}${s.campaign ? " · " + esc(s.campaign) : ""}</span></button>`).join("") : `<p class="empty">No spells match${ui_pk.cls && c.cls ? ` among ${esc(c.cls)} spells (untick the box to see every class)` : ""}${ui_pk.lv !== "" ? " at that level" : ""}.</p>${lookup("every spell", `It has the SRD's ${SRD_SPELLS.length} spells${libSpells().length ? " and your survey's homebrew" : ""}; spells from other books (Xanathar's, Tasha's…) aren't in it. Look yours up in its book, then use “A spell of your own…” and copy its text in.`)}`;
+    return rows.length ? rows.map(s => `<button class="card tap" data-act="pkspell" data-id="${esc(s.id)}" ${got.has(s.name) ? "disabled style='opacity:.5'" : ""}><span class="nm">${esc(s.name)}${s.hb ? `<span class="tag g">${s.fb ? "Field Book" : "Homebrew"}</span>` : ""}${got.has(s.name) ? `<span class="tag">have it</span>` : ""}</span>
+      <span class="sub">${+s.lv ? ord(+s.lv) + " level" : "Cantrip"} · ${esc(s.school || "")}${s.conc ? " · concentration" : ""}${s.dmg && !NO_ROLL.includes(s.name) ? ` · ${esc(s.dmg)} ${esc(s.dtype || "")}` : ""}${s.campaign ? " · " + esc(s.campaign) : ""}</span></button>`).join("") : `<p class="empty">No spells match${ui_pk.cls && c.cls ? ` among ${esc(c.cls)} spells (untick the box to see every class)` : ""}${ui_pk.lv !== "" ? " at that level" : ""}.</p>${lookup("every spell", `It has the SRD's ${SRD_SPELLS.length} spells${libSpells().length ? " and your homebrew" : ""}; spells from other books (Xanathar's, Tasha's…) aren't in it. Look yours up in its book, then use “A spell of your own…” and copy its text in.`)}`;
   }
   const rows = search(weaponPool(), ui_pk.q, 60);
   return rows.length ? rows.map(x => { const w = baseWeapon(x); const ws = w && weaponStats(w);
-    return `<button class="card tap" data-act="pkatk" data-id="${esc(x.id)}"><span class="nm">${esc(x.name)}${x.hb ? `<span class="tag g">Homebrew</span>` : x.kind === "magic item" ? `<span class="tag g">${esc(x.rarity || "magic")}</span>` : ""}</span>
-      <span class="sub">${esc(ws ? `${ws.dice} ${ws.type} · ${ws.props}` : `${x.dmg} ${x.dtype || ""}`)}</span></button>`; }).join("") : `<p class="empty">No weapons match.</p>${lookup("that weapon", `It has the SRD's weapons${libLoot().length ? " and your survey's homebrew" : ""}. Look up its damage and properties in your book, then use “An attack of your own”.`)}`;
+    return `<button class="card tap" data-act="pkatk" data-id="${esc(x.id)}"><span class="nm">${esc(x.name)}${x.hb ? `<span class="tag g">${x.fb ? "Field Book" : "Homebrew"}</span>` : x.kind === "magic item" ? `<span class="tag g">${esc(x.rarity || "magic")}</span>` : ""}</span>
+      <span class="sub">${esc(ws ? `${ws.dice} ${ws.type} · ${ws.props}` : `${x.dmg} ${x.dtype || ""}`)}</span></button>`; }).join("") : `<p class="empty">No weapons match.</p>${lookup("that weapon", `It has the SRD's weapons${libLoot().length ? " and your homebrew" : ""}. Look up its damage and properties in your book, then use “An attack of your own”.`)}`;
 }
 function itemSuggestHtml(q) {
   const m = q.match(/^(\d+)\s*(?:x|×)?\s+(.+)$/i); const name = (m ? m[2] : q).trim(); if (name.length < 2) return "";
   const found = search(itemPool(), name, 8);
-  if (!found.length) return name.length < 3 ? "" : lookup(`“${esc(name)}”`, `It has the SRD's items${libLoot().length ? " and your survey's homebrew" : ""}. Add makes it just as you typed it; if it has rules, look them up in its book or ask your DM, and put them in its notes.`);
-  return found.map(x => `<button class="card tap" data-act="pkitem" data-id="${esc(x.id)}" style="padding:7px 10px"><span class="nm" style="font-size:15.5px">${m ? m[1] + " × " : ""}${esc(x.name)}${x.hb ? `<span class="tag g">Homebrew</span>` : x.rarity ? `<span class="tag g">${esc(x.rarity)}</span>` : ""}</span><span class="sub">${esc([x.kind, x.value, /attunement/i.test(x.att || "") || x.attune === true ? "attunement" : ""].filter(Boolean).join(" · "))}</span></button>`).join("");
+  if (!found.length) return name.length < 3 ? "" : lookup(`“${esc(name)}”`, `It has the SRD's items${libLoot().length ? " and your homebrew" : ""}. Add makes it just as you typed it; if it has rules, look them up in its book or ask your DM, and put them in its notes.`);
+  return found.map(x => `<button class="card tap" data-act="pkitem" data-id="${esc(x.id)}" style="padding:7px 10px"><span class="nm" style="font-size:15.5px">${m ? m[1] + " × " : ""}${esc(x.name)}${x.hb ? `<span class="tag g">${x.fb ? "Field Book" : "Homebrew"}</span>` : x.rarity ? `<span class="tag g">${esc(x.rarity)}</span>` : ""}</span><span class="sub">${esc([x.kind, x.value, /attunement/i.test(x.att || "") || x.attune === true ? "attunement" : ""].filter(Boolean).join(" · "))}</span></button>`).join("");
 }
 
 /* ══ level up: what changes by itself, and what's yours to decide ══
