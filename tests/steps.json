@@ -1,6 +1,6 @@
 {
   "kind": "cb",
   "app": "../index.html",
-  "inline": { "srd.js": "../srd.js", "qrcode.min.js": "../qrcode.min.js" },
+  "inline": { "srd.js": "../srd.js", "qrcode.min.js": "../qrcode.min.js", "rules.js": "../rules.js" },
   "cases": ["cases", "private/cases"]
 }

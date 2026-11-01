@@ -11,13 +11,17 @@ The sheet you play from, beside **Ordinate Survey** (the DM's app) and the **Fie
 
 Everything stays on the device. Save a backup from the character menu (tap the name at the top); bring it in on another device the same way.
 
-Files: `index.html` (the whole app), `srd.js` (the SRD 5.2 spells and items the pickers offer, built by `tools\build-srd.ps1` from Ordinate Survey's own SRD data), `sw.js` (offline cache; bump `CACHE` with each release), `manifest.webmanifest`, the icons, and `pictures\` (the cart's pictures from the DM).
+Files: `index.html` (the whole app), `srd.js` (the SRD 5.2 spells and items the pickers offer, built by `tools\build-srd.ps1` from Ordinate Survey's own SRD data), `rules.js` (the SRD 5.2's classes with their tables and features, subclasses, species, backgrounds, and feats, for the builder and the level-up, built by `tools\build-rules.ps1` from Open5e's copy of the SRD 5.2), `sw.js` (offline cache; bump `CACHE` with each release), `manifest.webmanifest`, the icons, and `pictures\` (the cart's pictures from the DM).
 
 ## Pinned ideas (Joseph, 2026-10-31)
 
 1. **Pick from lists, not type** (done in v6): the fields become dropdowns of the SRD (spells, items, species, classes…), plus a "homebrew" option that pulls from Ordinate Survey's own library.
 2. **Level up** (done in v7): a level-up that tells you what to decide (hit points, spells, features, ability scores) and does the rest itself.
 3. **Edit everything** (done in v9): an edit mode where every part of the sheet can be changed: spell slots, names, the kind of each spell, all of it.
+
+## Build a character (v20)
+
+PCs tab, **+ Build a character (SRD 5.2)**: one page in the 2024 order (class, background, species, ability scores by standard array, point buy, or rolling, skills, equipment, spells, and a name) that makes a level 1 character with its hit points, armor class, saves, skills, kit, gold, slots, and spells worked out. Only what the SRD 5.2 has (12 classes with one subclass each, 9 species, 4 backgrounds, and 17 feats); the Free Rules and the Player's Handbook aren't licensed to copy, so anything else is built from the closest choice and changed with Edit, and the builder says so. A 2024 character's level-up then fills in each level's features, uses, and spell counts from the class table.
 
 ## Credit
 

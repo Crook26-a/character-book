@@ -1,0 +1,46 @@
+// the SRD 5.2 builder: a Fighter and a Wizard made from the PCs tab, then the Wizard to level 2 (recorded, not predicted)
+const q = s => document.querySelector(s);
+const click = s => { const e = q(s); expect(e, "there's a " + s); e.click(); };
+const sel = (s, v) => { const e = q(s); expect(e, "there's a " + s); e.value = v; e.dispatchEvent(new Event("change", { bubbles: true })); };
+const typ = (s, v) => { const e = q(s); expect(e, "there's a " + s); e.value = v; e.dispatchEvent(new Event("input", { bubbles: true })); };
+const array = order => order.forEach((k, i) => sel(`[data-bld="pick.${k}"]`, String(i)));
+const sheet = c => `${c.name}: ${c.species} ${c.cls} ${c.level}, ${c.bg}; AC ${c.ac} (${c.acNote}), HP ${c.hpMax}; ${ABS.map(([k]) => c.ab[k]).join("/")}; `
+  + `skills ${Object.keys(c.skills).join(", ")}; ${c.gp ?? c.purse.gp} gp; ${c.items.map(i => (i.qty > 1 ? i.qty + " " : "") + i.name).join(", ")}`;
+
+step("the rules load, and the PCs tab offers the builder", () => {
+  expect(HAS_RULES, "rules.js loaded");
+  ui.tab = "pcs"; render(); click('[data-act="newbuild"]');
+  expect(ovKind === "builder", "the builder opens");
+  return `${RULES.classes.length} classes, ${RULES.species.length} species, ${RULES.backgrounds.length} backgrounds, ${RULES.feats.length} feats`;
+});
+step("a Human Fighter, Soldier, standard array", () => {
+  sel('[data-bld="cls"]', "Fighter"); sel('[data-bld="bg"]', "Soldier"); sel('[data-bld="sp"]', "Human");
+  sel('[data-bld="plus2"]', "str"); sel('[data-bld="plus1"]', "con");
+  array(["str", "con", "dex", "wis", "int", "cha"]);
+  for (let i = 0; i < 2; i++) click('[data-act="bldskill"]:not(.on):not([disabled])');
+  sel('[data-bld="extra"]', "perception"); sel('[data-bld="vfeat"]', "Alert");
+  typ('[data-bld="name"]', "Test Fighter");
+  click('[data-act="bldmake"]');
+  const c = db.chars.find(x => x.name === "Test Fighter"); expect(c, "the Fighter is made");
+  return sheet(c);
+});
+step("an Elf Wizard, Sage, with spells", () => {
+  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]');
+  sel('[data-bld="cls"]', "Wizard"); sel('[data-bld="bg"]', "Sage"); sel('[data-bld="sp"]', "Elf");
+  sel('[data-bld="plus2"]', "int"); sel('[data-bld="plus1"]', "con");
+  array(["int", "con", "dex", "wis", "str", "cha"]);
+  for (let i = 0; i < 2; i++) click('[data-act="bldskill"]:not(.on):not([disabled])');
+  for (const key of ["cantrips", "spells"]) for (let i = 0; i < 6; i++) { const b = q(`[data-act="bldspell"][data-k="${key}"]:not(.on):not([disabled])`); if (b) b.click(); }
+  typ('[data-bld="name"]', "Test Wizard");
+  click('[data-act="bldmake"]');
+  const c = db.chars.find(x => x.name === "Test Wizard"); expect(c, "the Wizard is made");
+  return sheet(c) + `; slots ${JSON.stringify(c.slots)}; spells ${c.spells.map(s => s.name).join(", ")}`;
+});
+step("the Wizard to level 2: features from the class table", () => {
+  closeOv(); const c = db.chars.find(x => x.name === "Test Wizard"); db.cur = c.id; ui.tab = "play"; render();
+  click('[data-act="levelup"]');
+  const lookups = [...document.querySelectorAll("#ov .lookup")].length;
+  click('[data-act="luavg"]'); click('[data-act="luapply"]'); closeOv();
+  const d = db.chars.find(x => x.name === "Test Wizard");
+  return `level ${d.level}, HP ${d.hpMax}, ${lookups} lookups; slots ${JSON.stringify(d.slots)}; features ${d.traits.filter(t => t.src === "Wizard 2").map(t => t.name).join(", ")}`;
+});
