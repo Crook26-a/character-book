@@ -248,7 +248,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 12;
+const VERSION = 13;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1701,7 +1701,6 @@ function seedGnick() {
       { id: "at_staff", name: "Quarterstaff", ab: "str", prof: true, dice: "1d6", dtype: "bludgeoning", note: "Versatile (1d8 two-handed, so not with the shield)" },
       { id: "at_sling", name: "Sling", ab: "dex", prof: true, dice: "1d4", dtype: "bludgeoning", range: "30/120 ft", ammo: ids.rocks },
       { id: "at_dart", name: "Dart", ab: "best", prof: true, dice: "1d4", dtype: "piercing", range: "20/60 ft", ammo: ids.darts },
-      { id: "at_rapier", name: "Rapier (stolen)", ab: "best", prof: false, dice: "1d8", dtype: "piercing", note: "A martial weapon: clerics aren't proficient" }
     ],
     spells: [
       { id: "sp_thaum", name: "Thaumaturgy", lvl: 0, time: "1 action", range: "30 ft", dur: "Up to 1 minute", text: "You manifest a minor wonder, such as booming your voice, flickering flames, or creating harmless tremors." },
@@ -1785,7 +1784,7 @@ If you lose more money than you have, you enter divine debt, represented by a ne
       { id: "it_perry", name: "Picture of Perry", qty: 1, note: "From your 2026-03-21 notes." },
       { id: "it_femur", name: "Femur knife", qty: 1, note: "From your 2026-03-21 notes." },
       { id: "it_kknife", name: "Kitchen knife", qty: 1, note: "From your 2026-03-21 notes." },
-      { id: "it_rapier", name: "Rapier", qty: 1, value: "25 gp", note: "Stolen (2026-03-21 notes)." },
+      { id: "it_rapier", name: "Rapier", qty: 1, value: "25 gp", gone: true, note: "Stolen (2026-03-21 notes). Given back (2026-11-01)." },
       { id: "it_crane", name: "Magic origami crane", qty: 1, note: "It levitates. From your 2026-03-21 notes." },
       { id: "it_bone", name: "Bone die", qty: 1, gone: true, note: "From your session 3 notes. No longer has it (2026-10-31)." }
     ],
@@ -1864,6 +1863,8 @@ if (!db.fixes.includes("gnick-rules")) { const g = db.chars.find(ch => ch.id ===
 // a feature's own roll button replaced the one made just for Sticky Fingers
 if (!db.fixes.includes("trait-rolls")) { for (const ch of db.chars) for (const t of ch.traits) if (t.roll === "sticky") { delete t.roll; Object.assign(t, { rollSkill: "stealth", rollExtra: "1d100", rollLabel: "Roll it: Stealth + d100" }); } db.fixes.push("trait-rolls"); save(); }
 if (!db.fixes.includes("gnick-player")) { const g = db.chars.find(ch => ch.id === "ch_gnick"); if (g && !g.player) g.player = "Joseph"; db.fixes.push("gnick-player"); save(); }
+// Gnick gave the rapier back (Joseph, 2026-11-01)
+if (!db.fixes.includes("gnick-rapier-back")) { const g = db.chars.find(ch => ch.id === "ch_gnick"); if (g) { const r = g.items.find(i => i.id === "it_rapier"); if (r && !r.gone) { r.gone = true; r.note = (r.note || "") + " Given back (2026-11-01)."; logIt(g, "Gave the rapier back"); } g.attacks = g.attacks.filter(a => a.id !== "at_rapier"); } db.fixes.push("gnick-rapier-back"); save(); }
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   const hadController = !!navigator.serviceWorker.controller; let reloaded = false;

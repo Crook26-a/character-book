@@ -1,6 +1,6 @@
 1. the SRD is there: 339 spells, 37 weapons
 2. Spirit Guardians from the cleric list: 3d8 radiant, necrotic
 3. Fireball isn't a cleric spell; with the box off it is there: ok
-4. weapons: Longbow and a magic greatsword: 6 attacks
+4. weapons: Longbow and a magic greatsword: 5 attacks
 5. items as you type: two potions that heal, a dagger onto the attacks: ok
 6. the sheet's dropdowns keep what's there and take Other…: Rock gnome

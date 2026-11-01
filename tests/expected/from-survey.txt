@@ -1,3 +1,3 @@
-1. Gnick before: an effect on him, his journal and people: {"sessions":4,"people":12,"traits":9,"spells":19,"attacks":4,"items":33}
+1. Gnick before: an effect on him, his journal and people: {"sessions":4,"people":12,"traits":9,"spells":19,"attacks":3,"items":33}
 2. the survey's file, with the DM's changes, comes in: Gnick, Ilsa Brightwater, Wren
 3. everything only this app has is still there: HP 20/39, 34 items
