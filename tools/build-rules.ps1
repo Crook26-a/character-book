@@ -61,7 +61,68 @@ $backgrounds = foreach ($b in ((Get-All "backgrounds") | Sort-Object name)) {
 $feats = foreach ($f in ((Get-All "feats") | Sort-Object name)) { [ordered]@{ name = $f.name; type = [string]$f.type; prereq = [string]$f.prerequisite; desc = [string]$f.desc
   benefits = @($f.benefits | ForEach-Object { [string]$_.desc }) } }
 
-$json = [ordered]@{ classes = @($classes); subclasses = @($subclasses); species = @($species); backgrounds = @($backgrounds); feats = @($feats) } | ConvertTo-Json -Depth 8 -Compress
-$out = "/* rules.js: made by tools\build-rules.ps1 from Open5e's copy of the SRD 5.2 ($(Get-Date -Format 'yyyy-MM-dd')). Don't edit by hand. The SRD's credit is in srd.js (SRD_CREDIT). */`nconst RULES = $json;`n"
+# ── The 2014 rules: the SRD 5.1 (document srd-2014), shaped like the above where it can be. It writes its
+# proficiencies and starting equipment as text ("(a) a mace or (b) a warhammer" on each line), races carry their
+# ability bonuses in the trait text, and subraces point at their race.
+function Get-Doc($what, $doc) {  # read as UTF-8 bytes: Windows PowerShell guesses wrong on the 2014 text's curly quotes
+  $b = (Invoke-WebRequest -UseBasicParsing "$Api/$what/?document__key=$doc&limit=200").RawContentStream.ToArray()
+  ([Text.Encoding]::UTF8.GetString($b) | ConvertFrom-Json).results
+}
+$Q = "[$([char]0x2018)$([char]0x2019)]"
+$WORDN = @{ one = 1; two = 2; three = 3; four = 4; five = 5; six = 6 }
+function Prof-Lines($t) { $o = @{}; foreach ($l in ([string]$t -split "`n")) { $m = [regex]::Match($l, '\*\*(.+?):\*\*\s*(.*)'); if ($m.Success) { $o[$m.Groups[1].Value.Trim()] = $m.Groups[2].Value.Trim() } }; $o }
+function Kit-Lines($t) {  # one entry per line: its lettered choices, or "-" for what's given as it is
+  foreach ($l in ([string]$t -split "`n" | Where-Object { $_ -match '^\s*\*\s' })) {
+    $l = ($l -replace '^\s*\*\s*', '' -replace '\(\*([a-z])\*\)', '($1)' -replace $Q, "'").Trim()
+    $o = [ordered]@{}
+    foreach ($m in [regex]::Matches($l, '\(([a-z])\)\s*(.*?)(?=,?\s*(?:or\s*)?\([a-z]\)|$)')) { $o[$m.Groups[1].Value] = $m.Groups[2].Value.Trim().TrimEnd(',').Trim() }
+    if (-not $o.Count) { $o["-"] = $l }
+    , $o
+  }
+}
+$all14 = Get-Doc "classes" "srd-2014"
+$classes14 = foreach ($c in ($all14 | Where-Object { -not $_.subclass_of } | Sort-Object name)) {
+  $p = Prof-Lines ($c.features | Where-Object feature_type -eq "PROFICIENCIES").desc
+  $sk = [string]$p["Skills"]; $n = [regex]::Match($sk, 'Choose (?:any )?(\w+)')
+  $table = [ordered]@{}; foreach ($f in ($c.features | Where-Object { $_.data_for_class_table -and $_.feature_type -notin "PROFICIENCY_BONUS", "SPELL_SLOTS" })) { $table[($f.name -replace '^Cantrips Known$', 'Cantrips')] = Column $f }
+  $slots = [ordered]@{}; foreach ($f in ($c.features | Where-Object feature_type -eq "SPELL_SLOTS")) { $slots["$([int]($f.name -replace '\D', ''))"] = Column $f }
+  [ordered]@{
+    name = $c.name; hd = [int]([string]$c.hit_dice -replace '\D', ''); primary = ""; saves = @(Ab-Keys (($c.saving_throws | ForEach-Object name) -join ", "))
+    skills = [ordered]@{ n = $(if ($n.Success) { [int]$WORDN[$n.Groups[1].Value.ToLower()] } else { 0 }); any = ($sk -match 'Choose any'); from = @(Skill-Keys ($sk -replace '^.*?from', '')) }
+    weapons = [string]$p["Weapons"]; armor = [string]$p["Armor"]; tools = $(if ($p["Tools"] -match '^None') { "" } else { [string]$p["Tools"] })
+    kit = @(Kit-Lines ($c.features | Where-Object feature_type -eq "STARTING_EQUIPMENT").desc); caster = ""
+    features = @($c.features | Where-Object { $_.feature_type -eq "CLASS_LEVEL_FEATURE" -and $_.gained_at -and $_.desc } | ForEach-Object { [ordered]@{ name = $_.name; lv = @(Levels $_); desc = ([string]$_.desc -replace $Q, "'") } } | Sort-Object { $_.lv[0] }, name)
+    table = $table; slots = $slots
+  }
+}
+$subclasses14 = foreach ($s in ($all14 | Where-Object { $_.subclass_of } | Sort-Object name)) {
+  [ordered]@{ name = $s.name; of = $s.subclass_of.name; desc = [string]$s.desc
+    features = @($s.features | Where-Object { $_.gained_at } | ForEach-Object { [ordered]@{ name = $_.name; lv = @(Levels $_); desc = ([string]$_.desc -replace $Q, "'") } } | Sort-Object { $_.lv[0] }, name) }
+}
+$sp14 = Get-Doc "species" "srd-2014"; $keyName = @{}; foreach ($s in $sp14) { $keyName[$s.key] = $s.name }
+$races = foreach ($s in ($sp14 | Sort-Object name)) {
+  $tr = @($s.traits | ForEach-Object { [ordered]@{ name = $_.name; desc = ([string]$_.desc -replace $Q, "'") } }); $d = { param($n) [string]($tr | Where-Object name -eq $n).desc }
+  $asi = & $d "Ability Score Increase"; $bonus = [ordered]@{}
+  foreach ($m in [regex]::Matches($asi, '(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) score increases by (\d)')) { $bonus[$AB[$m.Groups[1].Value.ToLower()]] = [int]$m.Groups[2].Value }
+  if ($asi -match 'ability scores each increase by 1') { foreach ($k in "str", "dex", "con", "int", "wis", "cha") { $bonus[$k] = 1 } }
+  $choose = $(if ($asi -match '(\w+) other ability scores of your choice increase by 1') { [int]$WORDN[$Matches[1].ToLower()] } else { 0 })
+  $skills = @(foreach ($t in $tr) { $m = [regex]::Match($t.desc, 'proficiency in the (\w+) skill'); if ($m.Success) { Skill-Keys $m.Groups[1].Value } })
+  $anyN = 0; foreach ($t in $tr) { $m = [regex]::Match($t.desc, 'proficiency in (\w+) skills of your choice'); if ($m.Success) { $anyN = [int]$WORDN[$m.Groups[1].Value.ToLower()] } }
+  [ordered]@{ name = $s.name; of = $(if ($s.subspecies_of) { $keyName[$s.subspecies_of] } else { "" }); desc = [string]$s.desc
+    speed = $(if (& $d "Speed") { [int](([regex]::Match((& $d "Speed"), '\d+')).Value) } else { 0 }); size = ([regex]::Match((& $d "Size"), '(?i)your size is (\w+)')).Groups[1].Value
+    bonus = $bonus; choose = $choose; skills = $skills; anySkills = $anyN; languages = (& $d "Languages")
+    traits = @($tr | Where-Object { $_.name -notin "Ability Score Increase", "Speed", "Size", "Age", "Alignment", "Languages" }) }
+}
+$backgrounds14 = foreach ($b in (Get-Doc "backgrounds" "srd-2014" | Sort-Object name)) {
+  $g = @{}; foreach ($x in $b.benefits) { $g[$x.type] = $x }
+  [ordered]@{ name = $b.name; desc = [string]$b.desc; skills = @(Skill-Keys ([string]$g["skill_proficiency"].desc)); tool = [string]$g["tool_proficiency"].desc
+    languages = [string]$g["language"].desc; equipment = ([string]$g["equipment"].desc -replace $Q, "'"); feature = [ordered]@{ name = [string]$g["feature"].name; desc = [string]$g["feature"].desc } }
+}
+$feats14 = foreach ($f in (Get-Doc "feats" "srd-2014" | Sort-Object name)) { [ordered]@{ name = $f.name; type = "General"; prereq = [string]$f.prerequisite
+  desc = (@([string]$f.desc) + @($f.benefits | ForEach-Object { "- " + $_.desc })) -join "`n"; benefits = @($f.benefits | ForEach-Object { [string]$_.desc }) } }
+
+$json = [ordered]@{ classes = @($classes); subclasses = @($subclasses); species = @($species); backgrounds = @($backgrounds); feats = @($feats)
+  "2014" = [ordered]@{ classes = @($classes14); subclasses = @($subclasses14); species = @($races); backgrounds = @($backgrounds14); feats = @($feats14) } } | ConvertTo-Json -Depth 9 -Compress
+$out = "/* rules.js: made by tools\build-rules.ps1 from Open5e's copies of the SRD 5.2 (the 2024 rules) and, under ""2014"", the SRD 5.1 ($(Get-Date -Format 'yyyy-MM-dd')). Don't edit by hand. The credits are in srd.js (SRD_CREDIT) and index.html (SRD51_CREDIT). */`nconst RULES = $json;`n"
 [IO.File]::WriteAllText((Join-Path $App "rules.js"), $out, (New-Object Text.UTF8Encoding $false))
-"rules.js: $(@($classes).Count) classes, $(@($subclasses).Count) subclasses, $(@($species).Count) species, $(@($backgrounds).Count) backgrounds, $(@($feats).Count) feats, $([int]((Get-Item (Join-Path $App 'rules.js')).Length / 1024)) KB"
+"rules.js: 2024 $(@($classes).Count) classes, $(@($subclasses).Count) subclasses, $(@($species).Count) species, $(@($backgrounds).Count) backgrounds, $(@($feats).Count) feats; 2014 $(@($classes14).Count) classes, $(@($subclasses14).Count) subclasses, $(@($races).Count) races, $(@($backgrounds14).Count) backgrounds, $(@($feats14).Count) feats; $([int]((Get-Item (Join-Path $App 'rules.js')).Length / 1024)) KB"

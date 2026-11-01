@@ -23,9 +23,13 @@ Files: `index.html` (the whole app), `srd.js` (the SRD 5.2 spells and items the 
 
 PCs tab, **+ Build a character (the SRD, or your own)**: one page in the 2024 order (class, background, species, ability scores by standard array, point buy, or rolling, skills, equipment, spells, and a name) that makes a level 1 character with its hit points, armor class, saves, skills, kit, gold, slots, and spells worked out. Only what the SRD 5.2 has (12 classes with one subclass each, 9 species, 4 backgrounds, and 17 feats); the Free Rules and the Player's Handbook aren't licensed to copy, so anything else is built from the closest choice and changed with Edit, and the builder says so. Every step is optional (v21): each list has Other to type your own, scores can be typed, and there is a box for any equipment. It always saves; whatever was left out is listed on the Play tab ("Not finished yet") and the PCs card until it is filled in or marked done. A 2024 character's level-up then fills in each level's features, uses, and spell counts from the class table.
 
+**2014 rules (v22):** a switch at the top builds from the SRD 5.1 instead, in the 2014 order (race and subrace with their ability increases, class, background, scores, skills, a choice on each line of the class's starting equipment, spells, and a name). The SRD 5.1 has 12 classes with one subclass each, 9 races with 4 subraces, one background (Acolyte), and one feat (Grappler); everything else is Other, from the 2014 Player's Handbook. `rules.js` carries it under `RULES["2014"]`. A 2014 character's level-up (Gnick's too) now fills in the class's features and uses from the SRD 5.1; a subclass that isn't in it (Gnick's Trickery Domain) is still looked up.
+
 ## Credit
 
 This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
+
+This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode.
 
 ## With Ordinate Survey (both ways)
 

@@ -11,7 +11,8 @@ step("5 → 6: what it does by itself, and what it says it doesn't have", () => 
   up(); const t = q("#ov").textContent;
   expect(/1st 4 · 2nd 3 · 3rd 3/.test(t) && /prepare 9 spells/.test(t), "slots 4/3/3 and 9 prepared");
   expect(q('[data-act="luapply"]').disabled, "waits for hit points");
-  expect(notes().some(n => /class tables/.test(n) && /2014 Player's Handbook/.test(n)), "says it doesn't have the class tables", notes());
+  // the SRD 5.1 has the Cleric's own features; the Trickery Domain isn't in it, so that's what it says to look up
+  expect(notes().some(n => /Trickery Domain/.test(n) && /2014 Player's Handbook/.test(n)), "says it doesn't have the Trickery Domain's features", notes());
   return notes().length + " lookups";
 });
 step("take the average, add a feature, reach 6", () => {

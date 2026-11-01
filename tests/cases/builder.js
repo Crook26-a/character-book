@@ -62,3 +62,23 @@ step("the Wizard to level 2: features from the class table", () => {
   const d = db.chars.find(x => x.name === "Test Wizard");
   return `level ${d.level}, HP ${d.hpMax}, ${lookups} lookups; slots ${JSON.stringify(d.slots)}; features ${d.traits.filter(t => t.src === "Wizard 2").map(t => t.name).join(", ")}`;
 });
+step("2014: a Hill Dwarf Life Domain Cleric, Acolyte, with spells", () => {
+  ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); click('[data-act="blded"][data-v="2014"]');
+  sel('[data-bld="sp"]', "Dwarf"); sel('[data-bld="sub"]', "Hill Dwarf"); sel('[data-bld="cls"]', "Cleric"); sel('[data-bld="subcls"]', "Life Domain"); sel('[data-bld="bg"]', "Acolyte");
+  array(["wis", "con", "str", "dex", "int", "cha"]);
+  for (let i = 0; i < 2; i++) click('[data-act="bldskill"]:not(.on):not([disabled])');
+  click('[data-act="bldkit"][data-i="1"][data-v="c"]');
+  for (const key of ["cantrips", "spells"]) for (let i = 0; i < 6; i++) { const b = q(`[data-act="bldspell"][data-k="${key}"]:not(.on):not([disabled])`); if (b) b.click(); }
+  typ('[data-bld="name"]', "Test Dwarf");
+  const left = q("#bldGo").textContent.replace(/\s+/g, " ").trim().slice(0, 140);
+  click('[data-act="bldmake"]');
+  const c = db.chars.find(x => x.name === "Test Dwarf"); expect(c, "the Dwarf is made");
+  return sheet(c) + `; rules ${c.rules}, ${c.subcls}, speed ${c.speed}; slots ${JSON.stringify(c.slots)}; ${c.spells.length} spells; traits ${c.traits.map(t => t.name).join(", ")}; left: ${left}`;
+});
+step("2014: the Dwarf to level 2, from the SRD 5.1", () => {
+  closeOv(); ui.tab = "play"; render(); click('[data-act="levelup"]');
+  const note = [...document.querySelectorAll("#ov .note")].map(p => p.textContent).find(t => /From the SRD/.test(t)) || "";
+  click('[data-act="luavg"]'); click('[data-act="luapply"]'); closeOv();
+  const d = db.chars.find(x => x.name === "Test Dwarf");
+  return `level ${d.level}, HP ${d.hpMax}; features ${d.traits.filter(t => t.src === "Cleric 2").map(t => t.name).join(", ")}; ${note.replace(/\s+/g, " ").slice(0, 160)}`;
+});
