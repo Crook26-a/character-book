@@ -2,9 +2,9 @@
 
 The sheet you play from, beside **Ordinate Survey** (the DM's app) and the **Field Book**. Built for Gnick first; holds any character you play.
 
-- **Play:** hit points (damage, healing, temporary HP), death saves, concentration (a Con save comes up when you take damage), conditions and exhaustion, effects that add to rolls (Bless, Guidance, Aid, Pass without Trace, your own), slots, Luck points, Channel Divinity, rests. Tap any number to roll it: advantage, disadvantage, a Luck point, or the real die you rolled.
-- **Spells:** cast at any slot level (spends the slot, starts concentration, rolls the attack or the healing), and the Auspicious Cart's point-cast spells.
-- **Items:** purse with a log of what came and went, attunement (3 at most), pictures, potions you can drink, the Auspicious Cart with the Pious Wager table and divine debt.
+- **Play:** hit points (damage, healing, and temporary HP), death saves, concentration (a Con save comes up when you take damage), conditions and exhaustion, effects that add to rolls (Bless, Guidance, Aid, Pass without Trace, or your own), slots, Luck points, Channel Divinity, and rests. Tap any number to roll it: advantage, disadvantage, a Luck point, or the real die you rolled.
+- **Spells:** cast at any slot level (spends the slot, starts concentration, and rolls the attack or the healing), and the Auspicious Cart's point-cast spells.
+- **Items:** purse with a log of what came and went, attunement (3 at most), pictures, potions you can drink, and the Auspicious Cart with the Pious Wager table and divine debt.
 - **Journal** and **People:** session notes, and who and where you've met.
 
 **Edit** (top right) turns every tab into fields: everything you put in can be changed there, and Done turns it back.
@@ -27,7 +27,7 @@ This work includes material from the System Reference Document 5.2 ("SRD 5.2") b
 
 - **To the survey:** PCs tab → a character's **Send to the survey** (any backup works too). In the survey: Party tab → **Bring in from the Character Book…**. A character already in the party is updated; anyone else joins.
 - **From the survey:** Party tab → **Send to the Character Book** (one character) or **Send everyone…**. Here: PCs tab → **Bring in a backup…**. A character already here is updated, not replaced.
-- Updating either way: the sheet's numbers are the incoming copy's; attacks, resources, spells and items go by name (matches updated, new ones added, nothing removed). The survey keeps its secret favor, XP, crew role, notes and fight stats, and never sends them; this app keeps its journal, people, effects and the cart's wager.
+- Updating either way: the sheet's numbers are the incoming copy's; attacks, resources, spells, and items go by name (matches updated, new ones added, nothing removed). The survey keeps its secret favor, XP, crew role, notes, and fight stats, and never sends them; this app keeps its journal, people, effects, and the cart's wager.
 
 ## Sync
 

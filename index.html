@@ -249,7 +249,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 15;
+const VERSION = 16;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -552,7 +552,7 @@ function rollHtml() {
   const usedIx = r.real != null ? -1 : r.pick != null ? r.pick : r.mode === "normal" ? 0 : (r.mode === "adv" ? (r.d[0] >= r.d[1] ? 0 : 1) : (r.d[0] <= r.d[1] ? 0 : 1));
   const shown = r.mode === "normal" && !r.luck.length && r.pick == null ? [0] : dice.map((_, i) => i);
   const chips = shown.map(i => `<button class="die ${i === usedIx ? "use" : ""} ${dice[i] === 20 ? "n20" : dice[i] === 1 ? "n1" : ""} ${i >= 2 ? "luck" : ""}" data-act="pickdie" data-i="${i}" title="${i >= 2 ? "Luck die" : "d20"}">${dice[i]}</button>`).join("");
-  const why = r.auto.adv.length || r.auto.dis.length ? `<p class="note">${r.auto.adv.length ? "Advantage from " + esc(r.auto.adv.join(", ")) : ""}${r.auto.adv.length && r.auto.dis.length ? "; " : ""}${r.auto.dis.length ? "Disadvantage from " + esc(r.auto.dis.join(", ")) : ""}</p>` : "";
+  const why = r.auto.adv.length || r.auto.dis.length ? `<p class="note">${r.auto.adv.length ? "Advantage from " + esc(listAnd(r.auto.adv)) : ""}${r.auto.adv.length && r.auto.dis.length ? "; " : ""}${r.auto.dis.length ? "Disadvantage from " + esc(listAnd(r.auto.dis)) : ""}</p>` : "";
   const lucky = res(c, "Lucky"); const wager = res(c, "Pious Wager");
   let verdict = "";
   if (r.ctx.kind === "death") verdict = u === 20 ? `<p class="verdict ok">Natural 20: you're back with 1 hit point.</p>` : u === 1 ? `<p class="verdict bad">Natural 1: two failures.</p>` : u >= 10 ? `<p class="verdict ok">A success.</p>` : `<p class="verdict bad">A failure.</p>`;
@@ -563,7 +563,7 @@ function rollHtml() {
   return `<div class="rr-h">${esc(r.label)} <small>${esc(r.sub || "")}</small></div>
     <div class="dice">${chips}<span class="total">${tot}</span></div>
     <div class="brk">d20 ${r.real != null ? "(real die) " : ""}${u}${r.parts.map(p => ` ${sg(p.v)} ${esc(p.name)}`).join("")}${r.dice.map(x => ` ${x.r.total < 0 ? "−" : "+"} ${Math.abs(x.r.total)} ${esc(x.name)} (${esc(x.bonus)})`).join("")}</div>
-    ${verdict}${why}${r.hint ? `<p class="note">${esc(r.hint)}</p>` : ""}${r.spent ? `<p class="note">Used up: ${esc(r.spent.join(", "))}.</p>` : ""}
+    ${verdict}${why}${r.hint ? `<p class="note">${esc(r.hint)}</p>` : ""}${r.spent ? `<p class="note">Used up: ${esc(listAnd(r.spent))}.</p>` : ""}
     ${r.ctx.kind !== "death" ? `<div class="row" style="margin-bottom:10px"><div class="seg">${[["normal", "Normal"], ["adv", "Advantage"], ["dis", "Disadvantage"]].map(([k, l]) => `<button class="${r.mode === k ? "on" : ""}" data-act="rmode" data-m="${k}">${l}</button>`).join("")}</div></div>` : ""}
     <div class="row" style="margin-bottom:10px;align-items:center"><span class="lab">Rolled a real die?</span><input type="number" min="1" max="20" inputmode="numeric" style="width:80px" data-act="realdie" value="${r.real ?? ""}" placeholder="d20"></div>
     ${r.luck.length ? `<p class="note">Lucky: tap the die you want to use.</p>` : ""}
@@ -651,7 +651,7 @@ function shortRestHtml(c) {
   return `<div class="rr-h">Short rest</div>
     <p class="note">Spend hit dice to heal: each is a d${hd.die} ${sg(mod(c, "con"))} (Con). ${left} of ${hd.max} left. HP ${c.hp}/${hpMaxOf(c)}.</p>
     <button class="btn wide" data-act="spendhd" ${left && c.hp < hpMaxOf(c) ? "" : "disabled"}>Spend a hit die</button>
-    <p class="note">Finishing it brings back: ${esc([c.pact && Object.values(c.slots).some(s => s.max) ? "pact slots" : ""].concat(c.res.filter(r => r.rest === "short").map(r => r.name), c.res.filter(r => r.rest === "one").map(r => r.name + " (one use)")).filter(Boolean).join(", ") || "nothing on a short rest")}.</p>
+    <p class="note">Finishing it brings back: ${esc(listAnd([c.pact && Object.values(c.slots).some(s => s.max) ? "pact slots" : ""].concat(c.res.filter(r => r.rest === "short").map(r => r.name), c.res.filter(r => r.rest === "one").map(r => r.name + " (one use)"))) || "nothing on a short rest")}.</p>
     <button class="btn wide main" data-act="shortdone">Finish the short rest</button><button class="btn wide" data-act="ovclose">Not now</button>`;
 }
 function longRest(c) {
@@ -663,7 +663,7 @@ function longRest(c) {
   c.conds = c.conds.filter(k => k !== "Unconscious");
   c.hp = hpMaxOf(c);
   logRoll(c, "Long rest"); save(); render();
-  toast(`Long rest: full HP, slots and features back, ${Math.max(1, Math.floor(c.hd.max / 2))} hit dice back${debtExh(c) ? ". Divine debt exhaustion stays until the debt is settled" : ""}.`, 4200);
+  toast(`Long rest: full HP, slots, and features back, and ${Math.max(1, Math.floor(c.hd.max / 2))} hit dice${debtExh(c) ? ". Divine debt exhaustion stays until the debt is settled" : ""}.`, 4200);
 }
 
 /* ══ Pious Wager ══ */
@@ -698,7 +698,7 @@ function wagerOutHtml(c) {
       : `<p class="note">Put in the roll and the AC or DC it was against.</p>`}
     <details class="sec" data-sec="wagertable" ${ui.open.wagertable ? "open" : ""}><summary>The table</summary>
       <table class="tbl"><tr><th>Roll minus AC/DC</th><th>Result</th></tr>${[["≥10", 0], ["5 to 9", 1], ["3 or 4", 2], ["1 or 2", 3], ["0", 4], ["−1 to −4", 5], ["−5 to −9", 6], ["≤−10", 7]].map(([k, i]) => `<tr class="${row === WAGER[i] ? "hit" : ""}"><td>${k}</td><td><b>${WAGER[i].name}.</b> ${esc(WAGER[i].text)}</td></tr>`).join("")}</table>
-      <p class="note">Money can come as coin, gems or art (the DM's call). Losing more than you have puts you in divine debt at ten times the shortfall; anything you gain goes to the debt first; each 100 gp owed is a level of exhaustion nothing removes but paying it.</p></details>`;
+      <p class="note">Money can come as coin, gems, or art (the DM's call). Losing more than you have puts you in divine debt at ten times the shortfall; anything you gain goes to the debt first; each 100 gp owed is a level of exhaustion nothing removes but paying it.</p></details>`;
 }
 function applyWager(c, slot) {
   const w = ui.wager; const roll = parseInt(w.roll, 10); const dc = Math.max(15, parseInt(w.dc, 10)); const diff = roll - dc; const row = wagerRow(diff);
@@ -808,7 +808,7 @@ function playHtml(c) {
     <div class="row" style="margin-bottom:10px;align-items:center"><span class="lab">Concentration</span>
       ${c.conc ? `<span class="chip lead">◉ ${esc(c.conc)}</span><button class="btn tiny" data-act="concsave">Con save…</button><button class="btn tiny danger" data-act="concend">End it</button>` : `<span class="note" style="margin:0">None</span><button class="btn tiny" data-act="concset">Start…</button>`}</div>
   </div>`;
-  const effPanel = `<div class="panel"><h2>On right now <small>conditions, effects, modifiers</small></h2>
+  const effPanel = `<div class="panel"><h2>On right now <small>conditions, effects, and modifiers</small></h2>
     <div class="row" style="margin-bottom:8px">${effs.length ? effs.map(e => `<button class="chip ${e.on === false ? "off" : "goodc"}" data-act="efftoggle" data-id="${e.id}" title="${esc(effDesc(e))}">${esc(e.name)}${e.bonus ? " " + esc(/^[+-]/.test(e.bonus) ? e.bonus : "+" + e.bonus) : ""}${e.conc ? " ◉" : ""}${e.once ? " ¹" : ""}</button><button class="chip" data-act="effedit" data-id="${e.id}" aria-label="Edit ${esc(e.name)}">✎</button><button class="chip" data-act="effdel" data-id="${e.id}" aria-label="Remove ${esc(e.name)}">✕</button>`).join("") : `<span class="note" style="margin:0">No spells or bonuses on you.</span>`}</div>
     ${effs.length ? `<p class="note">${effs.map(e => `<b>${esc(e.name)}</b>: ${esc(effDesc(e))}`).join(" · ")}</p>` : ""}
     <div class="row" style="margin-bottom:10px"><select id="effPick" style="flex:1"><option value="">Add an effect…</option>${PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("")}<option value="custom">Your own…</option></select><button class="btn small" data-act="effadd">Add</button></div>
@@ -852,16 +852,18 @@ function playHtml(c) {
     ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return hpPanel + effPanel + stats
-    + sec("res", "Slots, features and rests", "", resBody, true)
-    + sec("atk", "Attacks", `${c.attacks.length}`, atkBody + `<button class="btn wide" data-act="addatk">+ An attack</button>`, true)
-    + sec("abil", "Abilities, saves and skills", "", abil, true)
-    + sec("feat", "Features and traits", `${c.traits.length}`, feats, false)
     + sec("who", "Who they are", "", whoHtml(c), false)
+    + sec("res", "Slots, features, and rests", "", resBody, true)
+    + sec("atk", "Attacks", `${c.attacks.length}`, atkBody + `<button class="btn wide" data-act="addatk">+ An attack</button>`, true)
+    + sec("abil", "Abilities, saves, and skills", "", abil, true)
+    + sec("feat", "Features and traits", `${c.traits.length}`, feats, false)
     + sec("rolls", "Recent rolls", "", recent, false);
 }
+// a list in a sentence, with the Oxford comma (Joseph, 2026-11-01): "A", "A and B", "A, B, and C"
+const listAnd = (a, w = "and") => (a = a.filter(Boolean)).length < 3 ? a.join(` ${w} `) : a.slice(0, -1).join(", ") + `, ${w} ` + a[a.length - 1];
 function effDesc(e) {
-  const to = (e.to || []).map(t => t.startsWith("skill:") ? (SKILL[t.slice(6)] || {}).name : (TARGETS.find(x => x[0] === t) || [, t])[1]).join(", ");
-  const adv = (e.adv || []).map(t => t.startsWith("skill:") ? (SKILL[t.slice(6)] || {}).name : t).join(", ");
+  const to = listAnd((e.to || []).map(t => t.startsWith("skill:") ? (SKILL[t.slice(6)] || {}).name : (TARGETS.find(x => x[0] === t) || [, t])[1]));
+  const adv = listAnd((e.adv || []).map(t => t.startsWith("skill:") ? (SKILL[t.slice(6)] || {}).name : t));
   return [e.bonus && to ? `${/^[+-]/.test(e.bonus) ? e.bonus : "+" + e.bonus} to ${to}` : "", adv ? `advantage on ${adv}` : "", e.once ? "once" : "", e.conc ? "ends with your concentration" : "", e.until === "long" ? "ends on a long rest" : "", e.note].filter(Boolean).join("; ");
 }
 // your own effect, or one that's on already (e) to change
@@ -976,7 +978,7 @@ function spellForm(c, s) {
     ${s.roll && s.roll.kind === "save" ? `<div class="row"><label class="fld"><span>Save</span><select data-f="${p}.roll.save">${ABS.map(([k, n]) => `<option value="${k}" ${r.save === k ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>
       <label class="check"><input type="checkbox" data-f="${p}.roll.half" data-t="b" ${r.half ? "checked" : ""}> Half damage on a made save</label>` : ""}
     ${s.roll ? `<label class="check"><input type="checkbox" data-f="${p}.roll.mod" data-t="b" ${r.mod ? "checked" : ""}> Add my spellcasting modifier</label>
-      ${s.lvl === 0 ? `<label class="check"><input type="checkbox" data-f="${p}.roll.cantrip" data-t="b" ${r.cantrip ? "checked" : ""}> More dice at levels 5, 11 and 17</label>`
+      ${s.lvl === 0 ? `<label class="check"><input type="checkbox" data-f="${p}.roll.cantrip" data-t="b" ${r.cantrip ? "checked" : ""}> More dice at levels 5, 11, and 17</label>`
         : `<div class="row">${fld("The extra dice come every … slot levels", p + ".roll.upEvery", r.upEvery || 1, { n: 1 })}</div>`}` : ""}
     ${!s.roll ? `<div class="row"><label class="fld"><span>Target saves (no damage roll)</span><select data-f="${p}.save"><option value="">—</option>${ABS.map(([k, n]) => `<option value="${k}" ${s.save === k ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>` : ""}
     <div class="row"><label class="fld"><span>Puts on an effect when cast</span><select data-f="${p}.effect"><option value="">—</option>${PRESETS.map(x => `<option ${s.effect === x.name ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label></div>
@@ -1016,7 +1018,7 @@ function itemsHtml(c) {
       ${i.use && (i.use.label || i.use.heal) && !i.gone ? `<div class="acts"><button class="btn small good" data-act="use" data-id="${i.id}">${esc(i.use.label || "Use")}${i.use.heal ? ` (${esc(i.use.heal)})` : ""}</button></div>` : ""}
       ${ui.itemOpen === i.id ? itemForm(c, i) : ""}</div>`;
   const list = groups.map(([l, items]) => sec("where:" + l, l, `${items.length}`, items.map(itemCard).join(""), true)).join("")
-    + (gone.length ? sec("gone", "Sold, used or lost", `${gone.length}`, gone.map(itemCard).join(""), false) : "");
+    + (gone.length ? sec("gone", "Sold, used, or lost", `${gone.length}`, gone.map(itemCard).join(""), false) : "");
   const log = EM() ? c.log.map((l, j) => `<div class="row" style="align-items:center"><label class="fld n" style="flex:0 0 130px"><span>When</span><input type="date" data-f="log.${j}.at" value="${esc(l.at)}"></label>${fld("What happened", `log.${j}.text`, l.text)}<button class="btn small danger" data-act="logdel" data-id="${l.id}" style="margin-bottom:10px">✕</button></div>`).join("") : c.log.slice(0, 80).map(l => `<div class="logl"><span class="d">${esc(l.at)}</span><span class="t">${esc(l.text)}</span><button class="chip" data-act="logedit" data-id="${l.id}" aria-label="Change it">✎</button><button class="chip" data-act="logdel" data-id="${l.id}" aria-label="Delete it">✕</button></div>`).join("");
   return purse + arts
     + `<div class="row" style="margin-bottom:10px"><input id="newItem" placeholder="Add an item: 3 turnips, a dagger…" style="flex:1" autocomplete="off"><button class="btn main" data-act="additem">Add</button></div>
@@ -1124,7 +1126,7 @@ function libEditHtml() {
 function libraryHtml() {
   const L = db.lib;
   return `<div class="panel"><h2>Homebrew <small>from Ordinate Survey's library</small></h2>
-    ${L ? `<p class="note">${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}${L.from ? ` from ${esc(L.from)}` : ""}, brought in ${esc(L.at)}. They show first when you add a spell, an item or an attack.</p>` : `<p class="note">Nothing yet. Your own spells and items from the survey come up beside the SRD's when you add one.</p>`}
+    ${L ? `<p class="note">${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}${L.from ? ` from ${esc(L.from)}` : ""}, brought in ${esc(L.at)}. They show first when you add a spell, an item, or an attack.</p>` : `<p class="note">Nothing yet. Your own spells and items from the survey come up beside the SRD's when you add one.</p>`}
     <p class="note">In the survey: <b>Library → Send to the Field Book</b> makes the file (a survey save works too). Its DM notes stay behind.</p>
     ${EM() ? libEditHtml() : ""}<button class="btn wide" data-act="libin">Bring in the survey's library…</button>${L ? `<button class="btn wide danger" data-act="libclear">Forget the homebrew</button>` : ""}</div>`;
 }
@@ -1512,7 +1514,7 @@ function qrSvg(text) { if (typeof qrcode !== "function") return ""; const q = qr
 function syncPanelHtml() {
   const cfg = syncCfg();
   if (!cfg) return `<div class="panel"><h2>Sync <small>every device the same</small></h2>
-    <p class="note">One button (top right) then keeps your characters, their pictures and the homebrew the same on every device, kept in a secret gist in your GitHub. Set it up once:</p>
+    <p class="note">One button (top right) then keeps your characters, their pictures, and the homebrew the same on every device, kept in a secret gist in your GitHub. Set it up once:</p>
     <ol class="note" style="padding-left:20px"><li>On GitHub, <b>make a token that can only touch gists</b>: <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>. Name it "Character Book", pick an expiry, then under <b>Account permissions</b> set <b>Gists</b> to <b>Read and write</b>. Generate it and copy it.</li>
       <li>Paste it here and press Connect.</li><li>On your other devices, scan the QR code that appears.</li></ol>
     <div class="row" style="margin-bottom:10px"><input id="syncTok" placeholder="github_pat_…" autocomplete="off" style="flex:1"><button class="btn main" data-act="syncconnect">Connect</button></div></div>`;
@@ -1856,11 +1858,11 @@ If you lose more money than you have, you enter divine debt, represented by a ne
           { name: "Detect Magic", lvl: 1, text: "Sense the presence of magic within 30 feet of you, for up to 10 minutes." },
           { name: "Identify", lvl: 1, text: "Learn the properties of a magic item you touch, or what spells are affecting a creature or object." },
           { name: "Comprehend Languages", lvl: 1, text: "Understand the literal meaning of any spoken language you hear, and read any written language you touch, for 1 hour." },
-          { name: "Detect Evil and Good", lvl: 1, text: "Sense aberrations, celestials, elementals, fey, fiends and undead within 30 feet, and consecrated or desecrated places, for up to 10 minutes." },
-          { name: "Detect Poison and Disease", lvl: 1, text: "Sense poisons, poisonous creatures and diseases within 30 feet, for up to 10 minutes." },
+          { name: "Detect Evil and Good", lvl: 1, text: "Sense aberrations, celestials, elementals, fey, fiends, and undead within 30 feet, and consecrated or desecrated places, for up to 10 minutes." },
+          { name: "Detect Poison and Disease", lvl: 1, text: "Sense poisons, poisonous creatures, and diseases within 30 feet, for up to 10 minutes." },
           { name: "Speak with Animals", lvl: 1, text: "Understand and talk with beasts for 10 minutes." }
         ] },
-      { id: "it_whistle", name: "Tin Whistle of Returning Fortune", qty: 1, note: "A slightly dented tin whistle etched with faint curling ivy patterns; warm to the touch at dawn. Thin, reedy tone. Every fifth note played on it is wrong — slightly off-key, mistimed or discordant. Gnick assumes he needs more practice.\n\nIt can't be permanently lost or destroyed: if broken, discarded, buried, sold or confiscated, it's back among Gnick's things at dawn, without any fuss.\n\nThe DM's side (Gnick doesn't know): given by a fae working for Beshaba. Five is sacred to Tymora, so spoiling the fifth note is a quiet mockery. It doesn't harm; it unsettles, and makes those around Gnick curse their luck." },
+      { id: "it_whistle", name: "Tin Whistle of Returning Fortune", qty: 1, note: "A slightly dented tin whistle etched with faint curling ivy patterns; warm to the touch at dawn. Thin, reedy tone. Every fifth note played on it is wrong — slightly off-key, mistimed, or discordant. Gnick assumes he needs more practice.\n\nIt can't be permanently lost or destroyed: if broken, discarded, buried, sold, or confiscated, it's back among Gnick's things at dawn, without any fuss.\n\nThe DM's side (Gnick doesn't know): given by a fae working for Beshaba. Five is sacred to Tymora, so spoiling the fifth note is a quiet mockery. It doesn't harm; it unsettles, and makes those around Gnick curse their luck." },
       { id: "it_medal", name: "Bronze Squirrel Medallion", qty: 1, note: "Holy symbol, blessed by Tymora. From the good squirrel king." },
       { id: "it_bp", name: "Breastplate", qty: 1, note: "Medium armor, AC 14 + Dex (max 2). Worn." },
       { id: "it_shield", name: "Shield", qty: 1, note: "+2 AC." },
@@ -1955,7 +1957,7 @@ if (!db.fixes.includes("gnick-level-5")) {
     g.res.forEach(r => { if (r.byLevel || r.id === "rs_cart") { r.byLevel = true; r.max = 5; } });
     const add = (s, after) => { if (g.spells.some(x => x.name === s.name)) return; const i = g.spells.findIndex(x => x.id === after); g.spells.splice(i < 0 ? g.spells.length : i + 1, 0, s); };
     add({ id: "sp_blink", name: "Blink", lvl: 3, tag: "D", time: "1 action", range: "Self", dur: "1 minute", text: "Roll a d20 at the end of each of your turns while it lasts. On an 11 or higher, you vanish from this plane into the Ethereal Plane until the start of your next turn, then come back to an unoccupied space within 10 feet of where you left." }, "sp_sw");
-    add({ id: "sp_dispel", name: "Dispel Magic", lvl: 3, tag: "D", time: "1 action", range: "120 ft", dur: "Instantaneous", text: "End one spell of 3rd level or lower on a creature, object or magical effect you can see. For a spell of 4th level or higher, make a Wisdom check against DC 10 + its level to end it.\n\nCast with a higher slot, it automatically ends spells of that level or lower." }, "sp_blink");
+    add({ id: "sp_dispel", name: "Dispel Magic", lvl: 3, tag: "D", time: "1 action", range: "120 ft", dur: "Instantaneous", text: "End one spell of 3rd level or lower on a creature, object, or magical effect you can see. For a spell of 4th level or higher, make a Wisdom check against DC 10 + its level to end it.\n\nCast with a higher slot, it automatically ends spells of that level or lower." }, "sp_blink");
     add({ id: "sp_mhw", name: "Mass Healing Word", lvl: 3, time: "1 bonus action", range: "60 ft", roll: { kind: "heal", dice: "1d4", up: "1d4", mod: true }, text: "As you call out words of restoration, up to six creatures of your choice that you can see within range regain hit points equal to 1d4 + your Wisdom modifier. No effect on undead or constructs." }, "sp_dispel");
     const cd = g.traits.findIndex(t => t.name === "Channel Divinity");
     if (!g.traits.some(t => t.name === "Destroy Undead")) g.traits.splice(cd < 0 ? g.traits.length : cd + 1, 0, { name: "Destroy Undead", src: "Cleric 5", text: "When an undead fails its saving throw against your Turn Undead, it is destroyed outright if its challenge rating is 1/2 or lower." });
