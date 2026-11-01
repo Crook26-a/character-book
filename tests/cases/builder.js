@@ -82,3 +82,23 @@ step("2014: the Dwarf to level 2, from the SRD 5.1", () => {
   const d = db.chars.find(x => x.name === "Test Dwarf");
   return `level ${d.level}, HP ${d.hpMax}; features ${d.traits.filter(t => t.src === "Cleric 2").map(t => t.name).join(", ")}; ${note.replace(/\s+/g, " ").slice(0, 160)}`;
 });
+step("mix: a 2014 Tiefling Fighter with the 2024 Soldier background, increases from the race", () => {
+  ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); click('[data-act="blded"][data-v="mix"]');
+  sel('[data-bld="cls"]', "Fighter@2014"); sel('[data-bld="bg"]', "Soldier@2024"); sel('[data-bld="sp"]', "Tiefling@2014");
+  const offered = q("#ov").textContent.includes("Increases from");
+  click('[data-act="bldset"][data-f="asiFrom"][data-v="race"]');
+  array(["str", "con", "cha", "dex", "wis", "int"]);
+  typ('[data-bld="name"]', "Test Mix Fighter");
+  const left = q("#bldGo").textContent.replace(/\s+/g, " ").trim().slice(0, 120);
+  click('[data-act="bldmake"]');
+  const c = db.chars.find(x => x.name === "Test Mix Fighter"); expect(c, "made");
+  return sheet(c) + `; rules ${c.rules}, mixed ${!!c.mixed}; asked where increases come from ${offered}; left: ${left}`;
+});
+step("mix: a 2024 Wizard, 2014 High Elf, 2014 Acolyte; offered both editions' subclasses and feats", () => {
+  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); click('[data-act="blded"][data-v="mix"]');
+  sel('[data-bld="cls"]', "Wizard@2024"); sel('[data-bld="bg"]', "Acolyte@2014"); sel('[data-bld="sp"]', "Elf@2014"); sel('[data-bld="sub"]', "High Elf@2014");
+  array(["int", "dex", "con", "wis", "cha", "str"]);
+  typ('[data-bld="name"]', "Test Mix Wizard"); click('[data-act="bldmake"]');
+  const c = db.chars.find(x => x.name === "Test Mix Wizard"); expect(c, "made");
+  return sheet(c) + `; rules ${c.rules}; subclasses ${subOffers(c).join(" / ")}; feats incl. Grappler ${featsFor(c).some(f => f.name === "Grappler")}; who: ${whoHtml(c).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").match(/Rules [^A-Z]*\d{4}[^A-Z]*/)}`;
+});

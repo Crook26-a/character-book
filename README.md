@@ -25,6 +25,8 @@ PCs tab, **+ Build a character (the SRD, or your own)**: one page in the 2024 or
 
 **2014 rules (v22):** a switch at the top builds from the SRD 5.1 instead, in the 2014 order (race and subrace with their ability increases, class, background, scores, skills, a choice on each line of the class's starting equipment, spells, and a name). The SRD 5.1 has 12 classes with one subclass each, 9 races with 4 subraces, one background (Acolyte), and one feat (Grappler); everything else is Other, from the 2014 Player's Handbook. `rules.js` carries it under `RULES["2014"]`. A 2014 character's level-up (Gnick's too) now fills in the class's features and uses from the SRD 5.1; a subclass that isn't in it (Gnick's Trickery Domain) is still looked up.
 
+**Mixing the rules (v23):** the builder's third choice, "Mix both", lists both SRDs' classes, species and races, backgrounds, and 1st-level subclasses, each marked (2014) or (2024); each pick follows its own edition (a 2014 class's kit, a 2024 background's feat), and the class's edition runs the class tables. When a 2014 race and a 2024 background both give ability increases you pick which (the background by default, as the 2024 book says); when neither does, it's +2 and +1 anywhere. A mixed character (`c.mixed`, also a "Mix in" checkbox next to Rules while editing, for anyone, Gnick included) is offered both editions' subclasses and feats at level-up.
+
 ## Credit
 
 This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
