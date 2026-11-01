@@ -7,6 +7,8 @@ The sheet you play from, beside **Ordinate Survey** (the DM's app) and the **Fie
 - **Items:** purse with a log of what came and went, attunement (3 at most), pictures, potions you can drink, the Auspicious Cart with the Pious Wager table and divine debt.
 - **Journal** and **People:** session notes, and who and where you've met.
 
+**Edit** (top right) turns every tab into fields: everything you put in can be changed there, and Done turns it back.
+
 Everything stays on the device. Save a backup from the character menu (tap the name at the top); bring it in on another device the same way.
 
 Files: `index.html` (the whole app), `srd.js` (the SRD 5.2 spells and items the pickers offer, built by `tools\build-srd.ps1` from Ordinate Survey's own SRD data), `sw.js` (offline cache; bump `CACHE` with each release), `manifest.webmanifest`, the icons, and `pictures\` (the cart's pictures from the DM).

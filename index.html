@@ -45,7 +45,10 @@
   #who b { display: block; font-size: 26px; line-height: 1.05; font-weight: normal; overflow-wrap: anywhere; }
   #who b::after { content: " ▾"; font-size: 15px; color: var(--ink-faint); }
   #who small { display: block; margin-top: 3px; }
-  #themeBtn { flex: none; background: none; border: 1px solid var(--rule); color: var(--ink); border-radius: 3px; padding: 6px 10px; font: inherit; font-size: 14px; }
+  #themeBtn, #editBtn { flex: none; background: none; border: 1px solid var(--rule); color: var(--ink); border-radius: 3px; padding: 6px 10px; font: inherit; font-size: 14px; cursor: pointer; }
+  #editBtn.on { background: var(--lead); border-color: var(--lead); color: #fff; }
+  /* edit mode: everything you put in is a field */
+  .editing-bar { background: var(--lead-soft); border: 1px dashed var(--lead); border-radius: 3px; padding: 8px 10px; margin: 0 0 12px; font-size: 14px; }
 
   /* the strip: hit points, concentration and the next roll's advantage, always in sight */
   #strip { position: sticky; top: 0; z-index: 8; background: var(--paper); margin: 0 -14px 12px; padding: calc(8px + env(safe-area-inset-top)) 14px 8px;
@@ -226,7 +229,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="headrow"><button id="who" data-act="menu"></button><button id="themeBtn" aria-label="Light or dark">◐</button></div>
+    <div class="headrow"><button id="who" data-act="menu"></button><span style="display:flex;gap:6px;flex:none"><button id="editBtn" data-act="editmode" aria-pressed="false">Edit</button><button id="themeBtn" aria-label="Light or dark">◐</button></span></div>
   </header>
   <div id="strip"></div>
   <main id="view"></main>
@@ -244,7 +247,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 9;
+const VERSION = 10;
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -713,13 +716,16 @@ function applyWager(c, slot) {
 
 /* ══ drawing ══ */
 const TABS = [["pcs", "PCs"], ["play", "Play"], ["spells", "Spells"], ["items", "Items"], ["journal", "Journal"], ["people", "People"]];
+// edit mode (the Edit button, top right): every tab shows what you've put in as fields to change
+const EM = () => !!ui.editMode;
 function render() {
   const c = C();
   $("#who").innerHTML = `<b>${esc(c.name)}</b><small class="caps">${esc([c.species, `${c.cls} ${c.level}`, c.subcls].filter(Boolean).join(" · "))}</small>`;
   $("#tabs").innerHTML = TABS.map(([k, l]) => `<button class="${ui.tab === k ? "on" : ""}" data-tab="${k}">${l}<small>${tabCount(c, k)}</small></button>`).join("");
   $("#strip").innerHTML = stripHtml(c);
   const v = { pcs: pcsHtml, play: playHtml, spells: spellsHtml, items: itemsHtml, journal: journalHtml, people: peopleHtml }[ui.tab] || playHtml;
-  $("#view").innerHTML = v(c);
+  const eb = $("#editBtn"); eb.textContent = EM() ? "Done" : "Edit"; eb.classList.toggle("on", EM()); eb.setAttribute("aria-pressed", EM() ? "true" : "false");
+  $("#view").innerHTML = (EM() ? `<div class="editing-bar">Editing: everything here can be changed, and it saves as you type. Tap <b>Done</b> (top right) when you're finished.</div>` : "") + v(c);
   $("#ver").textContent = "v" + VERSION;
   hydratePics();
   if (ovKind === "roll" && R) $("#ov .box").innerHTML = rollHtml();
@@ -755,7 +761,24 @@ function fmt(t) { // light markup: blank line = paragraph, "- " = bullet, **bold
 function pips(n, used, act, data, sq) { return `<span class="pips">${Array.from({ length: n }, (_, i) => `<button class="pip ${i >= n - used ? "used" : ""} ${sq ? "sq" : ""}" data-act="${act}" data-i="${i}" ${data}></button>`).join("")}</span>`; }
 
 /* ── Play ── */
+// edit mode on the Play tab: how things stand right now, then the whole sheet
+function nowEditHtml(c) {
+  const sl = Object.keys(c.slots).filter(k => c.slots[k].max);
+  return `<div class="panel"><h2>Right now</h2>
+    <div class="row">${fld("Hit points", "hp", c.hp, { n: 1 })}${fld("Temporary", "temp", c.temp || 0, { n: 1 })}${fld("Hit dice spent", "hd.used", c.hd.used || 0, { n: 1 })}${fld("Exhaustion", "exh", c.exh || 0, { n: 1 })}</div>
+    <div class="row">${fld("Death save successes", "death.ok", c.death.ok || 0, { n: 1 })}${fld("Failures", "death.fail", c.death.fail || 0, { n: 1 })}</div>
+    <div class="row">${fld("Concentrating on", "conc", c.conc || "")}</div>
+    <label class="check"><input type="checkbox" data-f="inspiration" data-t="b" ${c.inspiration ? "checked" : ""}> Inspiration</label>
+    ${sl.length ? `<div class="lab">Slots spent</div><div class="row">${sl.map(k => fld(c.pact ? `Pact (${ord(+k)})` : ord(+k), `slots.${k}.used`, c.slots[k].used || 0, { n: 1 })).join("")}</div>` : ""}
+    ${c.res.length ? `<div class="lab">Uses spent</div><div class="row">${c.res.map((r, i) => fld(esc(r.name), `res.${i}.used`, r.used || 0, { n: 1 })).join("")}</div>` : ""}
+    <div class="lab">Conditions</div><div class="row" style="margin:4px 0 10px">${c.conds.map(k => `<button class="chip lead" data-act="conddel" data-k="${esc(k)}">${esc(k)} ✕</button>`).join("")}
+      <select id="condPick" style="flex:1 1 150px"><option value="">Add a condition…</option>${Object.keys(CONDITIONS).filter(k => !c.conds.includes(k)).map(k => `<option>${k}</option>`).join("")}</select></div>
+    <div class="lab">Effects on you</div><div class="row" style="margin:4px 0 10px">${c.effects.length ? c.effects.map(e => `<button class="chip ${ui.edit === "effect:" + e.id ? "on" : "goodc"}" data-act="effedit" data-id="${e.id}">✎ ${esc(e.name)}</button><button class="chip" data-act="effdel" data-id="${e.id}" aria-label="Remove ${esc(e.name)}">✕</button>`).join("") : `<span class="note" style="margin:0">None.</span>`}</div>
+    ${String(ui.edit).startsWith("effect:") ? customEffectForm(c.effects.find(e => "effect:" + e.id === ui.edit)) : ""}</div>
+    <div class="panel"><h2>The sheet</h2>${editHtml(c)}</div>`;
+}
 function playHtml(c) {
+  if (EM()) return nowEditHtml(c);
   const max = hpMaxOf(c); const tot = Math.max(max, c.hp + (+c.temp || 0));
   const effs = c.effects; const exh = exhOf(c);
   const hpPanel = `<div class="panel">
@@ -812,15 +835,14 @@ function playHtml(c) {
     <div class="lab" style="margin-bottom:2px">Skills</div>
     <div class="lines">${SKILLS.map(([k, n, ab]) => `<button class="line" data-act="sk" data-k="${k}"><span class="pf ${skillLv(c, k) >= 2 ? "ex" : skillLv(c, k) ? "on" : ""}"></span><span class="nm">${n} <small>${AB_SHORT[ab]}</small></span><span class="v">${sg(skillOf(c, k))}</span></button>`).join("")}</div>`;
   const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>
-    ${t.roll === "sticky" ? `<div class="acts"><button class="btn small" data-act="sticky">Roll it: Stealth + d100</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
+    ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return hpPanel + effPanel + stats
     + sec("res", "Slots, features and rests", "", resBody, true)
     + sec("atk", "Attacks", `${c.attacks.length}`, atkBody + `<button class="btn wide" data-act="addatk">+ An attack</button>`, true)
     + sec("abil", "Abilities, saves and skills", "", abil, true)
     + sec("feat", "Features and traits", `${c.traits.length}`, feats, false)
-    + sec("rolls", "Recent rolls", "", recent, false)
-    + sec("edit", "Edit the sheet", "", editHtml(c), false);
+    + sec("rolls", "Recent rolls", "", recent, false);
 }
 function effDesc(e) {
   const to = (e.to || []).map(t => t.startsWith("skill:") ? (SKILL[t.slice(6)] || {}).name : (TARGETS.find(x => x[0] === t) || [, t])[1]).join(", ");
@@ -878,6 +900,9 @@ function editHtml(c) {
     ${c.traits.map((t, i) => `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Feature", `traits.${i}.name`, t.name)}${fld("From", `traits.${i}.src`, t.src || "")}</div>${fld("What it does", `traits.${i}.text`, t.text, { area: 1, rows: 3 })}
       <div class="lab">Advantage on saving throws</div><div class="row" style="margin:4px 0 8px">${ABS.map(([k]) => `<button class="chip ${(t.saveAdv || []).includes(k) ? "on" : ""}" data-act="traitadv" data-i="${i}" data-ab="${k}">${AB_SHORT[k]}</button>`).join("")}</div>
       ${(t.saveAdv || []).length ? fld("When (shown as a reminder on those saves)", `traits.${i}.saveAdvWhen`, t.saveAdvWhen || "") : ""}
+      <div class="row"><label class="fld"><span>A roll button</span><select data-f="traits.${i}.rollSkill"><option value="">—</option><optgroup label="A check">${ABS.map(([k, n]) => `<option value="${k}" ${t.rollSkill === k ? "selected" : ""}>${n}</option>`).join("")}</optgroup><optgroup label="A skill">${SKILLS.map(([k, n]) => `<option value="${k}" ${t.rollSkill === k ? "selected" : ""}>${n}</option>`).join("")}</optgroup></select></label>
+        ${t.rollSkill ? fld("And a die", `traits.${i}.rollExtra`, t.rollExtra || "") : ""}</div>
+      ${t.rollSkill ? fld("The button says", `traits.${i}.rollLabel`, t.rollLabel || "") : ""}
       <div class="row"><label class="fld"><span>Puts on an effect</span><select data-f="traits.${i}.effect"><option value="">—</option>${PRESETS.map(p => `<option ${t.effect === p.name ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
         <button class="btn small danger" data-act="del" data-list="traits" data-i="${i}" style="margin-bottom:10px">Remove</button></div></div>`).join("")}
     <button class="btn wide" data-act="addtrait">+ A feature</button>
@@ -899,6 +924,7 @@ function spellsHtml(c) {
     ${flatFor(c, { kind: "dc" }) ? `<p class="note">Includes ${modsFor(c, { kind: "dc" }).map(m => `${esc(m.name)} ${esc(sg(flatOf(m.bonus)))}`).join(", ")} (attuned).</p>` : ""}
     ${c.conc ? `<p class="warn">Concentrating on ${esc(c.conc)}.</p>` : ""}</div>`;
   const card = s => {
+    if (EM()) return `<div class="card">${spellForm(c, s)}</div>`;
     const avail = Object.keys(c.slots).filter(k => +k >= s.lvl && c.slots[k].max).map(Number);
     const firstFree = avail.find(k => c.slots[k].used < c.slots[k].max);
     return `<div class="card"><span class="nm">${esc(s.name)}${s.tag ? `<span class="tag ${s.tag === "D" ? "g" : ""}">${esc(s.tag === "D" ? "Domain · always prepared" : s.tag)}</span>` : ""}${s.conc ? `<span class="tag c">Concentration</span>` : ""}</span>
@@ -939,11 +965,15 @@ function spellForm(c, s) {
         : `<div class="row">${fld("The extra dice come every … slot levels", p + ".roll.upEvery", r.upEvery || 1, { n: 1 })}</div>`}` : ""}
     ${!s.roll ? `<div class="row"><label class="fld"><span>Target saves (no damage roll)</span><select data-f="${p}.save"><option value="">—</option>${ABS.map(([k, n]) => `<option value="${k}" ${s.save === k ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>` : ""}
     <div class="row"><label class="fld"><span>Puts on an effect when cast</span><select data-f="${p}.effect"><option value="">—</option>${PRESETS.map(x => `<option ${s.effect === x.name ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label></div>
-    <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="spelldone">Done</button><button class="btn small danger" data-act="del" data-list="spells" data-i="${i}">Remove the spell</button></div></div>`;
+    <div class="row" style="margin-bottom:10px">${EM() ? "" : `<button class="btn small" data-act="spelldone">Done</button>`}<button class="btn small danger" data-act="del" data-list="spells" data-i="${i}">Remove the spell</button></div></div>`;
 }
 
 /* ── Items ── */
-const WHERE = [["on", "On me"], ["cart", "In the cart"], ["mule", "With the mule"], ["stash", "Stashed somewhere"]];
+// where things are kept: the usual places, and any you name yourself (Other…); older saves used short codes
+const WHERE = ["On me", "In the cart", "With the mule", "Stashed somewhere"];
+const WHERE_OLD = { on: "On me", cart: "In the cart", mule: "With the mule", stash: "Stashed somewhere" };
+const whereOf = i => WHERE_OLD[i.where] || i.where || "On me";
+const placesOf = c => [...new Set(WHERE.concat(c.items.map(whereOf)))];
 function itemsHtml(c) {
   const p = c.purse;
   const purse = `<div class="panel"><h2>Purse <small id="purseTotal">${gpText(purseCp(p))} in all</small></h2>
@@ -958,19 +988,19 @@ function itemsHtml(c) {
     ${sec("art:" + i.id, "What it does", "", `<div class="txt">${fmt(i.artifact.text)}</div>`, false)}
     ${i.artifact.wager ? wagerHtml(c) + `<div class="row" style="align-items:center"><label class="fld n" style="flex:0 0 150px"><span>Divine debt (gp)</span><input type="number" inputmode="decimal" id="debtGp" value="${(+c.debtCp || 0) / 100}"></label>
       <label class="check" style="margin:0 0 10px"><input type="checkbox" data-f="marked" data-t="b" ${c.marked ? "checked" : ""}> Marked (from a Ruin)</label></div>` : ""}
-    <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="itemopen" data-id="${i.id}">${ui.itemOpen === i.id ? "Close the edit" : "Edit"}</button></div>
-    ${ui.itemOpen === i.id ? itemForm(c, i) : ""}</div>`).join("");
+    ${EM() ? "" : `<div class="row" style="margin-bottom:10px"><button class="btn small" data-act="itemopen" data-id="${i.id}">${ui.itemOpen === i.id ? "Close the edit" : "Edit"}</button></div>`}
+    ${ui.itemOpen === i.id || EM() ? itemForm(c, i) : ""}</div>`).join("");
   const att = attunedCount(c);
   const shown = c.items.filter(i => !i.artifact || i.gone);
-  const groups = WHERE.map(([k, l]) => [l, shown.filter(i => !i.gone && (i.where || "on") === k)]).filter(g => g[1].length);
+  const groups = placesOf(c).map(l => [l, shown.filter(i => !i.gone && whereOf(i) === l)]).filter(g => g[1].length);
   const gone = shown.filter(i => i.gone);
-  const itemCard = i => `<div class="card tap ${i.gone ? "gone" : ""}" data-act="itemopen" data-id="${i.id}"><span class="nm">${i.qty > 1 || i.qty === 0 ? `${i.qty} × ` : ""}${esc(i.name)}${i.attuned ? `<span class="tag g">attuned</span>` : i.attune ? `<span class="tag">attunement</span>` : ""}${i.check ? `<span class="tag c">still have it?</span>` : ""}</span>
+  const itemCard = i => EM() ? `<div class="card ${i.gone ? "gone" : ""}">${itemForm(c, i)}</div>` : `<div class="card tap ${i.gone ? "gone" : ""}" data-act="itemopen" data-id="${i.id}"><span class="nm">${i.qty > 1 || i.qty === 0 ? `${i.qty} × ` : ""}${esc(i.name)}${i.attuned ? `<span class="tag g">attuned</span>` : i.attune ? `<span class="tag">attunement</span>` : ""}${i.check ? `<span class="tag c">still have it?</span>` : ""}</span>
       ${i.note ? `<span class="sub">${esc(i.note.split("\n")[0].slice(0, 120))}</span>` : ""}
       ${i.use && (i.use.label || i.use.heal) && !i.gone ? `<div class="acts"><button class="btn small good" data-act="use" data-id="${i.id}">${esc(i.use.label || "Use")}${i.use.heal ? ` (${esc(i.use.heal)})` : ""}</button></div>` : ""}
       ${ui.itemOpen === i.id ? itemForm(c, i) : ""}</div>`;
   const list = groups.map(([l, items]) => sec("where:" + l, l, `${items.length}`, items.map(itemCard).join(""), true)).join("")
     + (gone.length ? sec("gone", "Sold, used or lost", `${gone.length}`, gone.map(itemCard).join(""), false) : "");
-  const log = c.log.slice(0, 80).map(l => `<div class="logl"><span class="d">${esc(l.at)}</span><span class="t">${esc(l.text)}</span><button class="chip" data-act="logedit" data-id="${l.id}" aria-label="Change it">✎</button><button class="chip" data-act="logdel" data-id="${l.id}" aria-label="Delete it">✕</button></div>`).join("");
+  const log = EM() ? c.log.map((l, j) => `<div class="row" style="align-items:center"><label class="fld n" style="flex:0 0 130px"><span>When</span><input type="date" data-f="log.${j}.at" value="${esc(l.at)}"></label>${fld("What happened", `log.${j}.text`, l.text)}<button class="btn small danger" data-act="logdel" data-id="${l.id}" style="margin-bottom:10px">✕</button></div>`).join("") : c.log.slice(0, 80).map(l => `<div class="logl"><span class="d">${esc(l.at)}</span><span class="t">${esc(l.text)}</span><button class="chip" data-act="logedit" data-id="${l.id}" aria-label="Change it">✎</button><button class="chip" data-act="logdel" data-id="${l.id}" aria-label="Delete it">✕</button></div>`).join("");
   return purse + arts
     + `<div class="row" style="margin-bottom:10px"><input id="newItem" placeholder="Add an item: 3 turnips, a dagger…" style="flex:1" autocomplete="off"><button class="btn main" data-act="additem">Add</button></div>
       <div id="itemSug"></div>
@@ -981,7 +1011,7 @@ function itemForm(c, i) {
   const ix = c.items.indexOf(i); const p = `items.${ix}`;
   return `<div class="panel" style="background:var(--paper-lit);margin-top:10px" data-stop="1">
     <div class="row">${fld("Name", p + ".name", i.name)}${fld("How many", p + ".qty", i.qty, { n: 1 })}</div>
-    <div class="row"><label class="fld"><span>Where</span><select data-f="${p}.where">${WHERE.map(([k, l]) => `<option value="${k}" ${(i.where || "on") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>${fld("Worth", p + ".value", i.value || "")}</div>
+    <div class="row">${pick("Where", p + ".where", placesOf(c), whereOf(i))}${fld("Worth", p + ".value", i.value || "")}</div>
     ${fld("Notes", p + ".note", i.note || "", { area: 1, rows: 3 })}
     <label class="check"><input type="checkbox" data-f="${p}.attune" data-t="b" ${i.attune ? "checked" : ""}> Needs attunement</label>
     ${i.attune ? `<label class="check"><input type="checkbox" data-act="attune" data-id="${i.id}" ${i.attuned ? "checked" : ""}> Attuned</label>` : ""}
@@ -1000,11 +1030,11 @@ function itemForm(c, i) {
     <div class="lab">Spells cast from it with points</div>
     ${(i.cartSpells || []).map((s, j) => `<div class="panel" style="background:var(--card);padding:8px 8px 0"><div class="row">${fld("Spell", `${p}.cartSpells.${j}.name`, s.name)}${fld("Points", `${p}.cartSpells.${j}.lvl`, s.lvl || 1, { n: 1 })}<button class="btn small danger" data-act="cspdel" data-ix="${ix}" data-j="${j}" style="margin-bottom:10px">✕</button></div>${fld("What it does", `${p}.cartSpells.${j}.text`, s.text || "", { area: 1, rows: 2 })}</div>`).join("")}
     <button class="btn small" data-act="cspadd" data-ix="${ix}" style="margin-bottom:10px">+ A spell it casts</button>
-    ${(i.cartSpells || []).length && !c.res.some(r => r.name === "Cart points") ? `<p class="note">Casting these spends the “Cart points” resource: add one under Edit the sheet (Play tab) with how many points it has.</p>` : ""}
+    ${(i.cartSpells || []).length && !c.res.some(r => r.name === "Cart points") ? `<p class="note">Casting these spends the “Cart points” resource: add one with Edit (top right) on the Play tab, with how many points it has.</p>` : ""}
     <div class="thumbs">${(i.pics || []).map(id => `<img data-pic="${esc(id)}" data-act="pic" data-id="${esc(id)}" alt="">`).join("")}</div>
     <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="addpic" data-id="${i.id}">+ A picture</button>
       ${i.gone ? `<button class="btn small" data-act="ungone" data-id="${i.id}">I have it again</button>` : `<button class="btn small" data-act="sold" data-id="${i.id}">Sold it…</button><button class="btn small" data-act="gone" data-id="${i.id}">Used or lost</button>`}
-      <button class="btn small danger" data-act="del" data-list="items" data-i="${ix}">Delete</button><button class="btn small main" data-act="itemclose">Done</button></div></div>`;
+      <button class="btn small danger" data-act="del" data-list="items" data-i="${ix}">Delete</button>${EM() ? "" : `<button class="btn small main" data-act="itemclose">Done</button>`}</div></div>`;
 }
 
 /* ── Journal ── */
@@ -1012,9 +1042,9 @@ function journalHtml(c) {
   const list = c.sessions.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   return `<button class="btn wide main" data-act="addsession">+ A new session</button>` + (list.length ? list.map(s => {
     const i = c.sessions.indexOf(s);
-    if (ui.edit === "ses:" + s.id) return `<div class="panel"><div class="row"><label class="fld n" style="flex:0 0 150px"><span>Date</span><input type="date" data-f="sessions.${i}.date" value="${esc(s.date)}"></label>${fld("Title", `sessions.${i}.title`, s.title)}</div>
+    if (ui.edit === "ses:" + s.id || EM()) return `<div class="panel"><div class="row"><label class="fld n" style="flex:0 0 150px"><span>Date</span><input type="date" data-f="sessions.${i}.date" value="${esc(s.date)}"></label>${fld("Title", `sessions.${i}.title`, s.title)}</div>
       ${fld("Notes", `sessions.${i}.text`, s.text, { area: 1, rows: 12 })}
-      <div class="row" style="margin-bottom:10px"><button class="btn main" data-act="sesdone">Done</button><button class="btn small danger" data-act="del" data-list="sessions" data-i="${i}">Delete</button></div></div>`;
+      <div class="row" style="margin-bottom:10px">${EM() ? "" : `<button class="btn main" data-act="sesdone">Done</button>`}<button class="btn small danger" data-act="del" data-list="sessions" data-i="${i}">Delete</button></div></div>`;
     return `<div class="card tap" data-act="sesopen" data-id="${s.id}"><span class="nm">${esc(s.title || "A session")}</span><span class="sub">${esc(s.date || "no date")}</span><div class="txt">${fmt(s.text)}</div></div>`;
   }).join("") : `<p class="empty">No sessions yet.</p>`);
 }
@@ -1029,10 +1059,10 @@ function peopleHtml(c) {
     <div class="row" style="margin-bottom:12px"><div class="seg"><button class="${!ui.pkind ? "on" : ""}" data-act="pkind" data-k="">All</button>${PKINDS.map(([k, l]) => `<button class="${ui.pkind === k ? "on" : ""}" data-act="pkind" data-k="${k}">${l}</button>`).join("")}</div></div>`
     + (list.length ? list.map(p => {
       const i = c.people.indexOf(p);
-      if (ui.edit === "p:" + p.id) return `<div class="panel"><div class="row">${fld("Name", `people.${i}.name`, p.name)}<label class="fld" style="flex:0 0 130px"><span>Kind</span><select data-f="people.${i}.kind">${PKINDS.map(([k, l]) => `<option value="${k}" ${p.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+      if (ui.edit === "p:" + p.id || EM()) return `<div class="panel"><div class="row">${fld("Name", `people.${i}.name`, p.name)}<label class="fld" style="flex:0 0 130px"><span>Kind</span><select data-f="people.${i}.kind">${PKINDS.map(([k, l]) => `<option value="${k}" ${p.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
         <div class="row">${fld("Where", `people.${i}.where`, p.where || "")}<label class="fld" style="flex:0 0 130px"><span>Toward us</span><select data-f="people.${i}.att">${ATTS.map(a => `<option ${p.att === a ? "selected" : ""}>${a}</option>`).join("")}</select></label></div>
         ${fld("Notes", `people.${i}.text`, p.text || "", { area: 1, rows: 5 })}
-        <div class="row" style="margin-bottom:10px"><button class="btn main" data-act="pdone">Done</button><button class="btn small danger" data-act="del" data-list="people" data-i="${i}">Delete</button></div></div>`;
+        <div class="row" style="margin-bottom:10px">${EM() ? "" : `<button class="btn main" data-act="pdone">Done</button>`}<button class="btn small danger" data-act="del" data-list="people" data-i="${i}">Delete</button></div></div>`;
       return `<div class="card tap" data-act="popen" data-id="${p.id}"><span class="nm">${esc(p.name)}${p.att ? `<span class="tag ${p.att === "Hostile" ? "c" : ""}">${esc(p.att)}</span>` : ""}</span>${p.where ? `<span class="sub">${esc(p.where)}</span>` : ""}<div class="txt">${fmt(p.text)}</div></div>`;
     }).join("") : `<p class="empty">Nobody here yet.</p>`);
 }
@@ -1065,12 +1095,21 @@ function takeLibrary(d) {
   const clean = x => { const y = { ...x }; delete y.notes; return y; };
   return { spells: (src.spells || []).map(clean), loot: (src.loot || []).map(clean), from: d.campaign || d.title || (d.survey && d.survey.title) || "", at: today() };
 }
+// edit mode: the homebrew's own entries (name and text), and taking one out
+function libEditHtml() {
+  const L = db.lib; if (!L) return "";
+  const row = (kind, x, j) => `<div class="panel" style="background:var(--paper-lit)"><div class="row"><label class="fld"><span>${kind === "spells" ? `Spell (${+x.lv ? ord(+x.lv) + " level" : "cantrip"})` : "Item"}</span><input data-lib="${kind}.${j}.name" value="${esc(x.name)}"></label>
+      <button class="btn small danger" data-act="libdel" data-kind="${kind}" data-j="${j}" style="margin-bottom:10px">✕</button></div>
+    <label class="fld"><span>What it does</span><textarea data-lib="${kind}.${j}.${kind === "loot" && x.effect != null ? "effect" : "desc"}" rows="3">${esc(kind === "loot" && x.effect != null ? x.effect : x.desc || "")}</textarea></label></div>`;
+  return `<h3>The homebrew's entries</h3>${L.loot.map((x, j) => row("loot", x, j)).join("")}${L.spells.map((x, j) => row("spells", x, j)).join("")}
+    <p class="note">Changes here are this app's copy; bringing in the survey's library again puts its version back.</p>`;
+}
 function libraryHtml() {
   const L = db.lib;
   return `<div class="panel"><h2>Homebrew <small>from Ordinate Survey's library</small></h2>
     ${L ? `<p class="note">${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}${L.from ? ` from ${esc(L.from)}` : ""}, brought in ${esc(L.at)}. They show first when you add a spell, an item or an attack.</p>` : `<p class="note">Nothing yet. Your own spells and items from the survey come up beside the SRD's when you add one.</p>`}
     <p class="note">In the survey: <b>Library → Send to the Field Book</b> makes the file (a survey save works too). Its DM notes stay behind.</p>
-    <button class="btn wide" data-act="libin">Bring in the survey's library…</button>${L ? `<button class="btn wide danger" data-act="libclear">Forget the homebrew</button>` : ""}</div>`;
+    ${EM() ? libEditHtml() : ""}<button class="btn wide" data-act="libin">Bring in the survey's library…</button>${L ? `<button class="btn wide danger" data-act="libclear">Forget the homebrew</button>` : ""}</div>`;
 }
 
 const NO_ROLL = ["Bless", "Bane", "Guidance", "Resistance"]; // the SRD data gives these dice that aren't damage; the survey fixes them at load too
@@ -1104,7 +1143,7 @@ const SRD_WEAPONS = SRD_LOOT.filter(x => x.kind === "weapon" && weaponStats(x));
 // a magic weapon takes its numbers from the weapon in its name ("Flame Tongue Greatsword" → Greatsword)
 const baseWeapon = x => weaponStats(x) ? x : SRD_WEAPONS.slice().sort((a, b) => b.name.length - a.name.length).find(w => new RegExp(`\\b${w.name}$`, "i").test(x.name)) || null;
 function itemFromData(x, qty) {
-  const it = { id: uid("it"), name: x.name, qty: qty || 1, where: "on", note: "", from: x.id };
+  const it = { id: uid("it"), name: x.name, qty: qty || 1, where: "On me", note: "", from: x.id };
   const magic = x.kind === "magic item" || x.rarity || !String(x.id).startsWith("srd:");
   if (magic || x.kind === "potion") it.note = String(x.effect || x.desc || "").trim();
   if (x.charges) it.note += `${it.note ? "\n\n" : ""}Charges: ${x.charges}${x.regainWhen === "dawn" ? `, ${x.regain} back at dawn` : x.regainWhen === "long" ? ", back on a long rest" : ""}.`;
@@ -1215,7 +1254,7 @@ function levelUpHtml(c) {
     <label class="fld" style="max-width:300px"><span>Extra each level (Tough, a hill dwarf…)</span><input type="number" inputmode="numeric" data-lu="extra" value="${extra || ""}"></label>`;
   if (asiAt(c, N)) h += `<h3>Ability Score Improvement${N === 19 && c.rules !== "2014" ? " (2024: or an Epic Boon)" : ""}</h3>${N === 19 && c.rules !== "2014" ? lookup("the Epic Boon feats", "Look them up in the 2024 Player's Handbook, then choose A feat instead and type yours.") : ""}
     <div class="seg" style="margin-bottom:8px">${[["two", "+1 to two"], ["one", "+2 to one"], ["feat", "A feat instead"]].map(([k, l]) => `<button class="${LV.asi === k ? "on" : ""}" data-act="luasi" data-k="${k}">${l}</button>`).join("")}</div>
-    ${LV.asi === "feat" ? `<div class="row">${`<label class="fld"><span>Feat</span><input data-lu="feat" value="${esc(LV.feat)}"></label>`}</div><label class="fld"><span>What it does</span><textarea data-lu="featText" rows="3">${esc(LV.featText)}</textarea></label><p class="note">If the feat raises a score, change it in Edit the sheet after.</p>`
+    ${LV.asi === "feat" ? `<div class="row">${`<label class="fld"><span>Feat</span><input data-lu="feat" value="${esc(LV.feat)}"></label>`}</div><label class="fld"><span>What it does</span><textarea data-lu="featText" rows="3">${esc(LV.featText)}</textarea></label><p class="note">If the feat raises a score, change it with Edit (top right) after.</p>`
       : `<div class="row" style="margin-bottom:10px;align-items:center">${abSel("a", LV.a)}${LV.asi === "two" ? abSel("b", LV.b) : ""}<span class="note" style="margin:0">Scores can't go over 20.</span></div>`}`;
   if (N === subclassAt(c) && !c.subcls) h += `<h3>Subclass</h3>${lookup(`every ${esc(c.cls)} subclass`, `It lists ${SUBCLASSES[c.cls] ? `the SRD's one (${esc(SUBCLASSES[c.cls])})` : "none for this class"}. For the others, look in ${bookFor(c)}${c.rules === "2014" ? "" : " (the SRD has only that one)"}, then pick Other… and type it.`)}<div class="row">${`<label class="fld"><span>Your ${esc(c.cls)} subclass</span><select data-lu="subcls"><option value="">—</option>${SUBCLASSES[c.cls] ? `<option ${LV.subcls === SUBCLASSES[c.cls] ? "selected" : ""}>${esc(SUBCLASSES[c.cls])}</option>` : ""}<option value="__other">Other…</option>${LV.subcls && LV.subcls !== SUBCLASSES[c.cls] ? `<option selected>${esc(LV.subcls)}</option>` : ""}</select></label>`}</div>`;
   if (isCaster) {
@@ -1225,7 +1264,7 @@ function levelUpHtml(c) {
         : ""].filter(Boolean);
     h += `<h3>Spells</h3>${lines.length ? `<p class="note">${esc(lines.join(" "))}</p>` : ""}
       ${prep ? "" : lookup(`how many spells a ${esc(c.cls)} knows or prepares at level ${N}`, `Look at the ${esc(c.cls)} table in ${bookFor(c)}. Many classes can also swap one spell when they level up.`)}
-      ${sNew ? "" : lookup(`spell slots for a ${esc(c.cls)}${c.subcls ? ` (${esc(c.subcls)})` : ""}`, `Look them up in ${bookFor(c)}, then set them in Edit the sheet → Spell slots.`)}
+      ${sNew ? "" : lookup(`spell slots for a ${esc(c.cls)}${c.subcls ? ` (${esc(c.subcls)})` : ""}`, `Look them up in ${bookFor(c)}, then set them with Edit (top right) → Spell slots on the Play tab.`)}
       <p class="note">After you level up, the spell list opens so you can add them.</p>`;
   }
   h += `<h3>Your ${esc(c.cls)}'s new features</h3>${lookup("the class tables", `Look up what level ${N} gives a ${esc(c.cls)}${c.subcls ? ` and ${esc(c.subcls)}` : ""} in ${bookFor(c)}, and add each one here.`)}
@@ -1236,7 +1275,7 @@ function levelUpHtml(c) {
   if (grow.length) h += `<p class="note" style="margin-top:6px">Did any of these grow?</p>${grow.map(r => { const v = LV.res[r.id] ?? r.max; return `<div class="res"><span class="nm">${esc(r.name)}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="-1">−</button><span class="big">${v}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="1">+</button></div>`; }).join("")}`;
   const written = c.attacks.filter(a => asWritten(a));
   if (written.length) h += `<p class="note" style="margin-top:10px">Attacks written as on the sheet don't follow the level: change any that do (Sneak Attack, a proficiency bonus).</p>${written.map(a => `<div class="row"><span class="grow" style="align-self:center">${esc(a.name)}</span>${a.save ? "" : `<label class="fld n"><span>To hit</span><input type="number" data-lu="atk.${a.id}.hit" value="${esc(LV.atk[a.id]?.hit ?? a.hit ?? "")}"></label>`}<label class="fld n" style="flex:0 0 110px"><span>Damage</span><input data-lu="atk.${a.id}.dmgx" value="${esc(LV.atk[a.id]?.dmgx ?? a.dmgx ?? "")}"></label></div>`).join("")}`;
-  h += `<div style="height:8px"></div>${lookup("multiclassing", `This levels up your ${esc(c.cls)}. If this level goes to another class, look up the multiclassing rules in ${c.rules === "2014" ? "the 2014 Player's Handbook" : "the 2024 Player's Handbook"} and set the sheet by hand in Edit the sheet.`)}
+  h += `<div style="height:8px"></div>${lookup("multiclassing", `This levels up your ${esc(c.cls)}. If this level goes to another class, look up the multiclassing rules in ${c.rules === "2014" ? "the 2014 Player's Handbook" : "the 2024 Player's Handbook"} and set the sheet by hand with Edit (top right).`)}
     <div id="luGo">${luGoHtml(c)}</div><button class="btn wide" data-act="ovclose">Not now</button>`;
   return h;
 }
@@ -1283,6 +1322,12 @@ function applyLevelUp(c) {
 function pcsHtml() {
   const cards = db.chars.map(ch => {
     const on = ch.id === db.cur; const left = Object.values(ch.slots).reduce((a, s) => a + (+s.max || 0) - (+s.used || 0), 0);
+    const chf = (label, k) => `<label class="fld"><span>${label}</span><input data-ch="${ch.id}" data-f="${k}" value="${esc(ch[k] || "")}"></label>`;
+    if (EM()) return `<div class="panel ${on ? "cur" : ""}" ${on ? 'style="border:2px solid var(--gold)"' : ""}>
+      <div class="row">${chf("Name", "name")}${chf("Short name", "short")}</div>
+      <div class="row">${chf("Player", "player")}${chf("Campaign", "campaign")}<label class="fld n" style="flex:0 0 90px"><span>Rules</span><select data-ch="${ch.id}" data-f="rules">${["2024", "2014"].map(r => `<option ${(ch.rules || "2024") === r ? "selected" : ""}>${r}</option>`).join("")}</select></label></div>
+      <p class="note">The rest of ${esc(ch.short || ch.name)}'s sheet: ${on ? "the Play tab, while editing." : "play them, then the Play tab."}</p>
+      <div class="acts" style="margin-bottom:10px">${on ? "" : `<button class="btn small main" data-act="switchpc" data-id="${ch.id}">Play them</button>`}${db.chars.length > 1 ? `<button class="btn small danger" data-act="delpc" data-id="${ch.id}">Delete…</button>` : ""}</div></div>`;
     return `<div class="card tap ${on ? "cur" : ""}" data-act="switchpc" data-id="${ch.id}">
       <span class="nm">${esc(ch.name)}${on ? `<span class="tag g">playing now</span>` : ""}</span>
       <span class="sub">${esc([ch.species, `${ch.cls} ${ch.level}`, ch.subcls].filter(Boolean).join(" · "))}</span>
@@ -1340,7 +1385,8 @@ function getPath(o, path) { return path.split(".").reduce((a, k) => a == null ? 
 function setPath(o, path, v) { const ks = path.split("."); const last = ks.pop(); const t = ks.reduce((a, k, i) => (a[k] = a[k] ?? (/^\d+$/.test(ks[i + 1] ?? last) ? [] : {})), o); t[last] = v; }
 function valOf(el) { if (el.dataset.t === "b") return el.checked; if (el.type === "checkbox") return el.checked; if (el.dataset.t === "n") return el.value === "" ? "" : +el.value; return el.value; }
 document.addEventListener("input", e => {
-  const el = e.target; const c = C();
+  const el = e.target; const c = (el.dataset && el.dataset.ch && db.chars.find(x => x.id === el.dataset.ch)) || C();
+  if (el.dataset && el.dataset.lib && db.lib) { setPath(db.lib, el.dataset.lib, el.value); save(); return; }
   if (el.dataset.f && el.type !== "checkbox" && el.tagName !== "SELECT") { setPath(c, el.dataset.f, valOf(el)); save(); }
   if (el.dataset.wager) { ui.wager[el.dataset.wager] = el.value; const o = $("#wagerOut"); if (o) o.innerHTML = wagerOutHtml(c); }
   // the level-up: what's typed is kept as it's typed; only the hit-point line and the button change under the fingers
@@ -1356,7 +1402,8 @@ document.addEventListener("input", e => {
   if (el.dataset.act === "realdie" && R) { const v = parseInt(el.value, 10); R.real = v >= 1 && v <= 20 ? v : null; save(); const pos = el.selectionStart; $("#ov .box").innerHTML = rollHtml(); const n = $('#ov [data-act="realdie"]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {} } }
 });
 document.addEventListener("change", e => {
-  const el = e.target; const c = C();
+  const el = e.target; const c = (el.dataset && el.dataset.ch && db.chars.find(x => x.id === el.dataset.ch)) || C();
+  if (el.dataset && el.dataset.lib) return;
   if (el.dataset.lu && LV && (el.tagName === "SELECT" || el.type === "checkbox")) {
     let v = el.type === "checkbox" ? el.checked : el.value;
     if (v === "__other") { v = (prompt("Type it:", "") || "").trim(); }
@@ -1409,7 +1456,7 @@ document.addEventListener("click", e => {
     case "menu": openOv(menuHtml(), "menu"); break;
     case "ovclose": closeOv(); break;
     case "switch": db.cur = el.dataset.id; save(); closeOv(); break;
-    case "newchar": { const nm = prompt("Their name?"); if (!nm) break; const ch = blankChar(nm); db.chars.push(ch); db.cur = ch.id; ui.open.edit = true; ui.tab = "play"; save(); closeOv(); toast("Fill in the sheet under Edit the sheet."); break; }
+    case "newchar": { const nm = prompt("Their name?"); if (!nm) break; const ch = blankChar(nm); db.chars.push(ch); db.cur = ch.id; ui.editMode = true; ui.tab = "play"; save(); closeOv(); toast("Fill in the sheet, then tap Done (top right)."); break; }
     case "switchpc": db.cur = el.dataset.id; ui.tab = "play"; ui.edit = null; ui.itemOpen = null; saveUi(); save(); render(); scrollTo(0, 0); break;
     case "delpc": { const ch = db.chars.find(x => x.id === el.dataset.id); if (!ch || db.chars.length < 2) break;
       if (!confirm(`Delete ${ch.name} for good? Save a backup first if you're not sure.`)) break;
@@ -1470,7 +1517,8 @@ document.addEventListener("click", e => {
     case "atk": rollAttack(c.attacks[+el.dataset.i]); break;
     case "atkdmg": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name + " damage", dmgOfAtk(c, at), { dtype: at.dtype }); break; }
     case "atksave": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name, dmgOfAtk(c, at) || "0", { dtype: at.dtype, save: { ab: at.save.ab, dc: at.save.dc, half: at.save.half } }); break; }
-    case "sticky": { rollCheck("dex", "stealth"); R.label = "Sticky Fingers: Stealth"; R.hint = `Percentile die: ${rnd(100)}`; showRoll(); break; }
+    case "traitroll": { const t = c.traits[+el.dataset.i]; const k = t.rollSkill; if (SKILL[k]) rollCheck(SKILL[k].ab, k); else if (AB_NAME[k]) rollCheck(k); else break;
+      R.label = `${t.name}: ${SKILL[k] ? SKILL[k].name : AB_NAME[k]}`; if (t.rollExtra) { const x = rollExpr(t.rollExtra); R.hint = `${t.rollExtra}: ${x.total}`; } showRoll(); break; }
     case "rmode": R.mode = el.dataset.m; R.pick = null; save(); showRoll(); break;
     case "pickdie": if (R.luck.length) { R.pick = +el.dataset.i; save(); showRoll(); } break;
     case "luck": { const r = res(c, "Lucky"); if (!resLeft(r)) break; r.used++; R.luck.push(rnd(20)); R.pick = R.d.length + R.luck.length - 1; save(); showRoll(); toast("Luck point spent: tap the die you want."); break; }
@@ -1503,11 +1551,13 @@ document.addEventListener("click", e => {
       const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp);
       save(); $("#pkOut").innerHTML = pickerResults("spell"); toast(`${sp.name} added${sp.lvl ? ` (${ord(sp.lvl)} level)` : ""}.`); break; }
     case "pkatk": { const x = weaponPool().find(y => y.id === el.dataset.id); const a = x && attackFromData(x); if (!a) break; c.attacks.push(a); save(); closeOv(); toast(`${a.name} added to the attacks.`); break; }
-    case "pkownatk": c.attacks.push({ id: uid("at"), name: "New attack", ab: "str", prof: true, dice: "1d6", dtype: "bludgeoning", bonus: 0 }); ui.open.edit = true; saveUi(); save(); closeOv(); toast("Fill it in under Edit the sheet → Attacks."); break;
+    case "pkownatk": c.attacks.push({ id: uid("at"), name: "New attack", ab: "str", prof: true, dice: "1d6", dtype: "bludgeoning", bonus: 0 }); ui.editMode = true; ui.tab = "play"; save(); closeOv(); toast("Fill it in under Attacks, then tap Done (top right)."); break;
     case "pkitem": { const x = itemPool().find(y => y.id === el.dataset.id); if (!x) break; const m = ($("#newItem").value || "").match(/^(\d+)\s*(?:x|×)?\s+/); const it = itemFromData(x, m ? +m[1] : 1);
       c.items.push(it); logIt(c, `Gained ${it.qty > 1 ? it.qty + " × " : ""}${it.name}`);
       const a = attackFromData(x); if (a && !c.attacks.some(y => y.name === a.name) && confirm(`Add ${a.name} to the attacks too?`)) c.attacks.push(a);
       save(); render(); toast(`${it.name} added.`); break; }
+    case "editmode": ui.editMode = !ui.editMode; ui.edit = null; ui.itemOpen = null; render(); scrollTo(0, 0); if (!ui.editMode) toast("Saved."); break;
+    case "libdel": { const list = db.lib[el.dataset.kind]; const x = list[+el.dataset.j]; if (confirm(`Take ${x.name} out of the homebrew? (A sheet that has it keeps its copy.)`)) { list.splice(+el.dataset.j, 1); save(); render(); } break; }
     case "levelup": startLevelUp(c); break;
     case "levelupof": db.cur = el.dataset.id; save(); render(); startLevelUp(C()); break;
     case "luroll": { const r = rnd(c.hd.die); LV.hp = r; LV.how = `rolled ${r} on the d${c.hd.die}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = r; break; }
@@ -1531,7 +1581,7 @@ document.addEventListener("click", e => {
       if (a === "coingain") { if (c.debtCp > 0) gainCp(c, v * COIN[k], `+${v} ${k}${why ? " — " + why : ""}`); else { c.purse[k] = (+c.purse[k] || 0) + v; logIt(c, `+${v} ${k}${why ? " — " + why : ""}`); } }
       else { if ((+c.purse[k] || 0) >= v) { c.purse[k] -= v; logIt(c, `−${v} ${k}${why ? " — " + why : ""}`); } else if (purseCp(c.purse) >= v * COIN[k]) { payCp(c.purse, v * COIN[k]); logIt(c, `−${v} ${k} (made change)${why ? " — " + why : ""}`); } else { toast("Not enough in the purse."); break; } }
       save(); render(); break; }
-    case "additem": { const t = $("#newItem").value.trim(); if (!t) break; const m = t.match(/^(\d+)\s*(?:x|×)?\s+(.+)$/i); const it = { id: uid("it"), name: m ? m[2] : t, qty: m ? +m[1] : 1, where: "on", note: "" };
+    case "additem": { const t = $("#newItem").value.trim(); if (!t) break; const m = t.match(/^(\d+)\s*(?:x|×)?\s+(.+)$/i); const it = { id: uid("it"), name: m ? m[2] : t, qty: m ? +m[1] : 1, where: "On me", note: "" };
       c.items.push(it); logIt(c, `Gained ${it.qty > 1 ? it.qty + " × " : ""}${it.name}`); save(); render(); break; }
     case "itemopen": ui.itemOpen = ui.itemOpen === el.dataset.id ? null : el.dataset.id; render(); break;
     case "itemclose": ui.itemOpen = null; render(); break;
@@ -1603,7 +1653,7 @@ function seedGnick() {
       { name: "Blessing of the Trickster", src: "Trickery", text: "You can use your action to touch a willing creature other than yourself to give them advantage on Dexterity (Stealth) checks for 1 hour." },
       { name: "Channel Divinity", src: "Cleric 2", text: "Not on your sheet, but a 2014 cleric has it from 2nd level: one use, back on a short or long rest. **Turn Undead**, or the Trickery Domain's **Invoke Duplicity** (an illusory duplicate of yourself for 1 minute, on concentration). Check the details with your DM." },
       { name: "Lucky", src: "Feat", text: "3 Luck points, back on a long rest. Whenever you make an attack roll, an ability check, or a saving throw, you can spend 1 Luck point to roll an additional d20 and choose which die to use. You can also use a point to roll a d20 when an attack is made against you and choose whether the attacker's roll or your roll applies." },
-      { name: "Sticky Fingers", src: "Gnick", roll: "sticky", text: "Any time you enter a new place, you can roll a d20 Stealth check and a percentile die to try to steal something." },
+      { name: "Sticky Fingers", src: "Gnick", rollSkill: "stealth", rollExtra: "1d100", rollLabel: "Roll it: Stealth + d100", text: "Any time you enter a new place, you can roll a d20 Stealth check and a percentile die to try to steal something." },
       { name: "Village dialect", src: "Gnick", text: "The local dialect of Gnickgnick's village pronounces every silent beginning letter of a word. All silent letters that begin words are pronounced." }
     ],
     items: [
@@ -1736,6 +1786,8 @@ if (!db.fixes.includes("gnick-level-5")) {
   db.fixes.push("gnick-level-5"); save();
 }
 if (!db.fixes.includes("gnick-rules")) { const g = db.chars.find(ch => ch.id === "ch_gnick"); if (g) g.rules = "2014"; db.fixes.push("gnick-rules"); save(); }
+// a feature's own roll button replaced the one made just for Sticky Fingers
+if (!db.fixes.includes("trait-rolls")) { for (const ch of db.chars) for (const t of ch.traits) if (t.roll === "sticky") { delete t.roll; Object.assign(t, { rollSkill: "stealth", rollExtra: "1d100", rollLabel: "Roll it: Stealth + d100" }); } db.fixes.push("trait-rolls"); save(); }
 if (!db.fixes.includes("gnick-player")) { const g = db.chars.find(ch => ch.id === "ch_gnick"); if (g && !g.player) g.player = "Joseph"; db.fixes.push("gnick-player"); save(); }
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
