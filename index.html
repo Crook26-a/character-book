@@ -249,7 +249,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 14;
+const VERSION = 15;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -764,6 +764,17 @@ function fmt(t) { // light markup: blank line = paragraph, "- " = bullet, **bold
 function pips(n, used, act, data, sq) { return `<span class="pips">${Array.from({ length: n }, (_, i) => `<button class="pip ${i >= n - used ? "used" : ""} ${sq ? "sq" : ""}" data-act="${act}" data-i="${i}" ${data}></button>`).join("")}</span>`; }
 
 /* ── Play ── */
+// the sheet's words, to read while playing (Joseph, 2026-11-01: background and alignment showed only when editing):
+// whatever is filled in, nothing for what isn't
+function whoHtml(c) {
+  const facts = [["Background", c.bg], ["Alignment", c.align], ["Player", c.player], ["Campaign", c.campaign], ["Rules", c.rules],
+    ["Spellcasting", c.spells.length ? AB_NAME[castAb(c)] : ""], ["Armor class from", c.acNote]].filter(([, v]) => String(v || "").trim());
+  const story = [["Proficiencies and languages", c.story.profs], ["Personality traits", c.story.traits], ["Ideals", c.story.ideals], ["Bonds", c.story.bonds],
+    ["Flaws", c.story.flaws], ["Appearance", c.story.looks], ["Backstory", c.story.backstory], ["More", c.story.more]].filter(([, v]) => String(v || "").trim());
+  if (!facts.length && !story.length) return `<p class="empty">Nothing written yet: tap Edit (top right) to fill it in.</p>`;
+  return `${facts.length ? `<div class="lines" style="margin-bottom:12px">${facts.map(([k, v]) => `<div class="line" style="cursor:default"><span class="nm"><small>${k}</small></span><span>${esc(v)}</span></div>`).join("")}</div>` : ""}
+    ${story.map(([k, v]) => `<div class="card"><span class="lab">${k}</span><div class="txt">${fmt(v)}</div></div>`).join("")}`;
+}
 // edit mode on the Play tab: how things stand right now, then the whole sheet
 function nowEditHtml(c) {
   const sl = Object.keys(c.slots).filter(k => c.slots[k].max);
@@ -845,6 +856,7 @@ function playHtml(c) {
     + sec("atk", "Attacks", `${c.attacks.length}`, atkBody + `<button class="btn wide" data-act="addatk">+ An attack</button>`, true)
     + sec("abil", "Abilities, saves and skills", "", abil, true)
     + sec("feat", "Features and traits", `${c.traits.length}`, feats, false)
+    + sec("who", "Who they are", "", whoHtml(c), false)
     + sec("rolls", "Recent rolls", "", recent, false);
 }
 function effDesc(e) {
@@ -987,6 +999,7 @@ function itemsHtml(c) {
     <div class="row" style="margin-bottom:10px"><button class="btn good grow" data-act="coingain">Gained</button><button class="btn danger grow" data-act="coinspend">Spent or lost</button></div></div>`;
   const arts = c.items.filter(i => i.artifact && !i.gone).map(i => `<div class="panel artifact"><h2>${esc(i.name)} <small>${esc(i.artifact.kind || "artifact")}${i.artifact.state ? " · " + esc(i.artifact.state) : ""}${i.attune ? (i.attuned ? " · attuned" : " · not attuned") : ""}</small></h2>
     ${i.attune ? `<label class="check"><input type="checkbox" data-act="attune" data-id="${i.id}" ${i.attuned ? "checked" : ""}> Attuned (${attunedCount(c)} of 3)</label>` : ""}
+    ${(i.mods || []).some(m => m.bonus && (m.to || []).length) ? `<p class="note">Gives ${esc((i.mods || []).filter(m => m.bonus && (m.to || []).length).map(m => effDesc({ to: m.to, bonus: m.bonus })).join("; "))}${i.attune && !i.attuned ? " (when attuned)" : ""}.</p>` : ""}
     ${i.pics && i.pics.length ? `<div class="thumbs">${i.pics.map(id => `<img data-pic="${esc(id)}" data-act="pic" data-id="${esc(id)}" alt="">`).join("")}</div>` : ""}
     ${sec("art:" + i.id, "What it does", "", `<div class="txt">${fmt(i.artifact.text)}</div>`, false)}
     ${i.artifact.wager ? wagerHtml(c) + `<div class="row" style="align-items:center"><label class="fld n" style="flex:0 0 150px"><span>Divine debt (gp)</span><input type="number" inputmode="decimal" id="debtGp" value="${(+c.debtCp || 0) / 100}"></label>
@@ -998,6 +1011,7 @@ function itemsHtml(c) {
   const groups = placesOf(c).map(l => [l, shown.filter(i => !i.gone && whereOf(i) === l)]).filter(g => g[1].length);
   const gone = shown.filter(i => i.gone);
   const itemCard = i => EM() ? `<div class="card ${i.gone ? "gone" : ""}">${itemForm(c, i)}</div>` : `<div class="card tap ${i.gone ? "gone" : ""}" data-act="itemopen" data-id="${i.id}"><span class="nm">${i.qty > 1 || i.qty === 0 ? `${i.qty} × ` : ""}${esc(i.name)}${i.attuned ? `<span class="tag g">attuned</span>` : i.attune ? `<span class="tag">attunement</span>` : ""}${i.check ? `<span class="tag c">still have it?</span>` : ""}</span>
+      ${i.value || (i.mods || []).some(m => m.bonus && (m.to || []).length) ? `<span class="sub">${esc([i.value, ...(i.mods || []).filter(m => m.bonus && (m.to || []).length).map(m => effDesc({ to: m.to, bonus: m.bonus }))].filter(Boolean).join(" · "))}${i.attune && !i.attuned && (i.mods || []).length ? " (when attuned)" : ""}</span>` : ""}
       ${i.note ? `<span class="sub">${esc(i.note.split("\n")[0].slice(0, 120))}</span>` : ""}
       ${i.use && (i.use.label || i.use.heal) && !i.gone ? `<div class="acts"><button class="btn small good" data-act="use" data-id="${i.id}">${esc(i.use.label || "Use")}${i.use.heal ? ` (${esc(i.use.heal)})` : ""}</button></div>` : ""}
       ${ui.itemOpen === i.id ? itemForm(c, i) : ""}</div>`;
