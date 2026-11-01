@@ -2,6 +2,7 @@
   "name": "Character Book",
   "short_name": "Character Book",
   "description": "The sheet you play from: rolls, hit points, spells, what you carry, and who you've met.",
+  "id": "/character-book/app",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -230,6 +230,7 @@
 <div class="wrap">
   <header>
     <div class="headrow"><button id="who" data-act="menu"></button><span style="display:flex;gap:6px;flex:none"><button id="editBtn" data-act="editmode" aria-pressed="false">Edit</button><button id="themeBtn" aria-label="Light or dark">◐</button></span></div>
+    <div id="install" hidden style="margin-top:8px"></div>
   </header>
   <div id="strip"></div>
   <main id="view"></main>
@@ -247,7 +248,8 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 11;
+const VERSION = 12;
+let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -726,7 +728,7 @@ function render() {
   const v = { pcs: pcsHtml, play: playHtml, spells: spellsHtml, items: itemsHtml, journal: journalHtml, people: peopleHtml }[ui.tab] || playHtml;
   const eb = $("#editBtn"); eb.textContent = EM() ? "Done" : "Edit"; eb.classList.toggle("on", EM()); eb.setAttribute("aria-pressed", EM() ? "true" : "false");
   $("#view").innerHTML = (EM() ? `<div class="editing-bar">Editing: everything here can be changed, and it saves as you type. Tap <b>Done</b> (top right) when you're finished.</div>` : "") + v(c);
-  $("#ver").textContent = "v" + VERSION;
+  $("#ver").textContent = "v" + VERSION + (offlineReady ? " · offline ready" : "");
   hydratePics();
   if (ovKind === "roll" && R) $("#ov .box").innerHTML = rollHtml();
 }
@@ -1867,7 +1869,29 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
   const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => { if (!hadController || reloaded) return; reloaded = true; location.reload(); });
   navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then(reg => { reg.update(); setInterval(() => { try { reg.update(); } catch (e) {} }, 30 * 60 * 1000); }).catch(() => {});
+  // offline ready: this version's whole cache is in place (sw.js names it character-book-v<VERSION>)
+  navigator.serviceWorker.ready.then(() => caches.has("character-book-v" + VERSION)).then(has => { if (has) { offlineReady = true; render(); } }).catch(() => {});
 }
+/* installing it on a phone (Joseph, 2026-11-01: Chrome said it was installed when it wasn't, and only offered the
+   browser). Chrome hands over beforeinstallprompt when it will install: then an Install button; otherwise, outside the
+   installed app, a line on how, and what to do when Chrome thinks it's already installed. */
+let installEvt = null;
+const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+function showInstall() {
+  const el = $("#install"); if (!el) return;
+  if (standalone() || location.protocol !== "https:") { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = installEvt ? `<button class="btn small main" data-act="install">Install the app</button> <span class="note" style="margin:0">It works offline once it's installed.</span>`
+    : `<details class="note" style="margin:0"><summary>Install it as an app</summary>In Chrome: ⋮ → <b>Install app</b> (or Add to Home screen). If you opened this from another app's link, open it in Chrome first.
+      If Chrome says it's already installed but it isn't on your home screen: Android Settings → Apps → Character Book → Uninstall, then come back here.</details>`;
+}
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; showInstall(); });
+window.addEventListener("appinstalled", () => { installEvt = null; showInstall(); toast("Installed: it's on your home screen, and works offline."); });
+document.addEventListener("click", async e => {
+  if (!e.target.closest || !e.target.closest('[data-act="install"]') || !installEvt) return;
+  const ev = installEvt; installEvt = null; ev.prompt(); try { await ev.userChoice; } catch (x) {} showInstall();
+});
+showInstall();
 </script>
 </body>
 </html>
