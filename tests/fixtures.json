@@ -1,0 +1,5 @@
+{
+  "party": "../../DnD/Ashgrave Manor/Character Book - Ashgrave party.json",
+  "homebrew": "private/fixtures/field-book-ashgrave.json",
+  "survey-out": "../../DnD/My campaign/Tools/tests/steps/out/exchange/downloads/download-1.json"
+}

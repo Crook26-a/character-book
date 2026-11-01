@@ -1,0 +1,6 @@
+{
+  "kind": "cb",
+  "app": "../index.html",
+  "inline": { "srd.js": "../srd.js" },
+  "cases": ["cases", "private/cases"]
+}

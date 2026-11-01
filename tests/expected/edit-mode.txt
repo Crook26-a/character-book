@@ -1,0 +1,6 @@
+1. Edit turns the Play tab into fields: ok
+2. every spell, item, session and person opens as fields: ok
+3. a new place to keep things (Other…): ok
+4. an effect changed in place: ok
+5. an attack to the sheet's numbers, a saving throw, and back: ok
+6. Sticky Fingers is a feature roll: Stealth and a d100: 1d100: 59

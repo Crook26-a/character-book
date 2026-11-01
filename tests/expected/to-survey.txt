@@ -1,0 +1,2 @@
+1. Ilsa Brightwater, a 5th-level paladin: Ilsa Brightwater: AC 18, DC 14, +6 longsword
+2. Save a backup: the file carries both, shaped for the survey: Gnickgnick "Gnick" Gnomeson and Ilsa Brightwater: character-book-<date>.json

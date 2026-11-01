@@ -1,0 +1,5 @@
+1. 5 → 6: what it does by itself, and what it says it doesn't have: 2 lookups
+2. take the average, add a feature, reach 6: HP 45
+3. 6 → 7: 4th-level spells, a typed die: HP 54
+4. 7 → 8: an ability score improvement, not the same score twice: level 8, Wis 17, Cha 16
+5. tables: a 2014 paladin has no slots at 1, a 2024 one has 2: ok

@@ -1,0 +1,7 @@
+1. Gnick's numbers at 5th level: AC 17, DC 15, +7, HP 39/39
+2. a Stealth check, then a Luck point: Luck left 2
+3. Bless: concentration and the d4 on an attack: slots 1st left 3
+4. 24 damage while concentrating asks for a Con save (DC 12): HP 15
+5. Healing Word at 2nd level, Sacred Flame, a cart spell, Aid on himself: HP 30/44
+6. a Pious Wager jackpot, then a loss into divine debt: debt 150 gp
+7. a long rest: everything back, Aid and concentration gone: HP 39/39, exhaustion 1 (debt stays)
