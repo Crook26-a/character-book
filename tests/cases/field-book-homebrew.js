@@ -8,10 +8,10 @@ step("the Field Book has a bell and a spell", () => {
   ui.tab = "pcs"; render(); return document.querySelector("#view").textContent.match(/From the Field Book[^.]*\./)[0];
 });
 step("the spell is in the picker, marked Field Book", () => {
-  ui.tab = "spells"; render(); q('[data-act="addspell"]').click(); typ("#pkQ", "hush");
+  ui.tab = "spells"; render(); q('[data-act="addspell"]').click(); q('[data-act="pksrc"][data-src="lib"]').click(); typ("#pkQ", "hush");
   const t = q("#pkOut").textContent; expect(/Hush of the Glade/.test(t) && /Field Book/.test(t), "Hush of the Glade, marked Field Book"); closeOv(); return t.replace(/\s+/g, " ").trim();
 });
 step("the bell as an item, without the DM's note", () => {
-  ui.tab = "items"; render(); typ("#newItem", "whispering"); q('#itemSug [data-act="pkitem"]').click();
+  ui.tab = "items"; render(); expect(fromLib(), "the items stay on the library, as last chosen"); typ("#newItem", "whispering"); q('#itemSug [data-act="pkitem"]').click();
   const b = C().items.at(-1); expect(b.name === "Whispering bell" && !/DM:/.test(JSON.stringify(b)), "the bell, no DM note"); return b.note;
 });
