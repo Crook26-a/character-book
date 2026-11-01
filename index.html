@@ -136,6 +136,7 @@
     padding: 10px 12px; margin: 0 0 8px; font: inherit; position: relative; }
   .card.tap { cursor: pointer; }
   .card.gone { opacity: .55; }
+  .card.cur { border: 2px solid var(--gold); }
   .card .nm { font-size: 17px; overflow-wrap: anywhere; }
   .card .sub { display: block; margin-top: 3px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11.5px; color: var(--ink-soft); }
   .card .txt { margin: 6px 0 4px; font-size: 14.5px; }
@@ -238,7 +239,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 3;
+const VERSION = 4;
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -702,19 +703,20 @@ function applyWager(c, slot) {
 }
 
 /* ══ drawing ══ */
-const TABS = [["play", "Play"], ["spells", "Spells"], ["items", "Items"], ["journal", "Journal"], ["people", "People"]];
+const TABS = [["pcs", "PCs"], ["play", "Play"], ["spells", "Spells"], ["items", "Items"], ["journal", "Journal"], ["people", "People"]];
 function render() {
   const c = C();
   $("#who").innerHTML = `<b>${esc(c.name)}</b><small class="caps">${esc([c.species, `${c.cls} ${c.level}`, c.subcls].filter(Boolean).join(" · "))}</small>`;
   $("#tabs").innerHTML = TABS.map(([k, l]) => `<button class="${ui.tab === k ? "on" : ""}" data-tab="${k}">${l}<small>${tabCount(c, k)}</small></button>`).join("");
   $("#strip").innerHTML = stripHtml(c);
-  const v = { play: playHtml, spells: spellsHtml, items: itemsHtml, journal: journalHtml, people: peopleHtml }[ui.tab] || playHtml;
+  const v = { pcs: pcsHtml, play: playHtml, spells: spellsHtml, items: itemsHtml, journal: journalHtml, people: peopleHtml }[ui.tab] || playHtml;
   $("#view").innerHTML = v(c);
   $("#ver").textContent = "v" + VERSION;
   hydratePics();
   if (ovKind === "roll" && R) $("#ov .box").innerHTML = rollHtml();
 }
 function tabCount(c, k) {
+  if (k === "pcs") return `${db.chars.length}`;
   if (k === "play") return `AC ${acOf(c)}`;
   if (k === "spells") { const s = Object.values(c.slots).reduce((a, x) => a + x.max - x.used, 0); return `${s} slot${s === 1 ? "" : "s"}`; }
   if (k === "items") return `${Math.floor(purseCp(c.purse) / 100)} gp`;
@@ -829,6 +831,7 @@ const fld = (label, path, val, o = {}) => `<label class="fld ${o.n ? "n" : ""}">
 function editHtml(c) {
   return `<p class="note">Changes save as you type.</p>
     <div class="row">${fld("Name", "name", c.name)}${fld("Short name", "short", c.short || "")}</div>
+    <div class="row">${fld("Player", "player", c.player || "")}${fld("Campaign", "campaign", c.campaign || "")}</div>
     <div class="row">${fld("Species", "species", c.species)}${fld("Class", "cls", c.cls)}${fld("Level", "level", c.level, { n: 1 })}</div>
     <div class="row">${fld("Subclass", "subcls", c.subcls)}${fld("Background", "bg", c.bg)}${fld("Alignment", "align", c.align)}</div>
     <div class="row">${fld("Armor class", "ac", c.ac, { n: 1 })}${fld("Speed", "speed", c.speed, { n: 1 })}${fld("HP max", "hpMax", c.hpMax, { n: 1 })}${fld("Hit dice", "hd.max", c.hd.max, { n: 1 })}${fld("Die", "hd.die", c.hd.die, { n: 1 })}</div>
@@ -980,6 +983,24 @@ function peopleHtml(c) {
     }).join("") : `<p class="empty">Nobody here yet.</p>`);
 }
 
+/* ── PCs: every character you play, on one shelf ── */
+function pcsHtml() {
+  const cards = db.chars.map(ch => {
+    const on = ch.id === db.cur; const left = Object.values(ch.slots).reduce((a, s) => a + (+s.max || 0) - (+s.used || 0), 0);
+    return `<div class="card tap ${on ? "cur" : ""}" data-act="switchpc" data-id="${ch.id}">
+      <span class="nm">${esc(ch.name)}${on ? `<span class="tag g">playing now</span>` : ""}</span>
+      <span class="sub">${esc([ch.species, `${ch.cls} ${ch.level}`, ch.subcls].filter(Boolean).join(" · "))}</span>
+      <span class="sub">HP ${ch.hp}/${hpMaxOf(ch)}${ch.temp ? ` +${ch.temp}` : ""} · AC ${acOf(ch)}${left ? ` · ${left} slot${left === 1 ? "" : "s"}` : ""} · ${gpText(purseCp(ch.purse))}${ch.conc ? ` · ◉ ${esc(ch.conc)}` : ""}</span>
+      ${ch.player || ch.campaign ? `<span class="sub">${esc([ch.campaign, ch.player ? "played by " + ch.player : ""].filter(Boolean).join(" · "))}</span>` : ""}
+      <div class="acts"><button class="btn small ${on ? "" : "main"}" data-act="switchpc" data-id="${ch.id}">${on ? "Play" : "Play them"}</button>
+        ${db.chars.length > 1 ? `<button class="btn small danger" data-act="delpc" data-id="${ch.id}">Delete…</button>` : ""}</div></div>`;
+  }).join("");
+  return `<p class="note">Every character you play. Tap one to play them; the other tabs follow whoever is playing now.</p>${cards}
+    <button class="btn wide main" data-act="newchar">+ A new character</button>
+    <div class="panel"><h2>Backups</h2><p class="note">Everything lives on this device. Save a backup now and then (it carries the pictures too), and bring it in on another phone or computer.</p>
+      <button class="btn wide" data-act="export">Save a backup file</button><button class="btn wide" data-act="import">Bring in a backup…</button></div>`;
+}
+
 /* ── the character menu: switch, add, back up ── */
 function menuHtml() {
   return `<div class="rr-h">Characters</div>
@@ -1057,6 +1078,10 @@ document.addEventListener("click", e => {
     case "ovclose": closeOv(); break;
     case "switch": db.cur = el.dataset.id; save(); closeOv(); break;
     case "newchar": { const nm = prompt("Their name?"); if (!nm) break; const ch = blankChar(nm); db.chars.push(ch); db.cur = ch.id; ui.open.edit = true; ui.tab = "play"; save(); closeOv(); toast("Fill in the sheet under Edit the sheet."); break; }
+    case "switchpc": db.cur = el.dataset.id; ui.tab = "play"; ui.edit = null; ui.itemOpen = null; saveUi(); save(); render(); scrollTo(0, 0); break;
+    case "delpc": { const ch = db.chars.find(x => x.id === el.dataset.id); if (!ch || db.chars.length < 2) break;
+      if (!confirm(`Delete ${ch.name} for good? Save a backup first if you're not sure.`)) break;
+      db.chars = db.chars.filter(x => x !== ch); if (db.cur === ch.id) db.cur = db.chars[0].id; save(); render(); toast(`${ch.name} deleted.`); break; }
     case "delchar": if (confirm(`Delete ${c.name} for good? Save a backup first if you're not sure.`)) { db.chars = db.chars.filter(x => x !== c); db.cur = db.chars[0].id; save(); closeOv(); } break;
     case "export": exportAll(); break;
     case "import": $("#fileIn").click(); break;
@@ -1163,7 +1188,7 @@ function seedGnick() {
   const ch = blankChar("Gnickgnick \"Gnick\" Gnomeson");
   const ids = { rocks: "it_rocks", darts: "it_darts" };
   Object.assign(ch, {
-    id: "ch_gnick", short: "Gnick", species: "Forest gnome", cls: "Cleric", subcls: "Trickery Domain (Tymora)", level: 4, bg: "Folk Hero", align: "Chaotic Good",
+    id: "ch_gnick", short: "Gnick", player: "Joseph", species: "Forest gnome", cls: "Cleric", subcls: "Trickery Domain (Tymora)", level: 4, bg: "Folk Hero", align: "Chaotic Good",
     ab: { str: 10, dex: 13, con: 13, int: 15, wis: 16, cha: 15 }, saveProf: ["wis", "cha"],
     skills: { animal: 1, insight: 1, persuasion: 1, survival: 1 },
     ac: 17, acNote: "Breastplate 14 + Dex 1 (medium armor) + shield 2", speed: 25, hpMax: 31, hp: 31, hd: { die: 8, max: 4, used: 0 },
@@ -1337,6 +1362,7 @@ if (!db.fixes.includes("gnick-level-5")) {
   }
   db.fixes.push("gnick-level-5"); save();
 }
+if (!db.fixes.includes("gnick-player")) { const g = db.chars.find(ch => ch.id === "ch_gnick"); if (g && !g.player) g.player = "Joseph"; db.fixes.push("gnick-player"); save(); }
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
