@@ -244,7 +244,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 8;
+const VERSION = 9;
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -772,10 +772,10 @@ function playHtml(c) {
       ${c.conc ? `<span class="chip lead">◉ ${esc(c.conc)}</span><button class="btn tiny" data-act="concsave">Con save…</button><button class="btn tiny danger" data-act="concend">End it</button>` : `<span class="note" style="margin:0">None</span><button class="btn tiny" data-act="concset">Start…</button>`}</div>
   </div>`;
   const effPanel = `<div class="panel"><h2>On right now <small>conditions, effects, modifiers</small></h2>
-    <div class="row" style="margin-bottom:8px">${effs.length ? effs.map(e => `<button class="chip ${e.on === false ? "off" : "goodc"}" data-act="efftoggle" data-id="${e.id}" title="${esc(effDesc(e))}">${esc(e.name)}${e.bonus ? " " + esc(/^[+-]/.test(e.bonus) ? e.bonus : "+" + e.bonus) : ""}${e.conc ? " ◉" : ""}${e.once ? " ¹" : ""}</button><button class="chip" data-act="effdel" data-id="${e.id}" aria-label="Remove ${esc(e.name)}">✕</button>`).join("") : `<span class="note" style="margin:0">No spells or bonuses on you.</span>`}</div>
+    <div class="row" style="margin-bottom:8px">${effs.length ? effs.map(e => `<button class="chip ${e.on === false ? "off" : "goodc"}" data-act="efftoggle" data-id="${e.id}" title="${esc(effDesc(e))}">${esc(e.name)}${e.bonus ? " " + esc(/^[+-]/.test(e.bonus) ? e.bonus : "+" + e.bonus) : ""}${e.conc ? " ◉" : ""}${e.once ? " ¹" : ""}</button><button class="chip" data-act="effedit" data-id="${e.id}" aria-label="Edit ${esc(e.name)}">✎</button><button class="chip" data-act="effdel" data-id="${e.id}" aria-label="Remove ${esc(e.name)}">✕</button>`).join("") : `<span class="note" style="margin:0">No spells or bonuses on you.</span>`}</div>
     ${effs.length ? `<p class="note">${effs.map(e => `<b>${esc(e.name)}</b>: ${esc(effDesc(e))}`).join(" · ")}</p>` : ""}
     <div class="row" style="margin-bottom:10px"><select id="effPick" style="flex:1"><option value="">Add an effect…</option>${PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("")}<option value="custom">Your own…</option></select><button class="btn small" data-act="effadd">Add</button></div>
-    ${ui.edit === "effect" ? customEffectForm() : ""}
+    ${ui.edit === "effect" ? customEffectForm() : String(ui.edit).startsWith("effect:") ? customEffectForm(effs.find(e => "effect:" + e.id === ui.edit)) : ""}
     <div class="row" style="margin-bottom:8px">${c.conds.map(k => `<button class="chip lead" data-act="conddel" data-k="${esc(k)}" title="${esc(CONDITIONS[k] || "")}">${esc(k)} ✕</button>`).join("")}
       <select id="condPick" style="flex:1 1 150px"><option value="">Add a condition…</option>${Object.keys(CONDITIONS).filter(k => !c.conds.includes(k)).map(k => `<option>${k}</option>`).join("")}</select></div>
     ${c.conds.length ? `<p class="note">${c.conds.map(k => `<b>${esc(k)}</b>: ${esc(CONDITIONS[k] || "")}`).join("<br>")}</p>` : ""}
@@ -827,15 +827,18 @@ function effDesc(e) {
   const adv = (e.adv || []).map(t => t.startsWith("skill:") ? (SKILL[t.slice(6)] || {}).name : t).join(", ");
   return [e.bonus && to ? `${/^[+-]/.test(e.bonus) ? e.bonus : "+" + e.bonus} to ${to}` : "", adv ? `advantage on ${adv}` : "", e.once ? "once" : "", e.conc ? "ends with your concentration" : "", e.until === "long" ? "ends on a long rest" : "", e.note].filter(Boolean).join("; ");
 }
-function customEffectForm() {
+// your own effect, or one that's on already (e) to change
+function customEffectForm(e) {
+  e = e || {}; const to = e.to || [], adv = (e.adv || [])[0] || "";
   return `<div class="panel" style="background:var(--paper-lit)">
-    <div class="row"><label class="fld"><span>Name</span><input id="ceName" placeholder="Potion of Diminution"></label><label class="fld n"><span>Bonus</span><input id="ceBonus" placeholder="+2 or 1d4"></label></div>
-    <div class="lab">Adds to</div><div class="row" style="margin:4px 0 10px">${TARGETS.map(([k, l]) => `<label class="check" style="margin:0 8px 4px 0"><input type="checkbox" class="ceTo" value="${k}"> ${l}</label>`).join("")}</div>
-    <div class="row"><label class="fld"><span>Advantage on a skill</span><select id="ceAdv"><option value="">—</option>${SKILLS.map(s => `<option value="skill:${s[0]}">${s[1]}</option>`).join("")}</select></label>
-      <label class="fld"><span>Note</span><input id="ceNote" placeholder="1 hour"></label></div>
-    <label class="check"><input type="checkbox" id="ceOnce"> Only the next roll it applies to</label>
-    <label class="check"><input type="checkbox" id="ceConc"> Ends when my concentration ends</label>
-    <div class="row" style="margin-bottom:10px"><button class="btn main grow" data-act="effcustom">Put it on</button><button class="btn" data-act="effcancel">Cancel</button></div></div>`;
+    <div class="row"><label class="fld"><span>Name</span><input id="ceName" placeholder="Potion of Diminution" value="${esc(e.name || "")}"></label><label class="fld n"><span>Bonus</span><input id="ceBonus" placeholder="+2 or 1d4" value="${esc(e.bonus || "")}"></label></div>
+    <div class="lab">Adds to</div><div class="row" style="margin:4px 0 10px">${TARGETS.map(([k, l]) => `<label class="check" style="margin:0 8px 4px 0"><input type="checkbox" class="ceTo" value="${k}" ${to.includes(k) ? "checked" : ""}> ${l}</label>`).join("")}</div>
+    <div class="row"><label class="fld"><span>Advantage on a skill</span><select id="ceAdv"><option value="">—</option>${SKILLS.map(s => `<option value="skill:${s[0]}" ${adv === "skill:" + s[0] ? "selected" : ""}>${s[1]}</option>`).join("")}</select></label>
+      <label class="fld"><span>Note</span><input id="ceNote" placeholder="1 hour" value="${esc(e.note || "")}"></label></div>
+    <label class="check"><input type="checkbox" id="ceOnce" ${e.once ? "checked" : ""}> Only the next roll it applies to</label>
+    <label class="check"><input type="checkbox" id="ceConc" ${e.conc ? "checked" : ""}> Ends when my concentration ends</label>
+    <label class="check"><input type="checkbox" id="ceLong" ${e.until === "long" ? "checked" : ""}> Ends on a long rest</label>
+    <div class="row" style="margin-bottom:10px"><button class="btn main grow" data-act="effcustom" ${e.id ? `data-id="${e.id}"` : ""}>${e.id ? "Save it" : "Put it on"}</button><button class="btn" data-act="effcancel">Cancel</button></div></div>`;
 }
 
 /* ── Edit the sheet: the numbers the rest comes from ── */
@@ -848,26 +851,35 @@ function editHtml(c) {
     <div class="row">${pick("Species", "species", SPECIES, c.species)}${pick("Class", "cls", CLASSES, c.cls)}${fld("Level", "level", c.level, { n: 1 })}</div>
     <div class="row">${pick("Subclass", "subcls", SUBCLASSES[c.cls] ? [SUBCLASSES[c.cls]] : [], c.subcls)}${pick("Background", "bg", BACKGROUNDS, c.bg)}${pick("Alignment", "align", ALIGNMENTS, c.align)}</div>
     <div class="row">${fld("Armor class", "ac", c.ac, { n: 1 })}${fld("Speed", "speed", c.speed, { n: 1 })}${fld("HP max", "hpMax", c.hpMax, { n: 1 })}${fld("Hit dice", "hd.max", c.hd.max, { n: 1 })}${fld("Die", "hd.die", c.hd.die, { n: 1 })}</div>
-    ${fld("Armor class comes from", "acNote", c.acNote || "")}
+    <div class="row">${fld("Armor class comes from", "acNote", c.acNote || "")}${fld("Initiative bonus", "initBonus", c.initBonus || 0, { n: 1 })}</div>
     <div class="row">${ABS.map(([k]) => fld(AB_SHORT[k], "ab." + k, c.ab[k], { n: 1 })).join("")}</div>
     <div class="row"><label class="fld"><span>Spellcasting ability</span><select data-f="castAb">${ABS.map(([k, n]) => `<option value="${k}" ${castAb(c) === k ? "selected" : ""}>${n}</option>`).join("")}</select></label>${fld("Proficiency (blank = by level)", "profBonus", c.profBonus || "", { n: 1 })}</div>
     <div class="lab">Saving throw proficiencies</div><div class="row" style="margin:4px 0 10px">${ABS.map(([k, n]) => `<label class="check" style="margin:0 10px 4px 0"><input type="checkbox" data-act="saveprof" data-ab="${k}" ${c.saveProf.includes(k) ? "checked" : ""}> ${n}</label>`).join("")}</div>
     <div class="lab">Skills (tap to cycle: none · proficient · expertise)</div><div class="row" style="margin:4px 0 10px">${SKILLS.map(([k, n]) => `<button class="chip ${skillLv(c, k) >= 2 ? "lead" : skillLv(c, k) ? "on" : ""}" data-act="skillcycle" data-k="${k}">${n}${skillLv(c, k) >= 2 ? " ★" : ""}</button>`).join("")}</div>
-    <h3>Attacks</h3>${c.attacks.map((a, i) => asWritten(a) ? `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Name", `attacks.${i}.name`, a.name)}${a.save ? fld("Save DC", `attacks.${i}.save.dc`, a.save.dc, { n: 1 }) : fld("To hit", `attacks.${i}.hit`, a.hit ?? "", { n: 1 })}</div>
+    <h3>Attacks</h3>${c.attacks.map((a, i) => asWritten(a) ? `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Name", `attacks.${i}.name`, a.name)}
+        <label class="fld"><span>How it lands</span><select data-act="atkhow" data-i="${i}">${[["hit", "Rolls to hit"], ["save", "Target saves"], ["none", "Damage only"]].map(([k, l]) => `<option value="${k}" ${(a.save ? "save" : rollsToHit(a) ? "hit" : "none") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+      ${a.save ? `<div class="row"><label class="fld"><span>Save</span><select data-f="attacks.${i}.save.ab">${ABS.map(([k, n]) => `<option value="${k}" ${a.save.ab === k ? "selected" : ""}>${n}</option>`).join("")}</select></label>${fld("DC", `attacks.${i}.save.dc`, a.save.dc, { n: 1 })}</div>
+        <label class="check"><input type="checkbox" data-f="attacks.${i}.save.half" data-t="b" ${a.save.half ? "checked" : ""}> Half damage on a made save</label>` : rollsToHit(a) ? `<div class="row">${fld("To hit", `attacks.${i}.hit`, a.hit ?? "", { n: 1 })}</div>` : ""}
       <div class="row">${fld("Damage", `attacks.${i}.dmgx`, a.dmgx || "")}${pick("Type", `attacks.${i}.dtype`, DAMAGE_TYPES, a.dtype || "")}${fld("Range", `attacks.${i}.range`, a.range || "")}</div>
       ${fld("Note", `attacks.${i}.note`, a.note || "")}<p class="note">As written on the sheet: the numbers don't change with the ability scores.</p>
-      <button class="btn small danger" data-act="del" data-list="attacks" data-i="${i}" style="margin-bottom:10px">Remove</button></div>`
+      <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="atkcalc" data-i="${i}">Work it out from the scores instead</button><button class="btn small danger" data-act="del" data-list="attacks" data-i="${i}">Remove</button></div></div>`
     : `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Name", `attacks.${i}.name`, a.name)}${fld("Damage", `attacks.${i}.dice`, a.dice, {})}</div>
       <div class="row">${pick("Type", `attacks.${i}.dtype`, DAMAGE_TYPES, a.dtype || "")}${fld("Range", `attacks.${i}.range`, a.range || "")}${fld("+ magic", `attacks.${i}.bonus`, a.bonus || 0, { n: 1 })}</div>
       <div class="row"><label class="fld"><span>Ability</span><select data-f="attacks.${i}.ab">${[["str", "Str"], ["dex", "Dex"], ["best", "Finesse (better of the two)"], ["wis", "Wis"], ["cha", "Cha"], ["int", "Int"]].map(([k, l]) => `<option value="${k}" ${a.ab === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
         <label class="fld"><span>Ammunition</span><select data-f="attacks.${i}.ammo"><option value="">—</option>${c.items.filter(x => !x.gone).map(x => `<option value="${x.id}" ${a.ammo === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label></div>
       ${fld("Note", `attacks.${i}.note`, a.note || "")}
       <label class="check"><input type="checkbox" data-f="attacks.${i}.prof" data-t="b" ${a.prof !== false ? "checked" : ""}> Proficient</label>
-      <button class="btn small danger" data-act="del" data-list="attacks" data-i="${i}" style="margin-bottom:10px">Remove</button></div>`).join("")}
+      <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="atkwritten" data-i="${i}">Use the sheet's numbers instead</button><button class="btn small danger" data-act="del" data-list="attacks" data-i="${i}">Remove</button></div></div>`).join("")}
     <button class="btn wide" data-act="addatk">+ An attack</button>
-    <h3>Features and resources</h3>${c.res.map((r, i) => `<div class="row">${fld("Name", `res.${i}.name`, r.name)}${fld("Uses", `res.${i}.max`, r.max, { n: 1 })}<label class="fld"><span>Back on</span><select data-f="res.${i}.rest">${[["short", "Short rest"], ["one", "One per short rest"], ["long", "Long rest"], ["none", "Never"]].map(([k, l]) => `<option value="${k}" ${r.rest === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="btn small danger" data-act="del" data-list="res" data-i="${i}" style="margin-bottom:10px">✕</button></div>`).join("")}
+    <h3>Features and resources</h3>${c.res.map((r, i) => `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Name", `res.${i}.name`, r.name)}${fld("Uses", `res.${i}.max`, r.max, { n: 1 })}<label class="fld"><span>Back on</span><select data-f="res.${i}.rest">${[["short", "Short rest"], ["one", "One per short rest"], ["long", "Long rest"], ["none", "Never"]].map(([k, l]) => `<option value="${k}" ${r.rest === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+      <div class="row">${fld("Note", `res.${i}.note`, r.note || "")}<button class="btn small danger" data-act="del" data-list="res" data-i="${i}" style="margin-bottom:10px">✕</button></div>
+      <label class="check"><input type="checkbox" data-f="res.${i}.byLevel" data-t="b" ${r.byLevel ? "checked" : ""}> Uses = my level (goes up when I level up)</label></div>`).join("")}
     <button class="btn wide" data-act="addres">+ A resource</button>
-    ${c.traits.map((t, i) => `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Feature", `traits.${i}.name`, t.name)}${fld("From", `traits.${i}.src`, t.src || "")}</div>${fld("What it does", `traits.${i}.text`, t.text, { area: 1, rows: 3 })}<button class="btn small danger" data-act="del" data-list="traits" data-i="${i}" style="margin-bottom:10px">Remove</button></div>`).join("")}
+    ${c.traits.map((t, i) => `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Feature", `traits.${i}.name`, t.name)}${fld("From", `traits.${i}.src`, t.src || "")}</div>${fld("What it does", `traits.${i}.text`, t.text, { area: 1, rows: 3 })}
+      <div class="lab">Advantage on saving throws</div><div class="row" style="margin:4px 0 8px">${ABS.map(([k]) => `<button class="chip ${(t.saveAdv || []).includes(k) ? "on" : ""}" data-act="traitadv" data-i="${i}" data-ab="${k}">${AB_SHORT[k]}</button>`).join("")}</div>
+      ${(t.saveAdv || []).length ? fld("When (shown as a reminder on those saves)", `traits.${i}.saveAdvWhen`, t.saveAdvWhen || "") : ""}
+      <div class="row"><label class="fld"><span>Puts on an effect</span><select data-f="traits.${i}.effect"><option value="">—</option>${PRESETS.map(p => `<option ${t.effect === p.name ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
+        <button class="btn small danger" data-act="del" data-list="traits" data-i="${i}" style="margin-bottom:10px">Remove</button></div></div>`).join("")}
     <button class="btn wide" data-act="addtrait">+ A feature</button>
     <h3>Spell slots</h3><label class="check"><input type="checkbox" data-f="pact" data-t="b" ${c.pact ? "checked" : ""}> Pact magic: the slots come back on a short rest</label><div class="row">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => fld(ord(k), `slots.${k}.max`, (c.slots[k] || {}).max || 0, { n: 1 })).join("")}</div>
     <h3>Who they are</h3>
@@ -881,7 +893,7 @@ function editHtml(c) {
 /* ── Spells ── */
 function spellsHtml(c) {
   const byLvl = {}; c.spells.forEach(s => (byLvl[s.lvl] = byLvl[s.lvl] || []).push(s));
-  const cart = c.items.find(i => i.cartSpells && !i.gone); const cp = res(c, "Cart points");
+  const cart = c.items.find(i => i.cartSpells && i.cartSpells.length && !i.gone); const cp = res(c, "Cart points");
   const head = `<div class="panel"><div class="stats" style="margin-bottom:8px"><div class="stat"><b>${dcOf(c)}</b><small>Save DC</small></div><button class="stat" data-act="satk"><b>${sg(satkOf(c))}</b><small>Spell attack</small></button>
     ${Object.keys(c.slots).filter(k => c.slots[k].max).map(k => `<div class="stat"><b>${c.slots[k].max - c.slots[k].used}/${c.slots[k].max}</b><small>${ord(+k)} slots</small></div>`).join("")}</div>
     ${flatFor(c, { kind: "dc" }) ? `<p class="note">Includes ${modsFor(c, { kind: "dc" }).map(m => `${esc(m.name)} ${esc(sg(flatOf(m.bonus)))}`).join(", ")} (attuned).</p>` : ""}
@@ -913,14 +925,20 @@ function spellsHtml(c) {
 function spellForm(c, s) {
   const i = c.spells.indexOf(s); const p = `spells.${i}`; const r = s.roll || {};
   return `<div class="panel" style="background:var(--paper-lit);margin-top:10px">
-    <div class="row">${fld("Name", p + ".name", s.name)}${fld("Level", p + ".lvl", s.lvl, { n: 1 })}${fld("Tag", p + ".tag", s.tag || "")}</div>
+    <div class="row">${fld("Name", p + ".name", s.name)}${fld("Level", p + ".lvl", s.lvl, { n: 1 })}${pick("Tag", p + ".tag", ["D", "Racial", "Homebrew", "Ritual"], s.tag || "")}</div>
+    <p class="note" style="margin-top:-6px">Tag D = a domain spell, always prepared.</p>
     <div class="row">${pick("Casting time", p + ".time", SPELL_TIMES, s.time || "")}${fld("Range", p + ".range", s.range || "")}${fld("Duration", p + ".dur", s.dur || "")}</div>
     ${fld("What it does", p + ".text", s.text, { area: 1, rows: 4 })}
     <label class="check"><input type="checkbox" data-f="${p}.conc" data-t="b" ${s.conc ? "checked" : ""}> Concentration</label>
     <div class="row"><label class="fld"><span>Roll</span><select data-act="spellrollkind" data-i="${i}"><option value="">None</option>${[["atk", "Spell attack"], ["save", "Target saves"], ["heal", "Healing"]].map(([k, l]) => `<option value="${k}" ${r.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       ${s.roll ? fld("Dice", p + ".roll.dice", r.dice || "") + fld("Type", p + ".roll.type", r.type || "") + fld("Per level up", p + ".roll.up", r.up || "") : ""}</div>
-    ${s.roll && s.roll.kind === "save" ? `<div class="row"><label class="fld"><span>Save</span><select data-f="${p}.roll.save">${ABS.map(([k, n]) => `<option value="${k}" ${r.save === k ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>` : ""}
-    ${s.roll ? `<label class="check"><input type="checkbox" data-f="${p}.roll.mod" data-t="b" ${r.mod ? "checked" : ""}> Add my spellcasting modifier</label>` : ""}
+    ${s.roll && s.roll.kind === "save" ? `<div class="row"><label class="fld"><span>Save</span><select data-f="${p}.roll.save">${ABS.map(([k, n]) => `<option value="${k}" ${r.save === k ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>
+      <label class="check"><input type="checkbox" data-f="${p}.roll.half" data-t="b" ${r.half ? "checked" : ""}> Half damage on a made save</label>` : ""}
+    ${s.roll ? `<label class="check"><input type="checkbox" data-f="${p}.roll.mod" data-t="b" ${r.mod ? "checked" : ""}> Add my spellcasting modifier</label>
+      ${s.lvl === 0 ? `<label class="check"><input type="checkbox" data-f="${p}.roll.cantrip" data-t="b" ${r.cantrip ? "checked" : ""}> More dice at levels 5, 11 and 17</label>`
+        : `<div class="row">${fld("The extra dice come every … slot levels", p + ".roll.upEvery", r.upEvery || 1, { n: 1 })}</div>`}` : ""}
+    ${!s.roll ? `<div class="row"><label class="fld"><span>Target saves (no damage roll)</span><select data-f="${p}.save"><option value="">—</option>${ABS.map(([k, n]) => `<option value="${k}" ${s.save === k ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>` : ""}
+    <div class="row"><label class="fld"><span>Puts on an effect when cast</span><select data-f="${p}.effect"><option value="">—</option>${PRESETS.map(x => `<option ${s.effect === x.name ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label></div>
     <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="spelldone">Done</button><button class="btn small danger" data-act="del" data-list="spells" data-i="${i}">Remove the spell</button></div></div>`;
 }
 
@@ -938,18 +956,21 @@ function itemsHtml(c) {
     ${i.attune ? `<label class="check"><input type="checkbox" data-act="attune" data-id="${i.id}" ${i.attuned ? "checked" : ""}> Attuned (${attunedCount(c)} of 3)</label>` : ""}
     ${i.pics && i.pics.length ? `<div class="thumbs">${i.pics.map(id => `<img data-pic="${esc(id)}" data-act="pic" data-id="${esc(id)}" alt="">`).join("")}</div>` : ""}
     ${sec("art:" + i.id, "What it does", "", `<div class="txt">${fmt(i.artifact.text)}</div>`, false)}
-    ${i.artifact.wager ? wagerHtml(c) : ""}</div>`).join("");
+    ${i.artifact.wager ? wagerHtml(c) + `<div class="row" style="align-items:center"><label class="fld n" style="flex:0 0 150px"><span>Divine debt (gp)</span><input type="number" inputmode="decimal" id="debtGp" value="${(+c.debtCp || 0) / 100}"></label>
+      <label class="check" style="margin:0 0 10px"><input type="checkbox" data-f="marked" data-t="b" ${c.marked ? "checked" : ""}> Marked (from a Ruin)</label></div>` : ""}
+    <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="itemopen" data-id="${i.id}">${ui.itemOpen === i.id ? "Close the edit" : "Edit"}</button></div>
+    ${ui.itemOpen === i.id ? itemForm(c, i) : ""}</div>`).join("");
   const att = attunedCount(c);
   const shown = c.items.filter(i => !i.artifact || i.gone);
   const groups = WHERE.map(([k, l]) => [l, shown.filter(i => !i.gone && (i.where || "on") === k)]).filter(g => g[1].length);
   const gone = shown.filter(i => i.gone);
   const itemCard = i => `<div class="card tap ${i.gone ? "gone" : ""}" data-act="itemopen" data-id="${i.id}"><span class="nm">${i.qty > 1 || i.qty === 0 ? `${i.qty} × ` : ""}${esc(i.name)}${i.attuned ? `<span class="tag g">attuned</span>` : i.attune ? `<span class="tag">attunement</span>` : ""}${i.check ? `<span class="tag c">still have it?</span>` : ""}</span>
       ${i.note ? `<span class="sub">${esc(i.note.split("\n")[0].slice(0, 120))}</span>` : ""}
-      ${i.use && !i.gone ? `<div class="acts"><button class="btn small good" data-act="use" data-id="${i.id}">${esc(i.use.label || "Use")}${i.use.heal ? ` (${esc(i.use.heal)})` : ""}</button></div>` : ""}
+      ${i.use && (i.use.label || i.use.heal) && !i.gone ? `<div class="acts"><button class="btn small good" data-act="use" data-id="${i.id}">${esc(i.use.label || "Use")}${i.use.heal ? ` (${esc(i.use.heal)})` : ""}</button></div>` : ""}
       ${ui.itemOpen === i.id ? itemForm(c, i) : ""}</div>`;
   const list = groups.map(([l, items]) => sec("where:" + l, l, `${items.length}`, items.map(itemCard).join(""), true)).join("")
     + (gone.length ? sec("gone", "Sold, used or lost", `${gone.length}`, gone.map(itemCard).join(""), false) : "");
-  const log = c.log.slice(0, 80).map(l => `<div class="logl"><span class="d">${esc(l.at)}</span><span class="t">${esc(l.text)}</span></div>`).join("");
+  const log = c.log.slice(0, 80).map(l => `<div class="logl"><span class="d">${esc(l.at)}</span><span class="t">${esc(l.text)}</span><button class="chip" data-act="logedit" data-id="${l.id}" aria-label="Change it">✎</button><button class="chip" data-act="logdel" data-id="${l.id}" aria-label="Delete it">✕</button></div>`).join("");
   return purse + arts
     + `<div class="row" style="margin-bottom:10px"><input id="newItem" placeholder="Add an item: 3 turnips, a dagger…" style="flex:1" autocomplete="off"><button class="btn main" data-act="additem">Add</button></div>
       <div id="itemSug"></div>
@@ -965,6 +986,21 @@ function itemForm(c, i) {
     <label class="check"><input type="checkbox" data-f="${p}.attune" data-t="b" ${i.attune ? "checked" : ""}> Needs attunement</label>
     ${i.attune ? `<label class="check"><input type="checkbox" data-act="attune" data-id="${i.id}" ${i.attuned ? "checked" : ""}> Attuned</label>` : ""}
     ${i.check ? `<label class="check"><input type="checkbox" data-f="${p}.check" data-t="b" checked> Not sure I still have it</label>` : ""}
+    <div class="lab" style="margin-top:6px">A button to use it (it takes one each time)</div>
+    <div class="row">${fld("Button says", p + ".use.label", (i.use || {}).label || "")}${fld("Heals (dice)", p + ".use.heal", (i.use || {}).heal || "")}</div>
+    <div class="lab">Bonuses it gives${i.attune ? " (while attuned)" : ""}</div>
+    ${(i.mods || []).map((m, j) => `<div class="panel" style="background:var(--card);padding:8px 8px 0"><div class="row">${fld("Bonus", `${p}.mods.${j}.bonus`, m.bonus || "")}<button class="btn small danger" data-act="moddel" data-ix="${ix}" data-j="${j}" style="margin-bottom:10px">✕</button></div>
+      <div class="row" style="margin-bottom:6px">${TARGETS.map(([k, l]) => `<button class="chip ${(m.to || []).includes(k) ? "on" : ""}" data-act="modto" data-ix="${ix}" data-j="${j}" data-t="${k}">${l}</button>`).join("")}</div>
+      <div class="row"><label class="fld"><span>Or a skill</span><select data-act="modskill" data-ix="${ix}" data-j="${j}"><option value="">—</option>${SKILLS.map(s => `<option value="skill:${s[0]}" ${(m.to || []).includes("skill:" + s[0]) ? "selected" : ""}>${s[1]}</option>`).join("")}</select></label></div></div>`).join("")}
+    <button class="btn small" data-act="modadd" data-ix="${ix}" style="margin-bottom:10px">+ A bonus</button>
+    ${i.artifact ? `<div class="lab">As an artifact</div><div class="row">${fld("Kind", p + ".artifact.kind", i.artifact.kind || "")}${fld("State", p + ".artifact.state", i.artifact.state || "")}</div>
+      ${fld("What it does", p + ".artifact.text", i.artifact.text || "", { area: 1, rows: 8 })}
+      <label class="check"><input type="checkbox" data-f="${p}.artifact.wager" data-t="b" ${i.artifact.wager ? "checked" : ""}> It has the Pious Wager</label>`
+      : `<label class="check"><input type="checkbox" data-act="makeart" data-ix="${ix}"> An artifact (its own panel at the top, with its full text)</label>`}
+    <div class="lab">Spells cast from it with points</div>
+    ${(i.cartSpells || []).map((s, j) => `<div class="panel" style="background:var(--card);padding:8px 8px 0"><div class="row">${fld("Spell", `${p}.cartSpells.${j}.name`, s.name)}${fld("Points", `${p}.cartSpells.${j}.lvl`, s.lvl || 1, { n: 1 })}<button class="btn small danger" data-act="cspdel" data-ix="${ix}" data-j="${j}" style="margin-bottom:10px">✕</button></div>${fld("What it does", `${p}.cartSpells.${j}.text`, s.text || "", { area: 1, rows: 2 })}</div>`).join("")}
+    <button class="btn small" data-act="cspadd" data-ix="${ix}" style="margin-bottom:10px">+ A spell it casts</button>
+    ${(i.cartSpells || []).length && !c.res.some(r => r.name === "Cart points") ? `<p class="note">Casting these spends the “Cart points” resource: add one under Edit the sheet (Play tab) with how many points it has.</p>` : ""}
     <div class="thumbs">${(i.pics || []).map(id => `<img data-pic="${esc(id)}" data-act="pic" data-id="${esc(id)}" alt="">`).join("")}</div>
     <div class="row" style="margin-bottom:10px"><button class="btn small" data-act="addpic" data-id="${i.id}">+ A picture</button>
       ${i.gone ? `<button class="btn small" data-act="ungone" data-id="${i.id}">I have it again</button>` : `<button class="btn small" data-act="sold" data-id="${i.id}">Sold it…</button><button class="btn small" data-act="gone" data-id="${i.id}">Used or lost</button>`}
@@ -1333,6 +1369,14 @@ document.addEventListener("change", e => {
   if (el.dataset.f) { setPath(c, el.dataset.f, valOf(el)); if (el.dataset.f === "level") c.res.forEach(r => { if (r.byLevel) r.max = +c.level || 1; }); if (el.dataset.f.startsWith("slots.")) { const k = el.dataset.f.split(".")[1]; c.slots[k].used = Math.min(+c.slots[k].used || 0, +c.slots[k].max || 0); } save(); if (el.tagName === "SELECT" || el.type === "checkbox") render(); return; }
   if (el.dataset.coin) { const k = el.dataset.coin; const was = +c.purse[k] || 0; c.purse[k] = Math.max(0, parseInt(el.value, 10) || 0); if (was !== c.purse[k]) logIt(c, `Purse corrected: ${k} ${was} → ${c.purse[k]}`); save(); const t = $("#purseTotal"); if (t) t.textContent = gpText(purseCp(c.purse)) + " in all"; return; }
   if (el.id === "condPick" && el.value) { c.conds.push(el.value); save(); render(); return; }
+  if (el.id === "debtGp") { const was = +c.debtCp || 0; c.debtCp = Math.max(0, Math.round((parseFloat(el.value) || 0) * 100)); if (was !== c.debtCp) logIt(c, `Divine debt corrected: ${gpText(was)} → ${gpText(c.debtCp)}`); save(); render(); return; }
+  // an attack as written: rolls to hit, makes the target save, or just deals its damage
+  if (el.dataset.act === "atkhow") { const a = c.attacks[+el.dataset.i];
+    if (el.value === "save") { a.save = a.save || { ab: "dex", dc: dcOf(c) }; delete a.hit; }
+    else if (el.value === "hit") { delete a.save; a.hit = a.hit ?? atkOf(c, a); if (a.hit === "") a.hit = 0; }
+    else { delete a.save; a.hit = ""; if (!a.dmgx) a.dmgx = "0"; }
+    save(); render(); return; }
+  if (el.dataset.act === "modskill") { const m = c.items[+el.dataset.ix].mods[+el.dataset.j]; m.to = (m.to || []).filter(t => !t.startsWith("skill:")).concat(el.value ? [el.value] : []); save(); render(); return; }
   if (el.dataset.act === "spellrollkind") { const s = c.spells[+el.dataset.i]; s.roll = el.value ? Object.assign({ dice: "1d8", type: "", mod: false, save: "dex" }, s.roll || {}, { kind: el.value }) : null; save(); render(); return; }
 });
 document.addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.sec) { ui.open[d.dataset.sec] = d.open; saveUi(); } }, true);
@@ -1390,8 +1434,27 @@ document.addEventListener("click", e => {
     case "effadd": { const v = $("#effPick").value; if (v === "custom") { ui.edit = "effect"; render(); break; } if (v === "") break; const p = PRESETS[+v]; addEffect(c, p, { conc: false }); if (p.name === "Aid") c.hp += 5; save(); render(); break; }
     case "effcustom": { const nm = $("#ceName").value.trim(); if (!nm) { toast("Give it a name."); break; }
       const to = [...document.querySelectorAll(".ceTo:checked")].map(x => x.value); const adv = $("#ceAdv").value;
-      addEffect(c, { name: nm, to, bonus: $("#ceBonus").value.trim().replace(/^\+/, ""), adv: adv ? [adv] : [], once: $("#ceOnce").checked, note: $("#ceNote").value.trim() }, { conc: $("#ceConc").checked });
+      const vals = { name: nm, to, bonus: $("#ceBonus").value.trim().replace(/^\+/, ""), adv: adv ? [adv] : [], once: $("#ceOnce").checked, note: $("#ceNote").value.trim(), until: $("#ceLong").checked ? "long" : "" };
+      const old = el.dataset.id && c.effects.find(x => x.id === el.dataset.id);
+      if (old) { const wasAid = old.to.includes("hpmax"); Object.assign(old, vals, { conc: $("#ceConc").checked }); if (wasAid) c.hp = Math.min(c.hp, hpMaxOf(c)); }
+      else addEffect(c, vals, { conc: $("#ceConc").checked });
       ui.edit = null; save(); render(); break; }
+    case "effedit": ui.edit = ui.edit === "effect:" + el.dataset.id ? null : "effect:" + el.dataset.id; render(); break;
+    // attacks: from the scores, or as written on the sheet (the numbers it rolls now carry across either way)
+    case "atkwritten": { const a = c.attacks[+el.dataset.i]; const hit = atkOf(c, a) - flatFor(c, { kind: "atk", spell: false }), dmg = dmgOfAtk(c, a); a.hit = hit; a.dmgx = dmg; save(); render(); toast(`${a.name}: the sheet's numbers now (${sg(a.hit)}, ${a.dmgx}).`); break; }
+    case "atkcalc": { const a = c.attacks[+el.dataset.i]; const d = parseDice(a.dmgx || "").find(t => t.d);
+      a.dice = d ? `${d.n}d${d.d}` : a.dice || "1d6"; a.ab = a.ab || "str"; a.prof = a.prof !== false; a.bonus = a.bonus || 0; delete a.hit; delete a.dmgx; delete a.save;
+      save(); render(); toast(`${a.name}: worked out from the scores now (${sg(atkOf(c, a))}, ${dmgOfAtk(c, a)}). Check the ability.`); break; }
+    case "traitadv": { const t = c.traits[+el.dataset.i]; const ab = el.dataset.ab; t.saveAdv = (t.saveAdv || []).includes(ab) ? t.saveAdv.filter(x => x !== ab) : (t.saveAdv || []).concat(ab); save(); render(); break; }
+    // items: their bonuses, the spells they cast, being an artifact
+    case "modadd": { const it = c.items[+el.dataset.ix]; (it.mods = it.mods || []).push({ to: [], bonus: "1" }); save(); render(); break; }
+    case "moddel": { const it = c.items[+el.dataset.ix]; it.mods.splice(+el.dataset.j, 1); save(); render(); break; }
+    case "modto": { const m = c.items[+el.dataset.ix].mods[+el.dataset.j]; const t = el.dataset.t; m.to = (m.to || []).includes(t) ? m.to.filter(x => x !== t) : (m.to || []).concat(t); save(); render(); break; }
+    case "cspadd": { const it = c.items[+el.dataset.ix]; (it.cartSpells = it.cartSpells || []).push({ name: "", lvl: 1, text: "" }); save(); render(); break; }
+    case "cspdel": { const it = c.items[+el.dataset.ix]; it.cartSpells.splice(+el.dataset.j, 1); save(); render(); break; }
+    case "makeart": { const it = c.items[+el.dataset.ix]; it.artifact = { kind: "artifact", state: "", text: it.note || "", wager: false }; save(); render(); toast(`${it.name} now has its own panel at the top of Items.`); break; }
+    case "logedit": { const l = c.log.find(x => x.id === el.dataset.id); const t = prompt("What happened:", l.text); if (t == null) break; const d = prompt("When (yyyy-mm-dd):", l.at); l.text = t.trim() || l.text; if (d && /^\d{4}-\d{2}-\d{2}$/.test(d.trim())) l.at = d.trim(); save(); render(); break; }
+    case "logdel": { const l = c.log.find(x => x.id === el.dataset.id); if (confirm(`Delete “${l.text}”? (It doesn't change the purse.)`)) { c.log = c.log.filter(x => x !== l); save(); render(); } break; }
     case "effcancel": ui.edit = null; render(); break;
     case "efftoggle": { const ef = c.effects.find(x => x.id === el.dataset.id); if (ef) ef.on = ef.on === false; save(); render(); break; }
     case "effdel": { const ef = c.effects.find(x => x.id === el.dataset.id); c.effects = c.effects.filter(x => x !== ef); if (ef && ef.name === "Aid") c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break; }

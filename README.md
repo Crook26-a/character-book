@@ -15,7 +15,7 @@ Files: `index.html` (the whole app), `srd.js` (the SRD 5.2 spells and items the 
 
 1. **Pick from lists, not type** (done in v6): the fields become dropdowns of the SRD (spells, items, species, classes…), plus a "homebrew" option that pulls from Ordinate Survey's own library.
 2. **Level up** (done in v7): a level-up that tells you what to decide (hit points, spells, features, ability scores) and does the rest itself.
-3. **Edit everything:** an edit mode where every part of the sheet can be changed: spell slots, names, the kind of each spell, all of it.
+3. **Edit everything** (done in v9): an edit mode where every part of the sheet can be changed: spell slots, names, the kind of each spell, all of it.
 
 ## Credit
 
