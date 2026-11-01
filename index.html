@@ -234,12 +234,14 @@
 <div id="ver" aria-hidden="true"></div>
 <input type="file" id="fileIn" accept=".json,application/json" hidden>
 <input type="file" id="picIn" accept="image/*" multiple hidden>
+<input type="file" id="libIn" accept=".json,application/json" hidden>
+<script src="srd.js"></script>
 <script>
 "use strict";
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 5;
+const VERSION = 6;
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -810,7 +812,7 @@ function playHtml(c) {
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return hpPanel + effPanel + stats
     + sec("res", "Slots, features and rests", "", resBody, true)
-    + sec("atk", "Attacks", `${c.attacks.length}`, atkBody, true)
+    + sec("atk", "Attacks", `${c.attacks.length}`, atkBody + `<button class="btn wide" data-act="addatk">+ An attack</button>`, true)
     + sec("abil", "Abilities, saves and skills", "", abil, true)
     + sec("feat", "Features and traits", `${c.traits.length}`, feats, false)
     + sec("rolls", "Recent rolls", "", recent, false)
@@ -838,8 +840,8 @@ function editHtml(c) {
   return `<p class="note">Changes save as you type.</p>
     <div class="row">${fld("Name", "name", c.name)}${fld("Short name", "short", c.short || "")}</div>
     <div class="row">${fld("Player", "player", c.player || "")}${fld("Campaign", "campaign", c.campaign || "")}</div>
-    <div class="row">${fld("Species", "species", c.species)}${fld("Class", "cls", c.cls)}${fld("Level", "level", c.level, { n: 1 })}</div>
-    <div class="row">${fld("Subclass", "subcls", c.subcls)}${fld("Background", "bg", c.bg)}${fld("Alignment", "align", c.align)}</div>
+    <div class="row">${pick("Species", "species", SPECIES, c.species)}${pick("Class", "cls", CLASSES, c.cls)}${fld("Level", "level", c.level, { n: 1 })}</div>
+    <div class="row">${pick("Subclass", "subcls", SUBCLASSES[c.cls] ? [SUBCLASSES[c.cls]] : [], c.subcls)}${pick("Background", "bg", BACKGROUNDS, c.bg)}${pick("Alignment", "align", ALIGNMENTS, c.align)}</div>
     <div class="row">${fld("Armor class", "ac", c.ac, { n: 1 })}${fld("Speed", "speed", c.speed, { n: 1 })}${fld("HP max", "hpMax", c.hpMax, { n: 1 })}${fld("Hit dice", "hd.max", c.hd.max, { n: 1 })}${fld("Die", "hd.die", c.hd.die, { n: 1 })}</div>
     ${fld("Armor class comes from", "acNote", c.acNote || "")}
     <div class="row">${ABS.map(([k]) => fld(AB_SHORT[k], "ab." + k, c.ab[k], { n: 1 })).join("")}</div>
@@ -847,11 +849,11 @@ function editHtml(c) {
     <div class="lab">Saving throw proficiencies</div><div class="row" style="margin:4px 0 10px">${ABS.map(([k, n]) => `<label class="check" style="margin:0 10px 4px 0"><input type="checkbox" data-act="saveprof" data-ab="${k}" ${c.saveProf.includes(k) ? "checked" : ""}> ${n}</label>`).join("")}</div>
     <div class="lab">Skills (tap to cycle: none · proficient · expertise)</div><div class="row" style="margin:4px 0 10px">${SKILLS.map(([k, n]) => `<button class="chip ${skillLv(c, k) >= 2 ? "lead" : skillLv(c, k) ? "on" : ""}" data-act="skillcycle" data-k="${k}">${n}${skillLv(c, k) >= 2 ? " ★" : ""}</button>`).join("")}</div>
     <h3>Attacks</h3>${c.attacks.map((a, i) => asWritten(a) ? `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Name", `attacks.${i}.name`, a.name)}${a.save ? fld("Save DC", `attacks.${i}.save.dc`, a.save.dc, { n: 1 }) : fld("To hit", `attacks.${i}.hit`, a.hit ?? "", { n: 1 })}</div>
-      <div class="row">${fld("Damage", `attacks.${i}.dmgx`, a.dmgx || "")}${fld("Type", `attacks.${i}.dtype`, a.dtype || "")}${fld("Range", `attacks.${i}.range`, a.range || "")}</div>
+      <div class="row">${fld("Damage", `attacks.${i}.dmgx`, a.dmgx || "")}${pick("Type", `attacks.${i}.dtype`, DAMAGE_TYPES, a.dtype || "")}${fld("Range", `attacks.${i}.range`, a.range || "")}</div>
       ${fld("Note", `attacks.${i}.note`, a.note || "")}<p class="note">As written on the sheet: the numbers don't change with the ability scores.</p>
       <button class="btn small danger" data-act="del" data-list="attacks" data-i="${i}" style="margin-bottom:10px">Remove</button></div>`
     : `<div class="panel" style="background:var(--paper-lit)"><div class="row">${fld("Name", `attacks.${i}.name`, a.name)}${fld("Damage", `attacks.${i}.dice`, a.dice, {})}</div>
-      <div class="row">${fld("Type", `attacks.${i}.dtype`, a.dtype)}${fld("Range", `attacks.${i}.range`, a.range || "")}${fld("+ magic", `attacks.${i}.bonus`, a.bonus || 0, { n: 1 })}</div>
+      <div class="row">${pick("Type", `attacks.${i}.dtype`, DAMAGE_TYPES, a.dtype || "")}${fld("Range", `attacks.${i}.range`, a.range || "")}${fld("+ magic", `attacks.${i}.bonus`, a.bonus || 0, { n: 1 })}</div>
       <div class="row"><label class="fld"><span>Ability</span><select data-f="attacks.${i}.ab">${[["str", "Str"], ["dex", "Dex"], ["best", "Finesse (better of the two)"], ["wis", "Wis"], ["cha", "Cha"], ["int", "Int"]].map(([k, l]) => `<option value="${k}" ${a.ab === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
         <label class="fld"><span>Ammunition</span><select data-f="attacks.${i}.ammo"><option value="">—</option>${c.items.filter(x => !x.gone).map(x => `<option value="${x.id}" ${a.ammo === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label></div>
       ${fld("Note", `attacks.${i}.note`, a.note || "")}
@@ -907,7 +909,7 @@ function spellForm(c, s) {
   const i = c.spells.indexOf(s); const p = `spells.${i}`; const r = s.roll || {};
   return `<div class="panel" style="background:var(--paper-lit);margin-top:10px">
     <div class="row">${fld("Name", p + ".name", s.name)}${fld("Level", p + ".lvl", s.lvl, { n: 1 })}${fld("Tag", p + ".tag", s.tag || "")}</div>
-    <div class="row">${fld("Casting time", p + ".time", s.time || "")}${fld("Range", p + ".range", s.range || "")}${fld("Duration", p + ".dur", s.dur || "")}</div>
+    <div class="row">${pick("Casting time", p + ".time", SPELL_TIMES, s.time || "")}${fld("Range", p + ".range", s.range || "")}${fld("Duration", p + ".dur", s.dur || "")}</div>
     ${fld("What it does", p + ".text", s.text, { area: 1, rows: 4 })}
     <label class="check"><input type="checkbox" data-f="${p}.conc" data-t="b" ${s.conc ? "checked" : ""}> Concentration</label>
     <div class="row"><label class="fld"><span>Roll</span><select data-act="spellrollkind" data-i="${i}"><option value="">None</option>${[["atk", "Spell attack"], ["save", "Target saves"], ["heal", "Healing"]].map(([k, l]) => `<option value="${k}" ${r.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
@@ -944,7 +946,8 @@ function itemsHtml(c) {
     + (gone.length ? sec("gone", "Sold, used or lost", `${gone.length}`, gone.map(itemCard).join(""), false) : "");
   const log = c.log.slice(0, 80).map(l => `<div class="logl"><span class="d">${esc(l.at)}</span><span class="t">${esc(l.text)}</span></div>`).join("");
   return purse + arts
-    + `<div class="row" style="margin-bottom:10px"><input id="newItem" placeholder="Add an item: 3 turnips" style="flex:1"><button class="btn main" data-act="additem">Add</button></div>
+    + `<div class="row" style="margin-bottom:10px"><input id="newItem" placeholder="Add an item: 3 turnips, a dagger…" style="flex:1" autocomplete="off"><button class="btn main" data-act="additem">Add</button></div>
+      <div id="itemSug"></div>
       <p class="note">Attuned to ${att} of 3.</p>` + list
     + sec("log", "What came and went", `${c.log.length}`, `<div class="row" style="margin-bottom:10px"><input id="logT" placeholder="Something to write down" style="flex:1"><button class="btn" data-act="addlog">Add</button></div>${log}`, false);
 }
@@ -993,6 +996,132 @@ function peopleHtml(c) {
     }).join("") : `<p class="empty">Nobody here yet.</p>`);
 }
 
+/* ══ picking from lists: the SRD (srd.js, from Ordinate Survey's own data) and homebrew from the survey's library ══ */
+const HAS_SRD = typeof SRD !== "undefined";
+const SRD_SPELLS = HAS_SRD ? SRD.spells : [], SRD_LOOT = HAS_SRD ? SRD.loot : [];
+// the survey's own lists (GEN_SPECIES, CLASS_GROUPS without Folk, ALIGNMENTS, DAMAGE_TYPES, SPELL_TIMES), so both apps say the same things
+const SPECIES = ["Human", "Elf", "Dwarf", "Halfling", "Gnome", "Orc", "Tiefling", "Dragonborn", "Goliath", "Aasimar"];
+const CLASSES = ["Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Sorcerer", "Warlock", "Wizard"];
+// SRD 5.2's subclass for each class and its backgrounds; anything else is Other…
+const SUBCLASSES = { Barbarian: "Path of the Berserker", Bard: "College of Lore", Cleric: "Life Domain", Druid: "Circle of the Land", Fighter: "Champion", Monk: "Warrior of the Open Hand",
+  Paladin: "Oath of Devotion", Ranger: "Hunter", Rogue: "Thief", Sorcerer: "Draconic Sorcery", Warlock: "Fiend Patron", Wizard: "Evoker" };
+const BACKGROUNDS = ["Acolyte", "Criminal", "Sage", "Soldier"];
+const ALIGNMENTS = ["Lawful Good", "Neutral Good", "Chaotic Good", "Lawful Neutral", "Neutral", "Chaotic Neutral", "Lawful Evil", "Neutral Evil", "Chaotic Evil", "Unaligned"];
+const DAMAGE_TYPES = ["acid", "bludgeoning", "cold", "fire", "force", "lightning", "necrotic", "piercing", "poison", "psychic", "radiant", "slashing", "thunder"];
+const SPELL_TIMES = ["1 action", "1 bonus action", "1 reaction", "1 minute", "10 minutes", "1 hour", "12 hours", "24 hours"];
+// a dropdown for the sheet, like the survey's sheetPick: the list, whatever's there already kept, and Other… to type your own
+function pick(label, path, list, cur) {
+  const has = !cur || list.includes(cur);
+  return `<label class="fld"><span>${label}</span><select data-f="${path}"><option value="">—</option>${list.map(v => `<option ${v === cur ? "selected" : ""}>${esc(v)}</option>`).join("")}${has ? "" : `<option selected>${esc(cur)}</option>`}<option value="__other">Other…</option></select></label>`;
+}
+
+// homebrew: the survey's library, brought in from its "Send to the Field Book" file or a survey save
+const libSpells = () => (db.lib && db.lib.spells) || [], libLoot = () => (db.lib && db.lib.loot) || [];
+function takeLibrary(d) {
+  const src = d && d.format === "ordinate-fieldbook" ? d : d && d.library ? d.library : null;
+  if (!src) return null;
+  // the library's notes are the DM's (who it's for, where it's hidden): they never come across
+  const clean = x => { const y = { ...x }; delete y.notes; return y; };
+  return { spells: (src.spells || []).map(clean), loot: (src.loot || []).map(clean), from: d.campaign || d.title || (d.survey && d.survey.title) || "", at: today() };
+}
+function libraryHtml() {
+  const L = db.lib;
+  return `<div class="panel"><h2>Homebrew <small>from Ordinate Survey's library</small></h2>
+    ${L ? `<p class="note">${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}${L.from ? ` from ${esc(L.from)}` : ""}, brought in ${esc(L.at)}. They show first when you add a spell, an item or an attack.</p>` : `<p class="note">Nothing yet. Your own spells and items from the survey come up beside the SRD's when you add one.</p>`}
+    <p class="note">In the survey: <b>Library → Send to the Field Book</b> makes the file (a survey save works too). Its DM notes stay behind.</p>
+    <button class="btn wide" data-act="libin">Bring in the survey's library…</button>${L ? `<button class="btn wide danger" data-act="libclear">Forget the homebrew</button>` : ""}</div>`;
+}
+
+const NO_ROLL = ["Bless", "Bane", "Guidance", "Resistance"]; // the SRD data gives these dice that aren't damage; the survey fixes them at load too
+const AB_OF = { Strength: "str", Dexterity: "dex", Constitution: "con", Intelligence: "int", Wisdom: "wis", Charisma: "cha" };
+function spellFromData(s) {
+  const time = { Action: "1 action", "Bonus-Action": "1 bonus action", "Bonus Action": "1 bonus action" }[s.time] || (/^Reaction/.test(s.time || "") ? "1 reaction" : s.time || "");
+  let text = String(s.desc || "").trim(); if (s.hi) text += "\n\n**Higher levels.** " + String(s.hi).trim();
+  const sp = { id: uid("sp"), name: s.name, lvl: +s.lv || 0, time, range: String(s.range || "").replace(/ feet/, " ft"), dur: s.dur || "", conc: !!s.conc, text, from: s.id };
+  if (!String(s.id).startsWith("spell:")) sp.tag = "Homebrew";
+  const save = AB_OF[s.save] || null;
+  if (s.dmg && !NO_ROLL.includes(s.name)) {
+    const r = { dice: s.dmg }; const up = /by (\d+d\d+) for each (?:spell )?slot level above/.exec(s.hi || ""); if (up) r.up = up[1];
+    if (/when you reach (?:character )?levels? 5/.test(s.hi || "")) r.cantrip = true;
+    if (/spellcasting ability modifier/.test(s.desc || "")) r.mod = true;
+    if (!s.dtype) { if (/regain/.test(s.desc || "")) r.kind = "heal"; }
+    else if (save) Object.assign(r, { kind: "save", save, type: s.dtype, half: /half as much/.test(s.desc || "") });
+    else if (s.atk || /spell attack/.test(s.desc || "")) Object.assign(r, { kind: "atk", type: s.dtype });
+    if (r.kind) sp.roll = r;
+  }
+  if (save && !sp.roll) sp.save = save;
+  if (s.name !== "Bane" && PRESETS.some(p => p.name === s.name)) sp.effect = s.name;
+  return sp;
+}
+// an SRD weapon's numbers are its text: "1d8 Piercing; Ammunition (Range 150/600; Arrow), Heavy, Two-Handed; martial." (the survey reads them the same way)
+function weaponStats(x) {
+  const m = /^(\d+)d(\d+)\s+(\w+);\s*(.*?)(?:;\s*(?:simple|martial))?\.?\s*$/.exec(String(x && x.desc || "")); if (!m) return null;
+  const rng = /Range (\d+)\/(\d+)/.exec(m[4]);
+  return { dice: `${m[1]}d${m[2]}`, type: m[3].toLowerCase(), props: m[4].trim(), ammo: /Ammunition/.test(m[4]), range: rng ? `${rng[1]}/${rng[2]} ft` : "" };
+}
+const SRD_WEAPONS = SRD_LOOT.filter(x => x.kind === "weapon" && weaponStats(x));
+// a magic weapon takes its numbers from the weapon in its name ("Flame Tongue Greatsword" → Greatsword)
+const baseWeapon = x => weaponStats(x) ? x : SRD_WEAPONS.slice().sort((a, b) => b.name.length - a.name.length).find(w => new RegExp(`\\b${w.name}$`, "i").test(x.name)) || null;
+function itemFromData(x, qty) {
+  const it = { id: uid("it"), name: x.name, qty: qty || 1, where: "on", note: "", from: x.id };
+  const magic = x.kind === "magic item" || x.rarity || !String(x.id).startsWith("srd:");
+  if (magic || x.kind === "potion") it.note = String(x.effect || x.desc || "").trim();
+  if (x.charges) it.note += `${it.note ? "\n\n" : ""}Charges: ${x.charges}${x.regainWhen === "dawn" ? `, ${x.regain} back at dawn` : x.regainWhen === "long" ? ", back on a long rest" : ""}.`;
+  if (x.attune === true || /attunement/i.test(x.att || "")) it.attune = true;
+  it.value = x.rarity || x.value || "";
+  const heal = /regains? (\d+d\d+(?:\s*\+\s*\d+)?) Hit Points/i.exec(x.desc || "");
+  if (x.kind === "potion" && heal) it.use = { label: "Drink", heal: heal[1].replace(/\s+/g, "") };
+  return it;
+}
+function attackFromData(x) {
+  const w = baseWeapon(x); const ws = w && weaponStats(w);
+  if (ws) return { id: uid("at"), name: x.name, ab: /Finesse/.test(ws.props) ? "best" : ws.ammo ? "dex" : "str", prof: true, dice: ws.dice, dtype: ws.type, range: ws.range, bonus: 0, note: ws.props + (w !== x ? ` (${w.name})` : "") };
+  if (x.dmg) { const props = `${x.props || ""}`; return { id: uid("at"), name: x.name, ab: /finesse/i.test(props) ? "best" : /ammunition/i.test(props) || x.range ? "dex" : "str", prof: true, dice: String(x.dmg).replace(/\s+/g, ""), dtype: x.dtype || "", range: x.range || "", bonus: parseInt(x.hit, 10) || 0, note: props }; }
+  return null;
+}
+
+// search: homebrew first, then names that start with what you typed, then ones that contain it
+function search(list, q, max) {
+  q = q.trim().toLowerCase(); const hit = list.filter(x => !q || x.name.toLowerCase().includes(q));
+  hit.sort((a, b) => (b.hb ? 1 : 0) - (a.hb ? 1 : 0) || (b.name.toLowerCase().startsWith(q) ? 1 : 0) - (a.name.toLowerCase().startsWith(q) ? 1 : 0) || a.name.localeCompare(b.name));
+  return hit.slice(0, max || 40);
+}
+const spellPool = () => libSpells().map(s => ({ ...s, hb: true })).concat(SRD_SPELLS);
+const itemPool = () => libLoot().map(s => ({ ...s, hb: true })).concat(SRD_LOOT);
+const weaponPool = () => libLoot().filter(x => x.dmg).map(s => ({ ...s, hb: true })).concat(SRD_LOOT.filter(x => baseWeapon(x)));
+const creditHtml = () => HAS_SRD ? `<p class="note" style="font-size:11.5px">${esc(SRD_CREDIT)}</p>` : `<p class="warn">The SRD list didn't load: open the app once with signal.</p>`;
+const ui_pk = { q: "", cls: true, lv: "" };
+function pickerHtml(kind) {
+  const c = C();
+  return `<div class="rr-h">${kind === "spell" ? "Add a spell" : "Add an attack"}</div>
+    <input id="pkQ" placeholder="${kind === "spell" ? "Search spells" : "Search weapons"}" value="${esc(ui_pk.q)}" style="margin-bottom:8px">
+    ${kind === "spell" ? `<div class="row" style="margin-bottom:8px;align-items:center"><label class="check" style="margin:0"><input type="checkbox" id="pkCls" ${ui_pk.cls ? "checked" : ""}> Only ${esc(c.cls || "my class")} spells</label>
+      <select id="pkLv" style="width:auto"><option value="">Any level</option>${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => `<option value="${l}" ${ui_pk.lv === String(l) ? "selected" : ""}>${l ? ord(l) + " level" : "Cantrips"}</option>`).join("")}</select></div>` : ""}
+    <div id="pkOut">${pickerResults(kind)}</div>
+    <button class="btn wide" data-act="${kind === "spell" ? "pkownspell" : "pkownatk"}">${kind === "spell" ? "A spell of your own…" : "An attack of your own"}</button>
+    ${creditHtml()}<button class="btn wide" data-act="ovclose">Close</button>`;
+}
+function pickerResults(kind) {
+  const c = C();
+  if (kind === "spell") {
+    let pool = spellPool();
+    if (ui_pk.cls && c.cls) pool = pool.filter(s => s.hb || new RegExp(`\\b${c.cls}\\b`, "i").test(s.cls || ""));
+    if (ui_pk.lv !== "") pool = pool.filter(s => String(+s.lv || 0) === ui_pk.lv);
+    const got = new Set(c.spells.map(s => s.name));
+    const rows = search(pool, ui_pk.q, 60);
+    return rows.length ? rows.map(s => `<button class="card tap" data-act="pkspell" data-id="${esc(s.id)}" ${got.has(s.name) ? "disabled style='opacity:.5'" : ""}><span class="nm">${esc(s.name)}${s.hb ? `<span class="tag g">Homebrew</span>` : ""}${got.has(s.name) ? `<span class="tag">have it</span>` : ""}</span>
+      <span class="sub">${+s.lv ? ord(+s.lv) + " level" : "Cantrip"} · ${esc(s.school || "")}${s.conc ? " · concentration" : ""}${s.dmg && !NO_ROLL.includes(s.name) ? ` · ${esc(s.dmg)} ${esc(s.dtype || "")}` : ""}${s.campaign ? " · " + esc(s.campaign) : ""}</span></button>`).join("") : `<p class="empty">No spells match.</p>`;
+  }
+  const rows = search(weaponPool(), ui_pk.q, 60);
+  return rows.length ? rows.map(x => { const w = baseWeapon(x); const ws = w && weaponStats(w);
+    return `<button class="card tap" data-act="pkatk" data-id="${esc(x.id)}"><span class="nm">${esc(x.name)}${x.hb ? `<span class="tag g">Homebrew</span>` : x.kind === "magic item" ? `<span class="tag g">${esc(x.rarity || "magic")}</span>` : ""}</span>
+      <span class="sub">${esc(ws ? `${ws.dice} ${ws.type} · ${ws.props}` : `${x.dmg} ${x.dtype || ""}`)}</span></button>`; }).join("") : `<p class="empty">No weapons match.</p>`;
+}
+function itemSuggestHtml(q) {
+  const m = q.match(/^(\d+)\s*(?:x|×)?\s+(.+)$/i); const name = (m ? m[2] : q).trim(); if (name.length < 2) return "";
+  return search(itemPool(), name, 8).map(x => `<button class="card tap" data-act="pkitem" data-id="${esc(x.id)}" style="padding:7px 10px"><span class="nm" style="font-size:15.5px">${m ? m[1] + " × " : ""}${esc(x.name)}${x.hb ? `<span class="tag g">Homebrew</span>` : x.rarity ? `<span class="tag g">${esc(x.rarity)}</span>` : ""}</span><span class="sub">${esc([x.kind, x.value, /attunement/i.test(x.att || "") || x.attune === true ? "attunement" : ""].filter(Boolean).join(" · "))}</span></button>`).join("");
+}
+
 /* ── PCs: every character you play, on one shelf ── */
 function pcsHtml() {
   const cards = db.chars.map(ch => {
@@ -1007,6 +1136,7 @@ function pcsHtml() {
   }).join("");
   return `<p class="note">Every character you play. Tap one to play them; the other tabs follow whoever is playing now.</p>${cards}
     <button class="btn wide main" data-act="newchar">+ A new character</button>
+    ${libraryHtml()}
     <div class="panel"><h2>Backups</h2><p class="note">Everything lives on this device. Save a backup now and then (it carries the pictures too), and bring it in on another phone or computer.</p>
       <button class="btn wide" data-act="export">Save a backup file</button><button class="btn wide" data-act="import">Bring in a backup…</button></div>`;
 }
@@ -1055,11 +1185,16 @@ document.addEventListener("input", e => {
   const el = e.target; const c = C();
   if (el.dataset.f && el.type !== "checkbox" && el.tagName !== "SELECT") { setPath(c, el.dataset.f, valOf(el)); save(); }
   if (el.dataset.wager) { ui.wager[el.dataset.wager] = el.value; const o = $("#wagerOut"); if (o) o.innerHTML = wagerOutHtml(c); }
+  if (el.id === "pkQ") { ui_pk.q = el.value; const o = $("#pkOut"); if (o) o.innerHTML = pickerResults(ovKind === "pick:spell" ? "spell" : "attack"); }
+  if (el.id === "newItem") { const o = $("#itemSug"); if (o) o.innerHTML = itemSuggestHtml(el.value); }
   if (el.id === "pFilter") { ui.filter = el.value; clearTimeout(ui.ft); ui.ft = setTimeout(() => { render(); const f = $("#pFilter"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }, 300); }
   if (el.dataset.act === "realdie" && R) { const v = parseInt(el.value, 10); R.real = v >= 1 && v <= 20 ? v : null; save(); const pos = el.selectionStart; $("#ov .box").innerHTML = rollHtml(); const n = $('#ov [data-act="realdie"]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {} } }
 });
 document.addEventListener("change", e => {
   const el = e.target; const c = C();
+  if (el.id === "pkCls" || el.id === "pkLv") { ui_pk.cls = $("#pkCls").checked; ui_pk.lv = $("#pkLv").value; $("#pkOut").innerHTML = pickerResults("spell"); return; }
+  // a dropdown's Other…: type your own, which then stays in the list for that field
+  if (el.tagName === "SELECT" && el.value === "__other") { const was = getPath(c, el.dataset.f) || ""; const v = prompt("Type it:", was); if (v != null && v.trim()) { setPath(c, el.dataset.f, v.trim()); save(); } render(); return; }
   // typed fields don't redraw the page when they lose focus: the tap that took the focus away would land on a button that's been replaced
   if (el.dataset.f) { setPath(c, el.dataset.f, valOf(el)); if (el.dataset.f === "level") c.res.forEach(r => { if (r.byLevel) r.max = +c.level || 1; }); if (el.dataset.f.startsWith("slots.")) { const k = el.dataset.f.split(".")[1]; c.slots[k].used = Math.min(+c.slots[k].used || 0, +c.slots[k].max || 0); } save(); if (el.tagName === "SELECT" || el.type === "checkbox") render(); return; }
   if (el.dataset.coin) { const k = el.dataset.coin; const was = +c.purse[k] || 0; c.purse[k] = Math.max(0, parseInt(el.value, 10) || 0); if (was !== c.purse[k]) logIt(c, `Purse corrected: ${k} ${was} → ${c.purse[k]}`); save(); const t = $("#purseTotal"); if (t) t.textContent = gpText(purseCp(c.purse)) + " in all"; return; }
@@ -1071,6 +1206,15 @@ $("#ov").addEventListener("click", e => { if (e.target.id === "ov") closeOv(); }
 $("#themeBtn").onclick = () => { document.body.classList.toggle("dark"); try { localStorage.setItem(STORE + ":dark", document.body.classList.contains("dark") ? "1" : ""); } catch (e) {} };
 try { if (localStorage.getItem(STORE + ":dark") === "1" || (localStorage.getItem(STORE + ":dark") === null && matchMedia("(prefers-color-scheme: dark)").matches)) document.body.classList.add("dark"); } catch (e) {}
 $("#fileIn").onchange = e => { const f = e.target.files[0]; e.target.value = ""; if (f) importFile(f); };
+$("#libIn").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  let d; try { d = JSON.parse(await f.text()); } catch (x) { return toast("That isn't a file from the survey."); }
+  const L = takeLibrary(d); if (!L) return toast("No library in that file: in the survey, Library → Send to the Field Book.");
+  // the same entry brought in again replaces the old copy; the rest of what was there stays
+  const old = db.lib || { spells: [], loot: [] }; const merge = (a, b) => a.filter(x => !b.some(y => y.id === x.id)).concat(b);
+  db.lib = { spells: merge(old.spells, L.spells), loot: merge(old.loot, L.loot), from: L.from || old.from || "", at: L.at };
+  save(true); render(); toast(`Brought in ${L.loot.length} item${L.loot.length === 1 ? "" : "s"} and ${L.spells.length} spell${L.spells.length === 1 ? "" : "s"}.`);
+};
 $("#picIn").onchange = async e => {
   const c = C(); const it = c.items.find(i => i.id === $("#picIn").dataset.item); const files = [...e.target.files]; e.target.value = ""; if (!it) return;
   for (const f of files) { const id = uid("pic"); await IDB.put(id, await shrinkImage(f)); (it.pics = it.pics || []).push(id); }
@@ -1156,11 +1300,24 @@ document.addEventListener("click", e => {
     case "cartcast": { const it = c.items.find(i => i.cartSpells && !i.gone); const s = it.cartSpells.find(x => x.name === el.dataset.n); cast(c, Object.assign({ lvl: 1 }, s), s.lvl || 1, "cart"); break; }
     case "spelledit": ui.edit = ui.edit === "spell:" + el.dataset.id ? null : "spell:" + el.dataset.id; render(); break;
     case "spelldone": ui.edit = null; render(); break;
-    case "addspell": { const nm = prompt("The spell's name?"); if (!nm) break; const lv = parseInt(prompt("Its level (0 for a cantrip)?", "1"), 10) || 0; const s = { id: uid("sp"), name: nm, lvl: lv, text: "", time: "1 action" }; c.spells.push(s); ui.edit = "spell:" + s.id; save(); render(); break; }
+    case "addspell": ui_pk.q = ""; openOv(pickerHtml("spell"), "pick:spell"); setTimeout(() => { const q = $("#pkQ"); if (q) q.focus(); }, 30); break;
+    case "pkspell": { const s = spellPool().find(x => x.id === el.dataset.id); if (!s) break; const sp = spellFromData(s);
+      // keep the list in level order, so the Spells tab reads the same as before
+      const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp);
+      save(); $("#pkOut").innerHTML = pickerResults("spell"); toast(`${sp.name} added${sp.lvl ? ` (${ord(sp.lvl)} level)` : ""}.`); break; }
+    case "pkatk": { const x = weaponPool().find(y => y.id === el.dataset.id); const a = x && attackFromData(x); if (!a) break; c.attacks.push(a); save(); closeOv(); toast(`${a.name} added to the attacks.`); break; }
+    case "pkownatk": c.attacks.push({ id: uid("at"), name: "New attack", ab: "str", prof: true, dice: "1d6", dtype: "bludgeoning", bonus: 0 }); ui.open.edit = true; saveUi(); save(); closeOv(); toast("Fill it in under Edit the sheet → Attacks."); break;
+    case "pkitem": { const x = itemPool().find(y => y.id === el.dataset.id); if (!x) break; const m = ($("#newItem").value || "").match(/^(\d+)\s*(?:x|×)?\s+/); const it = itemFromData(x, m ? +m[1] : 1);
+      c.items.push(it); logIt(c, `Gained ${it.qty > 1 ? it.qty + " × " : ""}${it.name}`);
+      const a = attackFromData(x); if (a && !c.attacks.some(y => y.name === a.name) && confirm(`Add ${a.name} to the attacks too?`)) c.attacks.push(a);
+      save(); render(); toast(`${it.name} added.`); break; }
+    case "libin": $("#libIn").click(); break;
+    case "libclear": if (confirm("Forget the homebrew? Spells and items already on a sheet stay there.")) { db.lib = null; save(); render(); } break;
+    case "pkownspell": { const nm = prompt("The spell's name?"); if (!nm) break; closeOv(); const lv = parseInt(prompt("Its level (0 for a cantrip)?", "1"), 10) || 0; const s = { id: uid("sp"), name: nm, lvl: lv, text: "", time: "1 action" }; c.spells.push(s); ui.edit = "spell:" + s.id; save(); render(); break; }
     // edit sheet
     case "saveprof": { const ab = el.dataset.ab; c.saveProf = c.saveProf.includes(ab) ? c.saveProf.filter(x => x !== ab) : c.saveProf.concat(ab); save(); render(); break; }
     case "skillcycle": { const k = el.dataset.k; const lv = skillLv(c, k); c.skills[k] = lv >= 2 ? 0 : lv >= 1 ? 2 : 1; save(); render(); break; }
-    case "addatk": c.attacks.push({ id: uid("at"), name: "New attack", ab: "str", prof: true, dice: "1d6", dtype: "bludgeoning", bonus: 0 }); save(); render(); break;
+    case "addatk": ui_pk.q = ""; openOv(pickerHtml("attack"), "pick:attack"); break;
     case "addres": c.res.push({ id: uid("rs"), name: "New feature", max: 1, used: 0, rest: "long" }); save(); render(); break;
     case "addtrait": c.traits.push({ name: "New feature", text: "" }); save(); render(); break;
     case "del": { const list = c[el.dataset.list]; const item = list[+el.dataset.i]; if (!confirm(`Remove ${item.name || item.title || "this"}?`)) break; list.splice(+el.dataset.i, 1); ui.itemOpen = null; ui.edit = null; save(); render(); break; }

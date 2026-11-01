@@ -9,10 +9,14 @@ The sheet you play from, beside **Ordinate Survey** (the DM's app) and the **Fie
 
 Everything stays on the device. Save a backup from the character menu (tap the name at the top); bring it in on another device the same way.
 
-Files: `index.html` (the whole app), `sw.js` (offline cache; bump `CACHE` with each release), `manifest.webmanifest`, the icons, and `pictures\` (the cart's pictures from the DM).
+Files: `index.html` (the whole app), `srd.js` (the SRD 5.2 spells and items the pickers offer, built by `toolsbuild-srd.ps1` from Ordinate Survey's own SRD data), `sw.js` (offline cache; bump `CACHE` with each release), `manifest.webmanifest`, the icons, and `pictures\` (the cart's pictures from the DM).
 
 ## Pinned ideas (Joseph, 2026-10-31)
 
-1. **Pick from lists, not type:** the fields become dropdowns of the SRD (spells, items, species, classes…), plus a "homebrew" option that pulls from Ordinate Survey's own library.
+1. **Pick from lists, not type** (done in v6): the fields become dropdowns of the SRD (spells, items, species, classes…), plus a "homebrew" option that pulls from Ordinate Survey's own library.
 2. **Level up:** a level-up that tells you what to decide (hit points, spells, features, ability scores) and does the rest itself.
 3. **Edit everything:** an edit mode where every part of the sheet can be changed: spell slots, names, the kind of each spell, all of it.
+
+## Credit
+
+This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
