@@ -36,6 +36,24 @@ step("an Elf Wizard, Sage, with spells", () => {
   const c = db.chars.find(x => x.name === "Test Wizard"); expect(c, "the Wizard is made");
   return sheet(c) + `; slots ${JSON.stringify(c.slots)}; spells ${c.spells.map(s => s.name).join(", ")}`;
 });
+step("freestyle: a typed class and species, typed scores, and own kit; not finished", () => {
+  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]');
+  sel('[data-bld="cls"]', OTHER); typ('[data-bld="clsT"]', "Blood Hunter"); sel('[data-bld="hd"]', "10");
+  sel('[data-bld="sp"]', OTHER); typ('[data-bld="spT"]', "Tabaxi"); typ('[data-bld="speed"]', "35");
+  click('[data-act="bldset"][data-v="type"]'); ["str", "dex", "con"].forEach((k, i) => typ(`[data-bld="typed.${k}"]`, String(16 - i)));
+  typ('[data-bld="eqT"]', "Longsword, Shield, 2 Daggers, and 10 GP"); typ('[data-bld="name"]', "Test Freestyle");
+  const note = q("#bldGo").textContent.replace(/\s+/g, " ").trim();
+  click('[data-act="bldmake"]');
+  const c = db.chars.find(x => x.name === "Test Freestyle"); expect(c, "made anyway");
+  return sheet(c) + `; speed ${c.speed}; todo ${todoOf(c).join(" | ")}; the button said: ${note}`;
+});
+step("nothing chosen at all still saves, marked; It's done clears it", () => {
+  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); click('[data-act="bldmake"]');
+  const c = C(); const marked = !!q('[data-act="tododone"]'), tag = /not finished/.test((ui.tab = "pcs", render(), document.body.textContent));
+  ui.tab = "play"; render(); click('[data-act="tododone"]');
+  expect(!todoOf(C()).length, "cleared");
+  return `${c.name}: ${c.cls || "no class"}, HP ${c.hpMax}, AC ${c.ac}; marked on Play ${marked}, tagged on PCs ${tag}`;
+});
 step("the Wizard to level 2: features from the class table", () => {
   closeOv(); const c = db.chars.find(x => x.name === "Test Wizard"); db.cur = c.id; ui.tab = "play"; render();
   click('[data-act="levelup"]');
