@@ -250,7 +250,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 25;
+const VERSION = 26;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -398,8 +398,8 @@ const flatFor = (c, ctx) => modsFor(c, ctx).reduce((a, m) => a + flatOf(m.bonus)
 const diceFor = (c, ctx) => modsFor(c, ctx).filter(m => isDice(m.bonus));
 const acOf = c => (+c.ac || 10) + flatFor(c, { kind: "ac" });
 const castAb = c => c.castAb || "wis";
-const dcOf = c => 8 + prof(c) + mod(c, castAb(c)) + flatFor(c, { kind: "dc" });
-const satkOf = c => prof(c) + mod(c, castAb(c)) + flatFor(c, { kind: "atk", spell: true });
+const dcOf = (c, sp) => 8 + prof(c) + mod(c, castAbFor(c, sp)) + flatFor(c, { kind: "dc" });
+const satkOf = (c, sp) => prof(c) + mod(c, castAbFor(c, sp)) + flatFor(c, { kind: "atk", spell: true });
 const initOf = c => mod(c, "dex") + (+c.initBonus || 0) + flatFor(c, { kind: "init" });
 function hpMaxOf(c) { let m = (+c.hpMax || 1) + flatFor(c, { kind: "hpmax" }); if (exhOf(c) >= 4) m = Math.floor(m / 2); return Math.max(1, m); }
 function speedOf(c) { const e = exhOf(c); let s = (+c.speed || 30) + flatFor(c, { kind: "speed" }); if (e >= 5 || c.conds.includes("Grappled") || c.conds.includes("Restrained")) return 0; if (e >= 2) s = Math.floor(s / 2); return s; }
@@ -518,7 +518,7 @@ function rollAttack(a) {
   rollD20({ label: a.name, sub: "attack", ctx, parts, ammo: a.ammo, dmg: dmgOfAtk(c, a) ? { label: a.name + " damage", expr: dmgOfAtk(c, a), dtype: a.dtype } : null });
 }
 function rollSpellAttack(sp, lvl) {
-  const c = C(); const parts = [{ name: AB_SHORT[castAb(c)], v: mod(c, castAb(c)) }, { name: "Prof", v: prof(c) }];
+  const c = C(); const ab = castAbFor(c, sp), parts = [{ name: AB_SHORT[ab], v: mod(c, ab) }, { name: "Prof", v: prof(c) }];
   const ctx = { kind: "atk", spell: true }; const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
   rollD20({ label: sp ? sp.name : "Spell attack", sub: "spell attack", ctx, parts, dmg: sp && sp.roll ? { label: sp.name, expr: spellExpr(c, sp, lvl), dtype: sp.roll.type } : null });
 }
@@ -527,7 +527,7 @@ function spellExpr(c, sp, lvl) {
   const above = Math.max(0, (lvl || sp.lvl) - sp.lvl); const steps = r.upEvery ? Math.floor(above / r.upEvery) : above;
   if (r.up && steps) e = addDice(e, scaleDice(r.up, steps));
   if (sp.lvl === 0 && r.cantrip) { const lv = +c.level || 1; const n = lv >= 17 ? 4 : lv >= 11 ? 3 : lv >= 5 ? 2 : 1; e = scaleDice(r.dice, n); }
-  if (r.mod) { const m = mod(c, castAb(c)); if (m) e = addDice(e, String(m)); }
+  if (r.mod) { const m = mod(c, castAbFor(c, sp)); if (m) e = addDice(e, String(m)); }
   return tidyDice(e);
 }
 function tidyDice(expr) { // "1d4+1d4+3" reads as "2d4+3"
@@ -625,7 +625,8 @@ function cast(c, sp, lvl, how) {
     if (resLeft(r) < cost) return toast("Not enough cart points left.");
     r.used += cost; logRoll(c, `Cast ${sp.name} from the Auspicious Cart (${cost} point${cost === 1 ? "" : "s"}, no concentration)`); save(); render(); return;
   }
-  if (sp.lvl > 0) {
+  if (how === "pact") { const p = c.pactSlots; if (!p || p.used >= p.max) return toast("No pact slots left."); if (sp.conc && !setConc(c, sp.name)) return; p.used++; }
+  else if (sp.lvl > 0) {
     const s = c.slots[lvl]; if (!s || s.used >= s.max) return toast(`No ${ord(lvl)}-level slots left.`);
     if (sp.conc && !setConc(c, sp.name)) return;
     s.used++;
@@ -644,30 +645,32 @@ function cast(c, sp, lvl, how) {
   save();
   if (sp.roll) {
     if (sp.roll.kind === "atk") return rollSpellAttack(sp, lvl);
-    if (sp.roll.kind === "save") return rollDamage(sp.name, spellExpr(c, sp, lvl), { dtype: sp.roll.type, save: { ab: sp.roll.save, half: !!sp.roll.half }, noMods: true });
+    if (sp.roll.kind === "save") return rollDamage(sp.name, spellExpr(c, sp, lvl), { dtype: sp.roll.type, save: { ab: sp.roll.save, half: !!sp.roll.half, dc: dcOf(c, sp) }, noMods: true });
     if (sp.roll.kind === "heal") return rollDamage(sp.name, spellExpr(c, sp, lvl), { heal: true, noMods: true });
   }
-  render(); toast(`${sp.name} cast.${sp.save ? ` They make a ${AB_NAME[sp.save]} save, DC ${dcOf(c)}.` : ""}`, 3200);
+  render(); toast(`${sp.name} cast.${sp.save ? ` They make a ${AB_NAME[sp.save]} save, DC ${dcOf(c, sp)}.` : ""}`, 3200);
 }
 function logRoll(c, text) { R = null; c.rolls = c.rolls || []; c.rolls.unshift({ type: "note", label: text, at: Date.now() }); if (c.rolls.length > 40) c.rolls.length = 40; }
 function shortRestHtml(c) {
-  const hd = c.hd; const left = hd.max - hd.used;
+  const P = hdPools(c);
   return `<div class="rr-h">Short rest</div>
-    <p class="note">Spend hit dice to heal: each is a d${hd.die} ${sg(mod(c, "con"))} (Con). ${left} of ${hd.max} left. HP ${c.hp}/${hpMaxOf(c)}.</p>
-    <button class="btn wide" data-act="spendhd" ${left && c.hp < hpMaxOf(c) ? "" : "disabled"}>Spend a hit die</button>
-    <p class="note">Finishing it brings back: ${esc(listAnd([c.pact && Object.values(c.slots).some(s => s.max) ? "pact slots" : ""].concat(c.res.filter(r => r.rest === "short").map(r => r.name), c.res.filter(r => r.rest === "one").map(r => r.name + " (one use)"))) || "nothing on a short rest")}.</p>
+    <p class="note">Spend hit dice to heal: each adds your Con (${sg(mod(c, "con"))}). ${P.map(p => `${p.max - p.used} of ${p.max} d${p.die}`).join(", ")} left. HP ${c.hp}/${hpMaxOf(c)}.</p>
+    ${P.map((p, j) => `<button class="btn wide" data-act="spendhd" data-p="${j}" ${p.max - p.used && c.hp < hpMaxOf(c) ? "" : "disabled"}>Spend a hit die${P.length > 1 ? ` (d${p.die})` : ""}</button>`).join("")}
+    <p class="note">Finishing it brings back: ${esc(listAnd([(c.pact && Object.values(c.slots).some(s => s.max)) || c.pactSlots ? "pact slots" : ""].concat(c.res.filter(r => r.rest === "short").map(r => r.name), c.res.filter(r => r.rest === "one").map(r => r.name + " (one use)"))) || "nothing on a short rest")}.</p>
     <button class="btn wide main" data-act="shortdone">Finish the short rest</button><button class="btn wide" data-act="ovclose">Not now</button>`;
 }
 function longRest(c) {
   c.hp = hpMaxOf(c); c.temp = 0; c.death = { ok: 0, fail: 0 };
   Object.values(c.slots).forEach(s => s.used = 0); c.res.forEach(r => { if (r.rest === "short" || r.rest === "one" || r.rest === "long") r.used = 0; });
-  c.hd.used = Math.max(0, c.hd.used - Math.max(1, Math.floor(c.hd.max / 2)));
+  // half the hit dice back (at least one), the biggest first; pact slots too
+  { let back = Math.max(1, Math.floor(hdPools(c).reduce((a, p) => a + +p.max, 0) / 2)); for (const p of hdPools(c).slice().sort((x, y) => y.die - x.die)) { const n = Math.min(back, +p.used || 0); p.used -= n; back -= n; } }
+  if (c.pactSlots) c.pactSlots.used = 0;
   if (c.exh > 0) c.exh--;
   c.effects = c.effects.filter(e => e.until !== "long" && !e.conc); c.conc = null;
   c.conds = c.conds.filter(k => k !== "Unconscious");
   c.hp = hpMaxOf(c);
   logRoll(c, "Long rest"); save(); render();
-  toast(`Long rest: full HP, slots, and features back, and ${Math.max(1, Math.floor(c.hd.max / 2))} hit dice${debtExh(c) ? ". Divine debt exhaustion stays until the debt is settled" : ""}.`, 4200);
+  toast(`Long rest: full HP, slots, and features back, and ${Math.max(1, Math.floor(hdPools(c).reduce((a, p) => a + +p.max, 0) / 2))} hit dice${debtExh(c) ? ". Divine debt exhaustion stays until the debt is settled" : ""}.`, 4200);
 }
 
 /* ══ Pious Wager ══ */
@@ -727,7 +730,7 @@ const TABS = [["pcs", "PCs"], ["play", "Play"], ["spells", "Spells"], ["items", 
 const EM = () => !!ui.editMode;
 function render() {
   const c = C();
-  $("#who").innerHTML = `<b>${esc(c.name)}</b><small class="caps">${esc([c.species, `${c.cls} ${c.level}`, c.subcls].filter(Boolean).join(" · "))}</small>`;
+  $("#who").innerHTML = `<b>${esc(c.name)}</b><small class="caps">${esc([c.species, clsLine(c), isMulti(c) ? "" : c.subcls].filter(Boolean).join(" · "))}</small>`;
   $("#tabs").innerHTML = TABS.map(([k, l]) => `<button class="${ui.tab === k ? "on" : ""}" data-tab="${k}">${l}<small>${tabCount(c, k)}</small></button>`).join("");
   $("#strip").innerHTML = stripHtml(c);
   const v = { pcs: pcsHtml, play: playHtml, spells: spellsHtml, items: itemsHtml, journal: journalHtml, people: peopleHtml }[ui.tab] || playHtml;
@@ -772,7 +775,7 @@ function pips(n, used, act, data, sq) { return `<span class="pips">${Array.from(
 // whatever is filled in, nothing for what isn't
 function whoHtml(c) {
   const facts = [["Background", c.bg], ["Alignment", c.align], ["Player", c.player], ["Campaign", c.campaign], ["Rules", c.rules && c.rules + (c.mixed ? `, mixing in ${otherEd(c.rules)}` : "")],
-    ["Spellcasting", c.spells.length ? AB_NAME[castAb(c)] : ""], ["Armor class from", c.acNote]].filter(([, v]) => String(v || "").trim());
+    ["Classes", isMulti(c) ? clsLine(c) : ""], ["Spellcasting", c.spells.length ? (castClasses(c).length > 1 ? listAnd(castClasses(c).map(k => `${AB_NAME[CAST_OF[k.cls]]} (${k.cls})`)) : AB_NAME[castAb(c)]) : ""], ["Armor class from", c.acNote]].filter(([, v]) => String(v || "").trim());
   const story = [["Proficiencies and languages", c.story.profs], ["Personality traits", c.story.traits], ["Ideals", c.story.ideals], ["Bonds", c.story.bonds],
     ["Flaws", c.story.flaws], ["Appearance", c.story.looks], ["Backstory", c.story.backstory], ["More", c.story.more]].filter(([, v]) => String(v || "").trim());
   if (!facts.length && !story.length) return `<p class="empty">Nothing written yet: tap Edit (top right) to fill it in.</p>`;
@@ -783,11 +786,12 @@ function whoHtml(c) {
 function nowEditHtml(c) {
   const sl = Object.keys(c.slots).filter(k => c.slots[k].max);
   return `<div class="panel"><h2>Right now</h2>
-    <div class="row">${fld("Hit points", "hp", c.hp, { n: 1 })}${fld("Temporary", "temp", c.temp || 0, { n: 1 })}${fld("Hit dice spent", "hd.used", c.hd.used || 0, { n: 1 })}${fld("Exhaustion", "exh", c.exh || 0, { n: 1 })}</div>
+    <div class="row">${fld("Hit points", "hp", c.hp, { n: 1 })}${fld("Temporary", "temp", c.temp || 0, { n: 1 })}${hdPools(c).map((p, j) => fld(hdPools(c).length > 1 ? `d${p.die} spent` : "Hit dice spent", j ? `hdx.${j - 1}.used` : "hd.used", p.used || 0, { n: 1 })).join("")}${fld("Exhaustion", "exh", c.exh || 0, { n: 1 })}</div>
     <div class="row">${fld("Death save successes", "death.ok", c.death.ok || 0, { n: 1 })}${fld("Failures", "death.fail", c.death.fail || 0, { n: 1 })}</div>
     <div class="row">${fld("Concentrating on", "conc", c.conc || "")}</div>
     <label class="check"><input type="checkbox" data-f="inspiration" data-t="b" ${c.inspiration ? "checked" : ""}> Inspiration</label>
     ${sl.length ? `<div class="lab">Slots spent</div><div class="row">${sl.map(k => fld(c.pact ? `Pact (${ord(+k)})` : ord(+k), `slots.${k}.used`, c.slots[k].used || 0, { n: 1 })).join("")}</div>` : ""}
+    ${c.pactSlots ? `<div class="row">${fld(`Pact slots spent (${ord(c.pactSlots.lvl)})`, "pactSlots.used", c.pactSlots.used || 0, { n: 1 })}</div>` : ""}
     ${c.res.length ? `<div class="lab">Uses spent</div><div class="row">${c.res.map((r, i) => fld(esc(r.name), `res.${i}.used`, r.used || 0, { n: 1 })).join("")}</div>` : ""}
     <div class="lab">Conditions</div><div class="row" style="margin:4px 0 10px">${c.conds.map(k => `<button class="chip lead" data-act="conddel" data-k="${esc(k)}">${esc(k)} ✕</button>`).join("")}
       <select id="condPick" style="flex:1 1 150px"><option value="">Add a condition…</option>${Object.keys(CONDITIONS).filter(k => !c.conds.includes(k)).map(k => `<option>${k}</option>`).join("")}</select></div>
@@ -830,13 +834,15 @@ function playHtml(c) {
     <button class="stat" data-act="init"><b>${sg(initOf(c))}</b><small>Initiative</small></button>
     <div class="stat"><b>${speedOf(c)}</b><small>Speed ft</small></div>
     <div class="stat"><b>${sg(prof(c))}</b><small>Proficiency</small></div>
-    ${c.spells.length ? `<div class="stat"><b>${dcOf(c)}</b><small>Spell DC</small>${flatFor(c, { kind: "dc" }) ? `<em>${sg(flatFor(c, { kind: "dc" }))} items</em>` : ""}</div>
+    ${c.spells.length && castClasses(c).length > 1 ? castClasses(c).map(k => `<div class="stat"><b>${dcOf(c, { cls: k.cls })}</b><small>${esc(k.cls)} DC</small></div><button class="stat" data-act="satk" data-cls="${esc(k.cls)}"><b>${sg(satkOf(c, { cls: k.cls }))}</b><small>${esc(k.cls)} attack</small></button>`).join("") : ""}
+    ${c.spells.length && castClasses(c).length < 2 ? `<div class="stat"><b>${dcOf(c)}</b><small>Spell DC</small>${flatFor(c, { kind: "dc" }) ? `<em>${sg(flatFor(c, { kind: "dc" }))} items</em>` : ""}</div>
     <button class="stat" data-act="satk"><b>${sg(satkOf(c))}</b><small>Spell attack</small></button>` : ""}
     <div class="stat"><b>${passiveOf(c, "perception")}</b><small>Passive Percep.</small></div>
     <div class="stat"><b>${passiveOf(c, "insight")}</b><small>Passive Insight</small></div></div>`;
   const resBody = `${Object.keys(c.slots).filter(k => c.slots[k].max).map(k => `<div class="res"><span class="nm">${c.pact ? `Pact slots (${ord(+k)} level)` : `${ord(+k)}-level slots`}<small>${c.slots[k].max - c.slots[k].used} of ${c.slots[k].max}${c.pact ? " · short or long rest" : ""}</small></span>${pips(c.slots[k].max, c.slots[k].used, "slot", `data-k="${k}"`, true)}</div>`).join("")}
+    ${c.pactSlots ? `<div class="res"><span class="nm">Pact slots (${ord(c.pactSlots.lvl)} level)<small>${c.pactSlots.max - c.pactSlots.used} of ${c.pactSlots.max} · short or long rest</small></span>${pips(c.pactSlots.max, c.pactSlots.used, "pslot", "", true)}</div>` : ""}
     ${c.res.map(r => `<div class="res"><span class="nm">${esc(r.name)}<small>${resLeft(r)} of ${r.max} · ${r.rest === "short" ? "short or long rest" : r.rest === "one" ? "one back each short rest, all on a long" : r.rest === "long" ? "long rest" : "doesn't come back on its own"}${r.note ? " · " + esc(r.note) : ""}</small></span>${r.max <= 12 ? pips(r.max, r.used, "res", `data-id="${r.id}"`) : `<button class="btn tiny" data-act="resn" data-id="${r.id}" data-d="1">Use</button><span class="big">${resLeft(r)}</span><button class="btn tiny" data-act="resn" data-id="${r.id}" data-d="-1">+1</button>`}</div>`).join("")}
-    <div class="res"><span class="nm">Hit dice (d${c.hd.die})<small>${c.hd.max - c.hd.used} of ${c.hd.max}</small></span>${pips(c.hd.max, c.hd.used, "hd", "")}</div>
+    ${hdPools(c).map((p, j) => `<div class="res"><span class="nm">Hit dice (d${p.die})<small>${p.max - p.used} of ${p.max}</small></span>${pips(p.max, p.used, "hd", `data-p="${j}"`)}</div>`).join("")}
     ${res(c, "Lucky") ? `<div class="row" style="margin:8px 0"><button class="btn small" data-act="luckvs">Lucky: an attack against me</button></div>` : ""}
     <div class="row" style="margin:10px 0"><button class="btn grow" data-act="short">Short rest…</button><button class="btn grow" data-act="long">Long rest</button></div>
     ${(+c.level || 1) < 20 ? `<button class="btn wide" data-act="levelup">Level up to ${(+c.level || 1) + 1}…</button>` : ""}`;
@@ -845,8 +851,8 @@ function playHtml(c) {
       : rollsToHit(a) ? `<button class="btn main" data-act="atk" data-i="${i}"><span class="big">${sg(atkOf(c, a))}</span></button>` : "";
     return `<div class="card"><div class="atkrow"><span class="nm">${esc(a.name)}${a.prof === false && !asWritten(a) ? `<span class="tag c">not proficient</span>` : ""}<span class="sub">${esc([dmgOfAtk(c, a), a.dtype, a.range, am ? `${am.qty} ${am.name.toLowerCase()}` : ""].filter(Boolean).join(" · "))}</span>${a.note ? `<span class="sub">${esc(a.note)}</span>` : ""}</span>
       ${main}${dmgOfAtk(c, a) && !a.save ? `<button class="btn small" data-act="atkdmg" data-i="${i}">Dmg</button>` : ""}</div></div>`; }).join("")
-    + c.spells.filter(s => s.roll && s.lvl === 0 && !c.attacks.some(a => a.name.toLowerCase().startsWith(s.name.toLowerCase()))).map(s => `<div class="card"><div class="atkrow"><span class="nm">${esc(s.name)}<span class="sub">cantrip · ${esc(spellExpr(c, s, 0))} ${esc(s.roll.type || "")}${s.roll.kind === "save" ? ` · ${AB_SHORT[s.roll.save]} save DC ${dcOf(c)}` : ""}</span></span>
-      <button class="btn main" data-act="castq" data-id="${s.id}">${s.roll.kind === "atk" ? `<span class="big">${sg(satkOf(c))}</span>` : "Cast"}</button></div></div>`).join("");
+    + c.spells.filter(s => s.roll && s.lvl === 0 && !c.attacks.some(a => a.name.toLowerCase().startsWith(s.name.toLowerCase()))).map(s => `<div class="card"><div class="atkrow"><span class="nm">${esc(s.name)}<span class="sub">cantrip · ${esc(spellExpr(c, s, 0))} ${esc(s.roll.type || "")}${s.roll.kind === "save" ? ` · ${AB_SHORT[s.roll.save]} save DC ${dcOf(c, s)}` : ""}</span></span>
+      <button class="btn main" data-act="castq" data-id="${s.id}">${s.roll.kind === "atk" ? `<span class="big">${sg(satkOf(c, s))}</span>` : "Cast"}</button></div></div>`).join("");
   const abil = `<div class="abil">${ABS.map(([k]) => `<button class="stat" data-act="chk" data-ab="${k}"><small>${AB_SHORT[k]}</small><b>${sg(mod(c, k))}</b><span class="sc">${c.ab[k]}</span></button>`).join("")}</div>
     <div class="lab" style="margin-bottom:2px">Saving throws</div>
     <div class="lines">${ABS.map(([k, n]) => `<button class="line" data-act="sv" data-ab="${k}"><span class="pf ${c.saveProf.includes(k) ? "on" : ""}"></span><span class="nm">${n}</span><span class="v">${sg(saveOf(c, k))}</span></button>`).join("")}</div>
@@ -892,9 +898,11 @@ function editHtml(c) {
     <div class="row">${fld("Name", "name", c.name)}${fld("Short name", "short", c.short || "")}</div>
     <div class="row">${fld("Player", "player", c.player || "")}${fld("Campaign", "campaign", c.campaign || "")}</div>
     <div class="row"><label class="fld"><span>Rules</span><select data-f="rules">${["2024", "2014"].map(r => `<option ${(c.rules || "2024") === r ? "selected" : ""}>${r}</option>`).join("")}</select></label><label class="check" style="align-self:flex-end"><input type="checkbox" data-f="mixed" ${c.mixed ? "checked" : ""}> Mix in ${otherEd(edOf(c))}</label>${fld("Extra HP each level", "hpPerLevel", c.hpPerLevel || 0, { n: 1 })}</div>
-    <div class="row">${pick("Species", "species", SPECIES, c.species)}${pick("Class", "cls", CLASSES, c.cls)}${fld("Level", "level", c.level, { n: 1 })}</div>
-    <div class="row">${pick("Subclass", "subcls", subOffers(c), c.subcls)}${pick("Background", "bg", BACKGROUNDS, c.bg)}${pick("Alignment", "align", ALIGNMENTS, c.align)}</div>
-    <div class="row">${fld("Armor class", "ac", c.ac, { n: 1 })}${fld("Speed", "speed", c.speed, { n: 1 })}${fld("HP max", "hpMax", c.hpMax, { n: 1 })}${fld("Hit dice", "hd.max", c.hd.max, { n: 1 })}${fld("Die", "hd.die", c.hd.die, { n: 1 })}</div>
+    <div class="row">${pick("Species", "species", SPECIES, c.species)}${isMulti(c) ? "" : pick("Class", "cls", CLASSES, c.cls) + fld("Level", "level", c.level, { n: 1 })}</div>
+    ${isMulti(c) ? `<div class="lab">Classes</div>${classesOf(c).map((k, j) => `<div class="row">${fld("Class", `classes.${j}.cls`, k.cls)}${fld("Subclass", `classes.${j}.sub`, k.sub || "")}${fld("Level", `classes.${j}.level`, k.level, { n: 1 })}${fld("Hit die", `classes.${j}.die`, k.die, { n: 1 })}${j ? `<button class="btn small danger" data-act="clsdel" data-j="${j}" style="margin-bottom:10px">✕</button>` : ""}</div>`).join("")}<p class="note">Level ${c.level} in all. The level-up adds a class for you; these are for fixing one by hand.</p>` : ""}
+    <button class="btn small" data-act="clsadd" style="margin-bottom:10px">+ Another class (by hand)</button>
+    <div class="row">${isMulti(c) ? "" : pick("Subclass", "subcls", subOffers(c), c.subcls)}${pick("Background", "bg", BACKGROUNDS, c.bg)}${pick("Alignment", "align", ALIGNMENTS, c.align)}</div>
+    <div class="row">${fld("Armor class", "ac", c.ac, { n: 1 })}${fld("Speed", "speed", c.speed, { n: 1 })}${fld("HP max", "hpMax", c.hpMax, { n: 1 })}${fld("Hit dice", "hd.max", c.hd.max, { n: 1 })}${fld("Die", "hd.die", c.hd.die, { n: 1 })}${(c.hdx || []).map((p, j) => fld(`Hit dice (d${p.die})`, `hdx.${j}.max`, p.max, { n: 1 })).join("")}</div>
     <div class="row">${fld("Armor class comes from", "acNote", c.acNote || "")}${fld("Initiative bonus", "initBonus", c.initBonus || 0, { n: 1 })}</div>
     <div class="row">${ABS.map(([k]) => fld(AB_SHORT[k], "ab." + k, c.ab[k], { n: 1 })).join("")}</div>
     <div class="row"><label class="fld"><span>Spellcasting ability</span><select data-f="castAb">${ABS.map(([k, n]) => `<option value="${k}" ${castAb(c) === k ? "selected" : ""}>${n}</option>`).join("")}</select></label>${fld("Proficiency (blank = by level)", "profBonus", c.profBonus || "", { n: 1 })}</div>
@@ -941,20 +949,20 @@ function editHtml(c) {
 function spellsHtml(c) {
   const byLvl = {}; c.spells.forEach(s => (byLvl[s.lvl] = byLvl[s.lvl] || []).push(s));
   const cart = c.items.find(i => i.cartSpells && i.cartSpells.length && !i.gone); const cp = res(c, "Cart points");
-  const head = `<div class="panel"><div class="stats" style="margin-bottom:8px"><div class="stat"><b>${dcOf(c)}</b><small>Save DC</small></div><button class="stat" data-act="satk"><b>${sg(satkOf(c))}</b><small>Spell attack</small></button>
-    ${Object.keys(c.slots).filter(k => c.slots[k].max).map(k => `<div class="stat"><b>${c.slots[k].max - c.slots[k].used}/${c.slots[k].max}</b><small>${ord(+k)} slots</small></div>`).join("")}</div>
+  const head = `<div class="panel"><div class="stats" style="margin-bottom:8px">${castClasses(c).length > 1 ? castClasses(c).map(k => `<div class="stat"><b>${dcOf(c, { cls: k.cls })}</b><small>${esc(k.cls)} DC</small></div><button class="stat" data-act="satk" data-cls="${esc(k.cls)}"><b>${sg(satkOf(c, { cls: k.cls }))}</b><small>${esc(k.cls)} attack</small></button>`).join("") : `<div class="stat"><b>${dcOf(c)}</b><small>Save DC</small></div><button class="stat" data-act="satk"><b>${sg(satkOf(c))}</b><small>Spell attack</small></button>`}
+    ${Object.keys(c.slots).filter(k => c.slots[k].max).map(k => `<div class="stat"><b>${c.slots[k].max - c.slots[k].used}/${c.slots[k].max}</b><small>${ord(+k)} slots</small></div>`).join("")}${c.pactSlots ? `<div class="stat"><b>${c.pactSlots.max - c.pactSlots.used}/${c.pactSlots.max}</b><small>Pact (${ord(c.pactSlots.lvl)})</small></div>` : ""}</div>
     ${flatFor(c, { kind: "dc" }) ? `<p class="note">Includes ${modsFor(c, { kind: "dc" }).map(m => `${esc(m.name)} ${esc(sg(flatOf(m.bonus)))}`).join(", ")} (attuned).</p>` : ""}
     ${c.conc ? `<p class="warn">Concentrating on ${esc(c.conc)}.</p>` : ""}</div>`;
   const card = s => {
     if (EM()) return `<div class="card">${spellForm(c, s)}</div>`;
     const avail = Object.keys(c.slots).filter(k => +k >= s.lvl && c.slots[k].max).map(Number);
     const firstFree = avail.find(k => c.slots[k].used < c.slots[k].max);
-    return `<div class="card"><span class="nm">${esc(s.name)}${s.tag ? `<span class="tag ${s.tag === "D" ? "g" : ""}">${esc(s.tag === "D" ? "Domain · always prepared" : s.tag)}</span>` : ""}${s.conc ? `<span class="tag c">Concentration</span>` : ""}</span>
+    return `<div class="card"><span class="nm">${esc(s.name)}${s.tag ? `<span class="tag ${s.tag === "D" ? "g" : ""}">${esc(s.tag === "D" ? "Domain · always prepared" : s.tag)}</span>` : ""}${s.conc ? `<span class="tag c">Concentration</span>` : ""}${isMulti(c) && s.cls ? `<span class="tag">${esc(s.cls)}</span>` : ""}</span>
       <span class="sub">${esc([s.time, s.range, s.dur].filter(Boolean).join(" · "))}</span>
       <div class="txt">${fmt(s.text)}</div>
-      ${s.roll ? `<span class="sub">${s.roll.kind === "atk" ? `Spell attack ${sg(satkOf(c))}, ` : s.roll.kind === "save" ? `${AB_NAME[s.roll.save]} save DC ${dcOf(c)}, ` : ""}${esc(spellExpr(c, s, s.lvl))} ${esc(s.roll.kind === "heal" ? "healing" : s.roll.type || "")}${s.roll.up ? ` · ${s.roll.up} more per ${s.roll.upEvery ? s.roll.upEvery + " slot levels" : "slot level"} above ${ord(s.lvl)}` : ""}</span>` : ""}
+      ${s.roll ? `<span class="sub">${s.roll.kind === "atk" ? `Spell attack ${sg(satkOf(c, s))}, ` : s.roll.kind === "save" ? `${AB_NAME[s.roll.save]} save DC ${dcOf(c, s)}, ` : ""}${esc(spellExpr(c, s, s.lvl))} ${esc(s.roll.kind === "heal" ? "healing" : s.roll.type || "")}${s.roll.up ? ` · ${s.roll.up} more per ${s.roll.upEvery ? s.roll.upEvery + " slot levels" : "slot level"} above ${ord(s.lvl)}` : ""}</span>` : ""}
       <div class="acts">${s.lvl === 0 ? `<button class="btn small main" data-act="castq" data-id="${s.id}">Cast</button>`
-        : `<select data-castlvl="${s.id}" style="width:auto">${avail.map(k => `<option value="${k}" ${k === firstFree ? "selected" : ""}>${ord(k)} level (${c.slots[k].max - c.slots[k].used} left)</option>`).join("")}</select><button class="btn small main" data-act="cast" data-id="${s.id}" ${firstFree ? "" : "disabled"}>Cast</button>`}
+        : `<select data-castlvl="${s.id}" style="width:auto">${avail.map(k => `<option value="${k}" ${k === firstFree ? "selected" : ""}>${ord(k)} level (${c.slots[k].max - c.slots[k].used} left)</option>`).join("")}${c.pactSlots && c.pactSlots.lvl >= s.lvl ? `<option value="p" ${!firstFree ? "selected" : ""}>Pact slot, ${ord(c.pactSlots.lvl)} level (${c.pactSlots.max - c.pactSlots.used} left)</option>` : ""}</select><button class="btn small main" data-act="cast" data-id="${s.id}" ${firstFree || (c.pactSlots && c.pactSlots.lvl >= s.lvl && c.pactSlots.used < c.pactSlots.max) ? "" : "disabled"}>Cast</button>`}
         ${s.roll && s.lvl > 0 ? `<button class="btn small" data-act="spellroll" data-id="${s.id}">Roll it, no slot</button>` : ""}
         <button class="btn small" data-act="spelledit" data-id="${s.id}">Edit</button></div>
       ${ui.edit === "spell:" + s.id ? spellForm(c, s) : ""}</div>`;
@@ -974,6 +982,7 @@ function spellForm(c, s) {
   const i = c.spells.indexOf(s); const p = `spells.${i}`; const r = s.roll || {};
   return `<div class="panel" style="background:var(--paper-lit);margin-top:10px">
     <div class="row">${fld("Name", p + ".name", s.name)}${fld("Level", p + ".lvl", s.lvl, { n: 1 })}${pick("Tag", p + ".tag", ["D", "Racial", "Homebrew", "Ritual"], s.tag || "")}</div>
+    ${isMulti(c) ? `<div class="row">${pick("Its class (sets its DC and attack)", p + ".cls", classesOf(c).filter(k => CAST_OF[k.cls]).map(k => k.cls), s.cls || "")}</div>` : ""}
     <p class="note" style="margin-top:-6px">Tag D = a domain spell, always prepared.</p>
     <div class="row">${pick("Casting time", p + ".time", SPELL_TIMES, s.time || "")}${fld("Range", p + ".range", s.range || "")}${fld("Duration", p + ".dur", s.dur || "")}</div>
     ${fld("What it does", p + ".text", s.text, { area: 1, rows: 4 })}
@@ -1220,7 +1229,8 @@ function pickerHtml(kind) {
     ${srcSeg(kind === "spell" ? libSpells().length : kind === "item" ? libLoot().length : libWeapons().length)}
     <input id="pkQ" placeholder="${{ spell: "Search spells", attack: "Search weapons", item: "Search items" }[kind]}" value="${esc(ui_pk.q)}" style="margin-bottom:8px">
     ${kind === "item" ? `<select id="pkKind" style="width:auto;margin-bottom:8px"><option value="">Every kind</option>${kinds.map(k => `<option ${ui_pk.kind === k ? "selected" : ""}>${esc(k)}</option>`).join("")}</select>` : ""}
-    ${kind === "spell" ? `<div class="row" style="margin-bottom:8px;align-items:center"><label class="check" style="margin:0${fromLib() ? ";display:none" : ""}"><input type="checkbox" id="pkCls" ${ui_pk.cls ? "checked" : ""}> Only ${esc(c.cls || "my class")} spells</label>
+    ${kind === "spell" ? `<div class="row" style="margin-bottom:8px;align-items:center"><label class="check" style="margin:0${fromLib() ? ";display:none" : ""}"><input type="checkbox" id="pkCls" ${ui_pk.cls ? "checked" : ""}> Only ${esc((isMulti(c) && ui_pk.for) || c.cls || "my class")} spells</label>
+      ${isMulti(c) && classesOf(c).filter(k => CAST_OF[k.cls]).length ? `<select id="pkFor" style="width:auto" aria-label="For which class">${classesOf(c).filter(k => CAST_OF[k.cls]).map(k => `<option ${ui_pk.for === k.cls ? "selected" : ""}>${esc(k.cls)}</option>`).join("")}</select>` : ""}
       <select id="pkLv" style="width:auto"><option value="">Any level</option>${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => `<option value="${l}" ${ui_pk.lv === String(l) ? "selected" : ""}>${l ? ord(l) + " level" : "Cantrips"}</option>`).join("")}</select></div>` : ""}
     ${kind === "spell" && c.rules === "2014" ? lookup("2014 spell text", "These are the SRD 5.2's 2024 wordings, and some 2014 spells read differently. Check a new one against your 2014 Player's Handbook and change its text under Edit if it differs.") : ""}
     ${ui_pk.note && kind === "spell" ? `<p class="verdict ok">${esc(ui_pk.note)}</p>` : ""}<div id="pkOut">${pickerResults(kind)}</div>
@@ -1235,7 +1245,8 @@ function pickerResults(kind) {
   const c = C();
   if (kind === "spell") {
     let pool = spellPool();
-    if (ui_pk.cls && c.cls) pool = pool.filter(s => s.hb || new RegExp(`\\b${c.cls}\\b`, "i").test(s.cls || ""));
+    const fc = (isMulti(c) && ui_pk.for) || c.cls;
+    if (ui_pk.cls && fc) pool = pool.filter(s => s.hb || new RegExp(`\\b${fc}\\b`, "i").test(s.cls || ""));
     if (ui_pk.lv !== "") pool = pool.filter(s => String(+s.lv || 0) === ui_pk.lv);
     const got = new Set(c.spells.map(s => s.name));
     const rows = search(pool, ui_pk.q, 2000);
@@ -1276,64 +1287,153 @@ function slotsAt(c, L) {
 }
 const asiAt = (c, L) => [4, 8, 12, 16, 19].includes(L) || (c.cls === "Fighter" && [6, 14].includes(L)) || (c.cls === "Rogue" && L === 10);
 const subclassAt = c => c.rules === "2014" ? ({ Cleric: 1, Sorcerer: 1, Warlock: 1, Druid: 2, Wizard: 2 }[c.cls] || 3) : 3;
+/* ══ Multiclassing (Joseph, 2026-11-02). A character's classes are a list, c.classes: { cls, sub, level, die }, the
+   first being the one they started in. c.cls, c.subcls, and c.hd stay the first class's, and c.level is the total, so
+   a one-class sheet (no c.classes) works as it always has. Hit dice of other sizes are their own pools (c.hdx); a
+   warlock with another spellcasting class keeps pact slots apart (c.pactSlots); a spell can belong to a class
+   (sp.cls), which sets its spellcasting ability. The 2014 rules are the SRD 5.1's (Multiclassing); the 2024
+   requirements come from each class's primary ability, and what a 2024 class gives a multiclass character is
+   looked up. ══ */
+const classesOf = c => Array.isArray(c.classes) && c.classes.length ? c.classes : [{ cls: c.cls || "", sub: c.subcls || "", level: +c.level || 1, die: +c.hd.die || 8 }];
+const isMulti = c => classesOf(c).length > 1;
+const clsLine = c => isMulti(c) ? classesOf(c).map(k => `${k.cls} ${k.level}${k.sub ? ` (${k.sub})` : ""}`).join(" / ") : `${c.cls} ${c.level}`;
+// the class list, written back: the first class mirrors into c.cls, c.subcls, and c.hd.die; the level is the total
+function setClasses(c, list) {
+  if (list.length > 1) c.classes = list; else delete c.classes;
+  c.cls = list[0].cls; c.subcls = list[0].sub || ""; c.level = list.reduce((a, k) => a + (+k.level || 0), 0) || 1;
+}
+// what it takes to take up a class: groups that must all be met, any score in a group will do ("Str 13 or Dex 13")
+const MC_NEED_2014 = { Barbarian: [["str"]], Bard: [["cha"]], Cleric: [["wis"]], Druid: [["wis"]], Fighter: [["str", "dex"]], Monk: [["dex"], ["wis"]],
+  Paladin: [["str"], ["cha"]], Ranger: [["dex"], ["wis"]], Rogue: [["dex"]], Sorcerer: [["cha"]], Warlock: [["cha"]], Wizard: [["int"]] };
+function mcNeed(cls, ed) {
+  if (ed === "2014") return MC_NEED_2014[cls] || null;
+  const R0 = rClass(cls, "2024"); if (!R0 || !R0.primary) return MC_NEED_2014[cls] || null;
+  return R0.primary.split(/\s+and\s+/i).map(g => g.split(/\s*,\s*|\s+or\s+/i).map(w => AB_OF[w.trim()]).filter(Boolean)).filter(g => g.length);
+}
+const needText = groups => listAnd(groups.map(g => g.map(k => `${AB_SHORT[k]} 13`).join(" or ")));
+const needMet = (c, groups) => groups.every(g => g.some(k => (+c.ab[k] || 0) >= 13));
+// what a class gives a character taking it up as a second class (SRD 5.1); a skill to choose where it says so
+const MC_PROFS_2014 = { Barbarian: "Shields, simple weapons, martial weapons", Bard: "Light armor, one skill of your choice, one musical instrument of your choice",
+  Cleric: "Light armor, medium armor, shields", Druid: "Light armor, medium armor, shields (druids won't wear armor or use shields made of metal)",
+  Fighter: "Light armor, medium armor, shields, simple weapons, martial weapons", Monk: "Simple weapons, shortswords",
+  Paladin: "Light armor, medium armor, shields, simple weapons, martial weapons", Ranger: "Light armor, medium armor, shields, simple weapons, martial weapons, one skill from the Ranger's skill list",
+  Rogue: "Light armor, one skill from the Rogue's skill list, thieves' tools", Sorcerer: "", Warlock: "Light armor, simple weapons", Wizard: "" };
+const MC_SKILL_2014 = { Bard: "any", Ranger: "list", Rogue: "list" };
+// spell slots across classes: one spellcasting class uses its own table; more add up full levels and half the
+// paladin and ranger levels (2014 rounds down, 2024 rounds up) on the full casters' table; a warlock's pact slots stay apart
+function slotsFor(c, list) {
+  const casters = list.filter(k => FULL_CASTERS.includes(k.cls) || HALF_CASTERS.includes(k.cls)), wl = list.find(k => k.cls === "Warlock");
+  const pact = wl ? pactAt(wl.level) : null; let slots = null;
+  if (casters.length === 1) slots = slotsAt({ rules: c.rules, cls: casters[0].cls }, casters[0].level);
+  else if (casters.length > 1) {
+    const L = casters.reduce((a, k) => a + (FULL_CASTERS.includes(k.cls) ? k.level : c.rules === "2014" ? Math.floor(k.level / 2) : Math.ceil(k.level / 2)), 0);
+    slots = L ? Object.fromEntries(FULL_SLOTS[Math.min(20, L)].map((n, i) => [i + 1, n])) : {};
+  }
+  return { slots, pact };
+}
+// hit dice: the first class's die in c.hd, other sizes in c.hdx
+const hdPools = c => [c.hd, ...(c.hdx || [])];
+function addHd(c, die) { const p = hdPools(c).find(q => +q.die === +die); if (p) p.max = (+p.max || 0) + 1; else (c.hdx = c.hdx || []).push({ die: +die, max: 1, used: 0 }); }
+const hdText = c => hdPools(c).map(p => `${p.max}d${p.die}`).join(" + ");
+// a spell's spellcasting ability: its class's, when it has one this character has; otherwise the sheet's
+const castAbFor = (c, sp) => sp && sp.cls && CAST_OF[sp.cls] && classesOf(c).some(k => k.cls === sp.cls) ? CAST_OF[sp.cls] : castAb(c);
+// the classes that cast with an ability of their own, when there's more than one (each has its DC and attack)
+const castClasses = c => isMulti(c) ? [...new Map(classesOf(c).filter(k => CAST_OF[k.cls]).map(k => [CAST_OF[k.cls], k])).values()] : [];
 // when the app doesn't have something, it says so and where to look it up, rather than leaving a gap or guessing
 const lookup = (what, todo) => `<p class="lookup"><b>ⓘ The app doesn't have ${what}.</b> ${todo}</p>`;
 const bookFor = c => c.rules === "2014" ? "the 2014 Player's Handbook" : "the 2024 Player's Handbook, or the free SRD 5.2 at dndbeyond.com/srd";
 const slotLine = s => Object.keys(s || {}).filter(k => s[k]).map(k => `${ord(+k)} ${s[k]}`).join(" · ") || "none";
 let LV = null; // the level-up being worked out
+// which class this level goes to: one they have (LV.pick, its place in the list) or a new one (LV.pick "new")
+function luTarget(c) {
+  const ed = edOf(c), find = n => rClass(n, ed) || (c.mixed ? rClass(n, otherEd(ed)) : null);
+  if (LV.pick === "new") { const name = LV.newCls === OTHER ? "" : LV.newCls || "", R = name ? find(name) : null;
+    return { k: { cls: name, sub: "", level: 0, die: R ? R.hd : +LV.newDie || 8 }, K: 1, isNew: true, R }; }
+  const k = classesOf(c)[+LV.pick || 0] || classesOf(c)[0]; return { k, K: (+k.level || 0) + 1, isNew: false, R: find(k.cls) };
+}
+const luList = (c, T) => { const list = classesOf(c).map(k => ({ ...k })); if (T.isNew) list.push({ cls: T.k.cls, sub: "", level: 1, die: T.k.die }); else list[+LV.pick || 0].level = T.K; return list; };
+// spell slots before and after: one class as before (its own table, or a warlock's pact slots); more by slotsFor
+function luSlots(c, list) { if (list.length === 1) return { slots: slotsAt({ ...c, cls: list[0].cls }, list[0].level), pact: null, single: true }; return slotsFor(c, list); }
 function startLevelUp(c) {
   if ((+c.level || 1) >= 20) return toast("Already 20th level.");
-  LV = { hp: null, how: "", asi: "two", a: "", b: "", feat: "", featText: "", subcls: "", feats: [], res: {}, atk: {}, newRes: [] };
-  // a 2024 character of an SRD class: the new level's features and uses come from the class table, filled in to check
-  const R = rulesFor(c), N = (+c.level || 1) + 1;
-  if (R) {
-    const sub = rSubFor(c, c.subcls), onSheet = new Set(c.traits.map(t => t.name));
-    const gets = [...R.features.filter(f => f.lv.includes(N) && !SKIP_FEATURE.test(f.name)), ...(sub ? sub.features.filter(f => f.lv.includes(N)) : [])];
-    LV.kept = [...new Set(gets.filter(f => onSheet.has(f.name)).map(f => f.name))];
-    LV.feats = gets.filter(f => !onSheet.has(f.name)).map(f => ({ name: f.name, text: f.desc, uses: false, max: 1, rest: "long", srd: true }));
-    for (const col of USE_COLS) { const v = parseInt((R.table[col] || {})[N]); if (!v) continue; const r = c.res.find(x => x.name === useName(col)); if (r) { if (v !== +r.max) LV.res[r.id] = v; } else LV.newRes.push({ name: useName(col), max: v, rest: restOf(R, col) }); }
-  }
-  openOv(levelUpHtml(c), "levelup");
+  LV = { pick: 0, newCls: "", newClsT: "", newDie: "8", allow: false, mcSkill: "", mcProfs: "", hp: null, how: "", asi: "two", a: "", b: "", feat: "", featText: "", subcls: "", feats: [], res: {}, atk: {}, newRes: [], kept: [] };
+  luPrefill(c); openOv(levelUpHtml(c), "levelup");
+}
+// an SRD class: the new class level's features and uses, from its table, filled in to check (again when the class changes)
+function luPrefill(c) {
+  LV.feats = []; LV.res = {}; LV.newRes = []; LV.kept = [];
+  const T = luTarget(c), R = T.R; if (!R) return;
+  const sub = T.k.sub ? rSubFor(c, T.k.sub) : null, onSheet = new Set(c.traits.map(t => t.name));
+  const gets = [...R.features.filter(f => f.lv.includes(T.K) && !SKIP_FEATURE.test(f.name)), ...(sub ? sub.features.filter(f => f.lv.includes(T.K)) : [])];
+  LV.kept = [...new Set(gets.filter(f => onSheet.has(f.name)).map(f => f.name))];
+  LV.feats = gets.filter(f => !onSheet.has(f.name)).map(f => ({ name: f.name, text: f.desc, uses: false, max: 1, rest: "long", srd: true }));
+  for (const col of USE_COLS) { const v = parseInt((R.table[col] || {})[T.K]); if (!v) continue; const r = c.res.find(x => x.name === useName(col)); if (r) { if (v !== +r.max) LV.res[r.id] = v; } else LV.newRes.push({ name: useName(col), max: v, rest: restOf(R, col) }); }
 }
 function levelUpHtml(c) {
-  const L = +c.level || 1, N = L + 1, die = c.hd.die, con = mod(c, "con"), avg = die / 2 + 1, extra = +c.hpPerLevel || 0;
+  const L = +c.level || 1, N = L + 1, T = luTarget(c), cls = T.k.cls, K = T.K, die = T.k.die, avg = die / 2 + 1, extra = +c.hpPerLevel || 0;
+  const list0 = classesOf(c), list1 = luList(c, T), S0 = luSlots(c, list0), S1 = luSlots(c, list1), sOld = S0.slots, sNew = S1.slots;
   const pOld = prof(c), pNew = +c.profBonus ? pOld : 2 + Math.floor((N - 1) / 4);
-  const sOld = slotsAt(c, L), sNew = slotsAt(c, N);
   const newTop = sNew && Math.max(0, ...Object.keys(sNew).map(Number)) > Math.max(0, ...Object.keys(sOld || {}).map(Number)) ? Math.max(...Object.keys(sNew).map(Number)) : 0;
-  const auto = [`Hit dice: ${N}d${die}`, pNew !== pOld ? `Proficiency bonus ${sg(pOld)} → ${sg(pNew)}` : "",
-    sNew ? `${c.pact || c.cls === "Warlock" ? "Pact slots" : "Spell slots"}: ${slotLine(sNew)}${slotLine(sNew) !== slotLine(sOld) ? ` (was ${slotLine(sOld)})` : ""}` : "",
+  const pools = hdPools(c).map(p => ({ die: +p.die, max: +p.max })); { const p = pools.find(q => q.die === +die); if (p) p.max++; else pools.push({ die: +die, max: 1 }); }
+  const slotsSay = S1.single ? (sNew ? `${c.pact || cls === "Warlock" ? "Pact slots" : "Spell slots"}: ${slotLine(sNew)}${slotLine(sNew) !== slotLine(sOld) ? ` (was ${slotLine(sOld)})` : ""}` : "")
+    : [sNew ? `Spell slots: ${slotLine(sNew)}${slotLine(sNew) !== slotLine(sOld) ? ` (was ${slotLine(sOld)})` : ""}` : "", S1.pact ? `Pact slots: ${S1.pact.n} of ${ord(S1.pact.lvl)} level` : ""].filter(Boolean).join("; ");
+  const auto = [`Hit dice: ${pools.map(p => `${p.max}d${p.die}`).join(" + ")}`, pNew !== pOld ? `Proficiency bonus ${sg(pOld)} → ${sg(pNew)}` : "", slotsSay,
     [5, 11, 17].includes(N) && c.spells.some(s => s.lvl === 0 && s.roll && s.roll.cantrip) ? "Cantrip damage goes up a die" : "",
     c.res.filter(r => r.byLevel).map(r => `${r.name}: ${N}`).join(", ")].filter(Boolean);
   const abSel = (k, cur) => `<select data-lu="${k}" style="width:auto">${`<option value="">—</option>` + ABS.map(([a, n]) => `<option value="${a}" ${cur === a ? "selected" : ""} ${(+c.ab[a] || 0) >= 20 ? "disabled" : ""}>${n} (${c.ab[a]})</option>`).join("")}</select>`;
-  const isCaster = c.spells.length || sNew; const prep = c.rules === "2014" && PREPARE_2014[c.cls]; const R = rulesFor(c);
-  const col = k => R ? parseInt((R.table[k] || {})[N]) || 0 : 0, was = k => R ? parseInt((R.table[k] || {})[L]) || 0 : 0;
-  let h = `<div class="rr-h">Level up <small>${esc(c.cls)} ${L} → ${N}${c.rules ? ` · ${esc(c.rules)} rules${c.mixed ? `, mixing in ${otherEd(c.rules)}` : ""}` : ""}</small></div>
-    <p class="note"><b>By itself:</b> ${esc(auto.join("; "))}.</p>
+  const isCaster = c.spells.length || sNew || S1.pact; const prep = c.rules === "2014" && PREPARE_2014[cls]; const R = T.R;
+  const col = k => R ? parseInt((R.table[k] || {})[K]) || 0 : 0, was = k => R ? parseInt((R.table[k] || {})[K - 1]) || 0 : 0;
+  const where = isMulti(c) || T.isNew ? ` (${esc(cls || "the new class")} ${K})` : "", cw = isMulti(c) || T.isNew ? cls + " " : "";
+  let h = `<div class="rr-h">Level up <small>${esc(clsLine(c))} → level ${N}${c.rules ? ` · ${esc(c.rules)} rules${c.mixed ? `, mixing in ${otherEd(c.rules)}` : ""}` : ""}</small></div>`;
+  // which class takes the level (Joseph, 2026-11-02: multiclassing)
+  const ed = edOf(c), offer = [...new Set([...(HAS_RULES ? ED(ed).classes.map(k => k.name) : CLASSES), ...(c.mixed && HAS_RULES ? ED(otherEd(ed)).classes.map(k => k.name) : [])])].filter(n => !list0.some(k => k.cls === n));
+  h += `<h3>Which class</h3><div class="seg" style="margin-bottom:8px;flex-wrap:wrap">${list0.map((k, i) => `<button class="${String(LV.pick) === String(i) ? "on" : ""}" data-act="lupick" data-v="${i}">${esc(k.cls || "Class")} ${k.level} → ${k.level + 1}</button>`).join("")}<button class="${LV.pick === "new" ? "on" : ""}" data-act="lupick" data-v="new">A new class…</button></div>`;
+  if (T.isNew) {
+    h += `<div class="row"><label class="fld"><span>The new class</span><select data-lu="newCls"><option value="">Choose…</option>${offer.map(n => `<option ${LV.newCls === n ? "selected" : ""}>${esc(n)}</option>`).join("")}${LV.newCls && !offer.includes(LV.newCls) ? `<option selected>${esc(LV.newCls)}</option>` : ""}<option value="__other">Other (type it)</option></select></label>
+      ${cls && !T.R ? `<label class="fld n"><span>Hit die</span><select data-lu="newDie">${[6, 8, 10, 12].map(d => `<option value="${d}" ${+LV.newDie === d ? "selected" : ""}>d${d}</option>`).join("")}</select></label>` : ""}</div>`;
+    if (cls) {
+      // the requirements: 13 in the new class's ability, and in every class they already have
+      const checks = [...list0.map(k => k.cls), cls].map(n => ({ n, g: mcNeed(n, ed) })), unknown = checks.filter(x => !x.g).map(x => x.n), short = checks.filter(x => x.g && !needMet(c, x.g));
+      h += `<p class="note">To multiclass, a character needs ${esc(listAnd(checks.filter(x => x.g).map(x => `${needText(x.g)} for ${x.n}`)))}${c.rules === "2014" ? " (the SRD 5.1's rule)" : " (each class's primary ability)"}.</p>`;
+      if (unknown.length) h += lookup(`what ${listAnd(unknown)} needs`, `Look it up in ${bookFor(c)}'s multiclassing rules.`);
+      if (short.length) h += `<p class="warn">Not met: ${esc(listAnd(short.map(x => `${x.n} needs ${needText(x.g)}`)))}.</p><label class="check"><input type="checkbox" data-lu="allow" ${LV.allow ? "checked" : ""}> My DM allows it anyway</label>`;
+      // what the new class gives a multiclass character
+      if (c.rules === "2014" && cls in MC_PROFS_2014) {
+        const gives = MC_PROFS_2014[cls], sk = MC_SKILL_2014[cls], from = sk === "list" && T.R ? T.R.skills.from : SKILLS.map(s => s[0]);
+        h += `<p class="note">Multiclassing into ${esc(cls)} gives ${esc(gives ? gives.charAt(0).toLowerCase() + gives.slice(1) : "no new proficiencies")}.</p>`
+          + (sk ? `<label class="fld"><span>The skill it gives</span><select data-lu="mcSkill"><option value="">—</option>${from.filter(k => !skillLv(c, k)).map(k => `<option value="${k}" ${LV.mcSkill === k ? "selected" : ""}>${SKILL[k].name}</option>`).join("")}</select></label>` : "");
+      } else h += lookup(`what a multiclass ${esc(cls)} gains`, `A class taken up second gives only some of its proficiencies. Look up the multiclassing rules in ${bookFor(c)}, and write what it gives here.`)
+        + `<label class="fld"><span>Proficiencies it gives</span><input data-lu="mcProfs" value="${esc(LV.mcProfs)}" placeholder="Light armor, simple weapons"></label>`;
+    }
+  }
+  h += `<p class="note"><b>By itself:</b> ${esc(auto.join("; "))}.</p>
     <h3>Hit points</h3>
     <div class="row" style="margin-bottom:8px"><button class="btn" data-act="luroll">Roll the d${die}</button><button class="btn" data-act="luavg">Take the average (${avg})</button>
       <label class="fld n" style="margin:0"><span>Or the die</span><input type="number" inputmode="numeric" min="1" max="${die}" data-lu="hp" value="${LV.hp ?? ""}"></label></div>
     <div id="luHp">${luHpHtml(c)}</div>
     <label class="fld" style="max-width:300px"><span>Extra each level (Tough, a hill dwarf…)</span><input type="number" inputmode="numeric" data-lu="extra" value="${extra || ""}"></label>`;
-  if (asiAt(c, N)) h += `<h3>Ability Score Improvement${N === 19 && c.rules !== "2014" ? " (2024: or an Epic Boon)" : ""}</h3>${N === 19 && c.rules !== "2014" ? lookup("the Epic Boon feats", "Look them up in the 2024 Player's Handbook, then choose A feat instead and type yours.") : ""}
+  if (cls && asiAt({ cls }, K)) h += `<h3>Ability Score Improvement${where}${K === 19 && c.rules !== "2014" ? " (2024: or an Epic Boon)" : ""}</h3>${K === 19 && c.rules !== "2014" ? lookup("the Epic Boon feats", "Look them up in the 2024 Player's Handbook, then choose A feat instead and type yours.") : ""}
     <div class="seg" style="margin-bottom:8px">${[["two", "+1 to two"], ["one", "+2 to one"], ["feat", "A feat instead"]].map(([k, l]) => `<button class="${LV.asi === k ? "on" : ""}" data-act="luasi" data-k="${k}">${l}</button>`).join("")}</div>
-    ${LV.asi === "feat" ? `<div class="row">${`<label class="fld"><span>Feat</span><input data-lu="feat" list="rfeats" value="${esc(LV.feat)}"></label>`}</div>${HAS_RULES ? `<datalist id="rfeats">${featsFor(c).filter(f => f.type === "General" || (N >= 19 && f.type === "Epic Boon")).map(f => `<option value="${esc(f.name)}">`).join("")}</datalist><p class="note">The SRD's feats are in the list; pick one and its text fills in. Others: type its name and copy its text from ${bookFor(c)}.</p>` : ""}<label class="fld"><span>What it does</span><textarea data-lu="featText" rows="3">${esc(LV.featText)}</textarea></label><p class="note">If the feat raises a score, change it with Edit (top right) after.</p>`
+    ${LV.asi === "feat" ? `<div class="row">${`<label class="fld"><span>Feat</span><input data-lu="feat" list="rfeats" value="${esc(LV.feat)}"></label>`}</div>${HAS_RULES ? `<datalist id="rfeats">${featsFor(c).filter(f => f.type === "General" || (K >= 19 && f.type === "Epic Boon")).map(f => `<option value="${esc(f.name)}">`).join("")}</datalist><p class="note">The SRD's feats are in the list; pick one and its text fills in. Others: type its name and copy its text from ${bookFor(c)}.</p>` : ""}<label class="fld"><span>What it does</span><textarea data-lu="featText" rows="3">${esc(LV.featText)}</textarea></label><p class="note">If the feat raises a score, change it with Edit (top right) after.</p>`
       : `<div class="row" style="margin-bottom:10px;align-items:center">${abSel("a", LV.a)}${LV.asi === "two" ? abSel("b", LV.b) : ""}<span class="note" style="margin:0">Scores can't go over 20.</span></div>`}`;
-  if (N === subclassAt(c) && !c.subcls) h += `<h3>Subclass</h3>${lookup(`every ${esc(c.cls)} subclass`, `It lists ${subOffers(c).length ? `the SRD's ${subOffers(c).length > 1 ? "two" : "one"} (${esc(listAnd(subOffers(c)))})` : "none for this class"}. For the others, look in ${bookFor(c)}${c.rules === "2014" ? "" : " (the SRD has only that one)"}, then pick Other… and type it.`)}<div class="row">${`<label class="fld"><span>Your ${esc(c.cls)} subclass</span><select data-lu="subcls"><option value="">—</option>${subOffers(c).map(s => `<option ${LV.subcls === s ? "selected" : ""}>${esc(s)}</option>`).join("")}<option value="__other">Other…</option>${LV.subcls && !subOffers(c).includes(LV.subcls) ? `<option selected>${esc(LV.subcls)}</option>` : ""}</select></label>`}</div>`;
+  if (cls && K === subclassAt({ rules: c.rules, cls }) && !T.k.sub) { const so = subOffers(c, cls);
+    h += `<h3>Subclass${where}</h3>${lookup(`every ${esc(cls)} subclass`, `It lists ${so.length ? `the SRD's ${so.length > 1 ? "two" : "one"} (${esc(listAnd(so))})` : "none for this class"}. For the others, look in ${bookFor(c)}${c.rules === "2014" ? "" : " (the SRD has only that one)"}, then pick Other… and type it.`)}<div class="row">${`<label class="fld"><span>Your ${esc(cls)} subclass</span><select data-lu="subcls"><option value="">—</option>${so.map(s => `<option ${LV.subcls === s ? "selected" : ""}>${esc(s)}</option>`).join("")}<option value="__other">Other…</option>${LV.subcls && !so.includes(LV.subcls) ? `<option selected>${esc(LV.subcls)}</option>` : ""}</select></label>`}</div>`; }
   if (isCaster) {
     const lines = [newTop ? `You can now cast ${ord(newTop)}-level spells.` : "",
-      R ? (col("Cantrips") > was("Cantrips") ? `You learn ${col("Cantrips") - was("Cantrips") === 1 ? "one more cantrip" : `${col("Cantrips") - was("Cantrips")} more cantrips`} (${col("Cantrips")} in all).` : "")
-        : CANTRIP_CLASSES.includes(c.cls) && [4, 10].includes(N) ? "You learn one more cantrip." : "",
-      R && col("Spells Known") > was("Spells Known") ? `You know ${col("Spells Known")} spells now (was ${was("Spells Known")}), from the ${c.cls} table.` : "",
-      R && col("Prepared Spells") ? `You can prepare ${col("Prepared Spells")} spells now${col("Prepared Spells") !== was("Prepared Spells") ? ` (was ${was("Prepared Spells")})` : ""}, from the ${c.cls} table.` : "",
-      prep ? `You can prepare ${Math.max(1, mod(c, PREPARE_2014[c.cls]) + N)} spells now (${AB_SHORT[PREPARE_2014[c.cls]]} ${sg(mod(c, PREPARE_2014[c.cls]))} + level ${N}), one more than before, not counting domain or always-prepared spells.`
-        : ""].filter(Boolean);
+      R ? (col("Cantrips") > was("Cantrips") ? `You learn ${col("Cantrips") - was("Cantrips") === 1 ? `one more ${cw}cantrip` : `${col("Cantrips") - was("Cantrips")} more ${cw}cantrips`} (${col("Cantrips")} in all).` : "")
+        : CANTRIP_CLASSES.includes(cls) && [4, 10].includes(K) ? `You learn one more ${cw}cantrip.` : "",
+      R && col("Spells Known") > was("Spells Known") ? `You know ${col("Spells Known")} ${cw}spells now (was ${was("Spells Known")}), from the ${cls} table.` : "",
+      R && col("Prepared Spells") ? `You can prepare ${col("Prepared Spells")} ${cw}spells now${col("Prepared Spells") !== was("Prepared Spells") ? ` (was ${was("Prepared Spells")})` : ""}, from the ${cls} table.` : "",
+      prep ? `You can prepare ${Math.max(1, mod(c, PREPARE_2014[cls]) + K)} ${cw}spells now (${AB_SHORT[PREPARE_2014[cls]]} ${sg(mod(c, PREPARE_2014[cls]))} + ${cw ? cls + " level" : "level"} ${K}), one more than before, not counting domain or always-prepared spells.` : "",
+      isMulti({ classes: list1 }) && (FULL_CASTERS.includes(cls) || HALF_CASTERS.includes(cls)) && list1.filter(k => FULL_CASTERS.includes(k.cls) || HALF_CASTERS.includes(k.cls)).length > 1 ? `Spells you learn or prepare follow the ${cls} level (${K}); the slots follow all your spellcasting classes together.` : ""].filter(Boolean);
     h += `<h3>Spells</h3>${lines.length ? `<p class="note">${esc(lines.join(" "))}</p>` : ""}
-      ${prep || R ? "" : lookup(`how many spells a ${esc(c.cls)} knows or prepares at level ${N}`, `Look at the ${esc(c.cls)} table in ${bookFor(c)}. Many classes can also swap one spell when they level up.`)}
-      ${sNew ? "" : lookup(`spell slots for a ${esc(c.cls)}${c.subcls ? ` (${esc(c.subcls)})` : ""}`, `Look them up in ${bookFor(c)}, then set them with Edit (top right) → Spell slots on the Play tab.`)}
+      ${prep || R ? "" : lookup(`how many spells a ${esc(cls || "this class")} knows or prepares at level ${K}`, `Look at the ${esc(cls || "class")} table in ${bookFor(c)}. Many classes can also swap one spell when they level up.`)}
+      ${sNew || S1.pact ? "" : lookup(`spell slots for a ${esc(cls || "this class")}${T.k.sub ? ` (${esc(T.k.sub)})` : ""}`, `Look them up in ${bookFor(c)}, then set them with Edit (top right) → Spell slots on the Play tab.`)}
       <p class="note">After you level up, the spell list opens so you can add them.</p>`;
   }
-  h += `<h3>Your ${esc(c.cls)}'s new features</h3>${R ? `<p class="note">From the ${srdOf(edOf(c))}${c.mixed && rSubFor(c, c.subcls) && !rSub(c.subcls, edOf(c)) ? ` (the subclass from the ${srdOf(otherEd(edOf(c)))})` : ""}: level ${N} gives a ${esc(c.cls)}${rSubFor(c, c.subcls) ? ` and ${esc(c.subcls)}` : ""} ${LV.feats.filter(f => f.srd).length ? esc(listAnd(LV.feats.filter(f => f.srd).map(f => f.name))) : "no new features"}${LV.kept && LV.kept.length ? ` (${esc(listAnd(LV.kept))} already on the sheet: check below whether its uses grew)` : ""}. They're filled in below to check; a subclass chosen now adds its own when you level up.</p>${c.subcls && !rSubFor(c, c.subcls) ? lookup(`${esc(c.subcls)}'s features`, `It isn't in the SRD: look up what level ${N} gives it in ${bookFor(c)}, and add it here.`) : ""}`
-    : lookup("the class tables", `Look up what level ${N} gives a ${esc(c.cls)}${c.subcls ? ` and ${esc(c.subcls)}` : ""} in ${bookFor(c)}, and add each one here.`)}
+  const subR = T.k.sub ? rSubFor(c, T.k.sub) : null;
+  h += `<h3>Your ${esc(cls || "new class")}'s new features${where}</h3>${R ? `<p class="note">From the ${srdOf(edOf(c))}${c.mixed && subR && !rSub(T.k.sub, edOf(c)) ? ` (the subclass from the ${srdOf(otherEd(edOf(c)))})` : ""}: ${esc(cls)} level ${K}${subR ? ` and ${esc(T.k.sub)} give` : " gives"} ${LV.feats.filter(f => f.srd).length ? esc(listAnd(LV.feats.filter(f => f.srd).map(f => f.name))) : "no new features"}${LV.kept && LV.kept.length ? ` (${esc(listAnd(LV.kept))} already on the sheet: check below whether its uses grew)` : ""}. They're filled in below to check; a subclass chosen now adds its own when you level up.</p>${T.k.sub && !subR ? lookup(`${esc(T.k.sub)}'s features`, `It isn't in the SRD: look up what ${esc(cls)} level ${K} gives it in ${bookFor(c)}, and add it here.`) : ""}`
+    : lookup("the class tables", `Look up what ${esc(cls || "the class")} level ${K} gives${T.k.sub ? ` it and ${esc(T.k.sub)}` : ""} in ${bookFor(c)}, and add each one here.`)}
     ${LV.newRes.length ? `<p class="note">New to track: ${esc(listAnd(LV.newRes.map(r => `${r.name} (${r.max})`)))}.</p>` : ""}
     ${LV.feats.map((f, i) => `<div class="panel" style="background:var(--paper-lit)"><label class="fld"><span>Feature</span><input data-lu="feats.${i}.name" value="${esc(f.name)}"></label><label class="fld"><span>What it does</span><textarea data-lu="feats.${i}.text" rows="2">${esc(f.text)}</textarea></label>
       <div class="row" style="margin-bottom:8px;align-items:center"><label class="check" style="margin:0"><input type="checkbox" data-lu="feats.${i}.uses" ${f.uses ? "checked" : ""}> It has uses</label>${f.uses ? `<input type="number" inputmode="numeric" data-lu="feats.${i}.max" value="${f.max || 1}" style="width:70px"><select data-lu="feats.${i}.rest" style="width:auto">${[["long", "back on a long rest"], ["short", "short or long rest"], ["one", "one per short rest"]].map(([k, l]) => `<option value="${k}" ${f.rest === k ? "selected" : ""}>${l}</option>`).join("")}</select>` : ""}</div></div>`).join("")}
@@ -1342,8 +1442,7 @@ function levelUpHtml(c) {
   if (grow.length) h += `<p class="note" style="margin-top:6px">Did any of these grow?</p>${grow.map(r => { const v = LV.res[r.id] ?? r.max; return `<div class="res"><span class="nm">${esc(r.name)}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="-1">−</button><span class="big">${v}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="1">+</button></div>`; }).join("")}`;
   const written = c.attacks.filter(a => asWritten(a));
   if (written.length) h += `<p class="note" style="margin-top:10px">Attacks written as on the sheet don't follow the level: change any that do (Sneak Attack, a proficiency bonus).</p>${written.map(a => `<div class="row"><span class="grow" style="align-self:center">${esc(a.name)}</span>${a.save ? "" : `<label class="fld n"><span>To hit</span><input type="number" data-lu="atk.${a.id}.hit" value="${esc(LV.atk[a.id]?.hit ?? a.hit ?? "")}"></label>`}<label class="fld n" style="flex:0 0 110px"><span>Damage</span><input data-lu="atk.${a.id}.dmgx" value="${esc(LV.atk[a.id]?.dmgx ?? a.dmgx ?? "")}"></label></div>`).join("")}`;
-  h += `<div style="height:8px"></div>${lookup("multiclassing", `This levels up your ${esc(c.cls)}. If this level goes to another class, look up the multiclassing rules in ${c.rules === "2014" ? "the 2014 Player's Handbook" : "the 2024 Player's Handbook"} and set the sheet by hand with Edit (top right).`)}
-    <div id="luGo">${luGoHtml(c)}</div><button class="btn wide" data-act="ovclose">Not now</button>`;
+  h += `<div style="height:8px"></div><div id="luGo">${luGoHtml(c)}</div><button class="btn wide" data-act="ovclose">Not now</button>`;
   return h;
 }
 // redraw the panel where it is (a choice that changes what's asked)
@@ -1355,35 +1454,54 @@ function luHpHtml(c) {
     : `<p class="note">Roll it, take the average, or type the die you rolled; Con (${sg(con)}) is added.</p>`;
 }
 function luGoHtml(c) {
-  const N = (+c.level || 1) + 1, g = luGain(c);
-  const ready = g != null && (!asiAt(c, N) || (LV.asi === "feat" ? LV.feat.trim() : LV.asi === "one" ? LV.a : LV.a && LV.b && LV.a !== LV.b));
-  return `<button class="btn wide main" data-act="luapply" ${ready ? "" : "disabled"}>Reach level ${N}</button>
-    ${ready ? "" : `<p class="note" style="text-align:center">${g == null ? "Hit points first." : "Pick the ability score increase."}</p>`}`;
+  const N = (+c.level || 1) + 1, g = luGain(c), T = luTarget(c);
+  const short = T.isNew && T.k.cls ? [...classesOf(c).map(k => k.cls), T.k.cls].some(n => { const gr = mcNeed(n, edOf(c)); return gr && !needMet(c, gr); }) : false;
+  const asiOk = !T.k.cls || !asiAt({ cls: T.k.cls }, T.K) || (LV.asi === "feat" ? LV.feat.trim() : LV.asi === "one" ? LV.a : LV.a && LV.b && LV.a !== LV.b);
+  const why = T.isNew && !T.k.cls ? "Choose the new class." : short && !LV.allow ? "The requirements aren't met (or tick that your DM allows it)." : g == null ? "Hit points first." : !asiOk ? "Pick the ability score increase." : "";
+  return `<button class="btn wide main" data-act="luapply" ${why ? "disabled" : ""}>Reach level ${N}${isMulti(c) || T.isNew ? ` (${esc(T.k.cls)} ${T.K})` : ""}</button>
+    ${why ? `<p class="note" style="text-align:center">${why}</p>` : ""}`;
 }
 function applyLevelUp(c) {
-  const L = +c.level || 1, N = L + 1, gain = luGain(c);
-  const did = [`hit points +${gain}`];
-  c.level = N; c.hpMax = (+c.hpMax || 0) + gain; c.hp = (+c.hp || 0) + gain; c.hd.max = N;
-  const s = slotsAt(c, N);
-  if (s) { const old = c.slots; c.slots = {}; for (const k of Object.keys(s)) c.slots[k] = { max: s[k], used: Math.min((old[k] || {}).used || 0, s[k]) }; did.push(`slots ${slotLine(s)}`); }
-  if ((c.pact || c.cls === "Warlock") && { 11: 6, 13: 7, 15: 8, 17: 9 }[N]) { const lv = { 11: 6, 13: 7, 15: 8, 17: 9 }[N]; c.res.push({ id: uid("rs"), name: `Mystic Arcanum (${ord(lv)} level)`, max: 1, used: 0, rest: "long" }); did.push(`Mystic Arcanum (${ord(lv)})`); }
+  const L = +c.level || 1, N = L + 1, gain = luGain(c), T = luTarget(c), cls = T.k.cls, K = T.K, list = luList(c, T), wasPact = c.pact;
+  const did = [`hit points +${gain}`]; if (T.isNew) did.unshift(`a new class: ${cls}`);
+  c.hpMax = (+c.hpMax || 0) + gain; c.hp = (+c.hp || 0) + gain; addHd(c, T.k.die);
+  // spell slots: one class as before; with more, regular slots on the shared table and a warlock's pact slots apart
+  const S = luSlots(c, list), keep = (old, s) => Object.fromEntries(Object.keys(s).map(k => [k, { max: s[k], used: Math.min(((old || {})[k] || {}).used || 0, s[k]) }]));
+  if (S.single) { if (S.slots) { c.slots = keep(c.slots, S.slots); did.push(`slots ${slotLine(S.slots)}`); } }
+  else {
+    const regular = S.slots && Object.keys(S.slots).length;
+    if (regular) { c.slots = keep(wasPact ? {} : c.slots, S.slots); did.push(`slots ${slotLine(S.slots)}`); }
+    if (S.pact && regular) { c.pact = false; const old = c.pactSlots || {}; c.pactSlots = { lvl: S.pact.lvl, max: S.pact.n, used: Math.min(+old.used || 0, S.pact.n) }; did.push(`pact slots ${S.pact.n} of ${ord(S.pact.lvl)} level`); }
+    else if (S.pact) { c.pact = true; c.slots = keep(c.slots, { [S.pact.lvl]: S.pact.n }); delete c.pactSlots; did.push(`pact slots ${S.pact.n} of ${ord(S.pact.lvl)} level`); }
+  }
+  if (cls === "Warlock" && { 11: 6, 13: 7, 15: 8, 17: 9 }[K]) { const lv = { 11: 6, 13: 7, 15: 8, 17: 9 }[K]; c.res.push({ id: uid("rs"), name: `Mystic Arcanum (${ord(lv)} level)`, max: 1, used: 0, rest: "long" }); did.push(`Mystic Arcanum (${ord(lv)})`); }
   c.res.forEach(r => { if (r.byLevel) r.max = N; else if (LV.res[r.id] != null) r.max = LV.res[r.id]; });
-  if (asiAt(c, N)) {
+  if (cls && asiAt({ cls }, K)) {
     if (LV.asi === "feat") { c.traits.push({ name: LV.feat.trim(), text: LV.featText.trim(), src: `Feat, level ${N}` }); did.push(`feat: ${LV.feat.trim()}`); }
     else { const add = LV.asi === "one" ? [[LV.a, 2]] : [[LV.a, 1], [LV.b, 1]]; for (const [k, v] of add) c.ab[k] = Math.min(20, (+c.ab[k] || 10) + v); did.push(add.map(([k, v]) => `${AB_SHORT[k]} +${v}`).join(", ")); }
   }
-  if (LV.subcls) { c.subcls = LV.subcls; did.push(LV.subcls); const sub = rSubFor(c, LV.subcls); if (sub && rulesFor(c)) for (const f of sub.features.filter(f => f.lv.includes(N))) if (!LV.feats.some(x => x.name === f.name)) LV.feats.push({ name: f.name, text: f.desc, srd: true }); }
+  // multiclassing in: what the new class gives
+  if (T.isNew) {
+    const gives = c.rules === "2014" && cls in MC_PROFS_2014 ? MC_PROFS_2014[cls].replace(/,?\s*one (?:skill|musical)[^,]*/g, "") : String(LV.mcProfs || "").trim();
+    const line = [gives, LV.mcSkill ? SKILL[LV.mcSkill].name : ""].filter(Boolean).join(", ");
+    if (line) { c.story.profs = [String(c.story.profs || "").trim(), `From ${cls} (multiclass): ${line}`].filter(Boolean).join("\n"); did.push(`${cls} proficiencies`); }
+    if (LV.mcSkill) c.skills[LV.mcSkill] = Math.max(1, skillLv(c, LV.mcSkill));
+  }
+  const target = list.find(k => k.cls === cls) || list[list.length - 1];
+  if (LV.subcls) { target.sub = LV.subcls; did.push(LV.subcls); const sub = rSubFor(c, LV.subcls); if (sub && T.R) for (const f of sub.features.filter(f => f.lv.includes(K))) if (!LV.feats.some(x => x.name === f.name)) LV.feats.push({ name: f.name, text: f.desc, srd: true }); }
+  setClasses(c, list);
   for (const r of LV.newRes) { c.res.push({ id: uid("rs"), name: r.name, max: r.max, used: 0, rest: r.rest }); did.push(`${r.name} ${r.max}`); }
   for (const f of LV.feats.filter(f => f.name && f.name.trim())) {
-    c.traits.push({ name: f.name.trim(), text: (f.text || "").trim(), src: `${c.cls} ${N}` }); did.push(f.name.trim());
+    c.traits.push({ name: f.name.trim(), text: (f.text || "").trim(), src: `${cls} ${K}` }); did.push(f.name.trim());
     if (f.uses) c.res.push({ id: uid("rs"), name: f.name.trim(), max: +f.max || 1, used: 0, rest: f.rest || "long" });
   }
   for (const [id, v] of Object.entries(LV.atk)) { const a = c.attacks.find(x => x.id === id); if (!a) continue; if (v.hit !== undefined && v.hit !== "") a.hit = +v.hit; if (v.dmgx) a.dmgx = v.dmgx; }
-  logIt(c, `Reached level ${N}: ${did.join("; ")}`);
-  c.sessions.push({ id: uid("ss"), date: today(), title: `Level ${N}`, text: `${c.short || c.name} reached level ${N}.\n\n${did.map(d => "- " + d).join("\n")}` });
-  const caster = c.spells.length || s; LV = null; save(); closeOv();
+  const at = isMulti(c) ? ` (${cls} ${K})` : "";
+  logIt(c, `Reached level ${N}${at}: ${did.join("; ")}`);
+  c.sessions.push({ id: uid("ss"), date: today(), title: `Level ${N}${at}`, text: `${c.short || c.name} reached level ${N}${at}.\n\n${did.map(d => "- " + d).join("\n")}` });
+  const caster = CAST_OF[cls] && (c.spells.length || S.slots || S.pact); LV = null; save(); closeOv();
   toast(`Level ${N}!`, 3000);
-  if (caster) { ui.tab = "spells"; render(); ui_pk.q = ""; ui_pk.lv = ""; ui_pk.note = `Level ${N}: add your new spells.`; openOv(pickerHtml("spell"), "pick:spell"); }
+  if (caster) { ui.tab = "spells"; render(); ui_pk.q = ""; ui_pk.lv = ""; ui_pk.for = isMulti(c) ? cls : ""; ui_pk.note = `Level ${N}${at}: add your new ${isMulti(c) ? cls + " " : ""}spells.`; openOv(pickerHtml("spell"), "pick:spell"); }
 }
 
 /* ══ Build a character from the SRD (rules.js) (Joseph, 2026-11-01: "add the free use player's handbook to the
@@ -1408,7 +1526,7 @@ const rulesFor = c => rClass(c.cls, edOf(c));
 const rSubFor = (c, n) => rSub(n, edOf(c)) || (c.mixed ? rSub(n, otherEd(edOf(c))) : null);
 const rFeatFor = (c, n) => rFeat(n, edOf(c)) || (c.mixed ? rFeat(n, otherEd(edOf(c))) : null);
 const featsFor = c => HAS_RULES ? [...ED(edOf(c)).feats, ...(c.mixed ? ED(otherEd(edOf(c))).feats : [])] : [];
-const subOffers = c => [...new Set([(rSubOf(c.cls, edOf(c)) || {}).name || SUBCLASSES[c.cls], c.mixed ? (rSubOf(c.cls, otherEd(edOf(c))) || {}).name : ""].filter(Boolean))];
+const subOffers = (c, cls = c.cls) => [...new Set([(rSubOf(cls, edOf(c)) || {}).name || SUBCLASSES[cls], c.mixed ? (rSubOf(cls, otherEd(edOf(c))) || {}).name : ""].filter(Boolean))];
 const STD_ARRAY = [15, 14, 13, 12, 10, 8];
 const BUY_COST = { 8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9 };
 const CAST_OF = { Bard: "cha", Cleric: "wis", Druid: "wis", Paladin: "cha", Ranger: "wis", Sorcerer: "cha", Warlock: "cha", Wizard: "int" };
@@ -1864,7 +1982,7 @@ function pcsHtml() {
       <div class="acts" style="margin-bottom:10px">${on ? "" : `<button class="btn small main" data-act="switchpc" data-id="${ch.id}">Play them</button>`}${db.chars.length > 1 ? `<button class="btn small danger" data-act="delpc" data-id="${ch.id}">Delete…</button>` : ""}</div></div>`;
     return `<div class="card tap ${on ? "cur" : ""}" data-act="switchpc" data-id="${ch.id}">
       <span class="nm">${esc(ch.name)}${todoOf(ch).length ? `<span class="tag">not finished</span>` : ""}${on ? `<span class="tag g">playing now</span>` : ""}</span>
-      <span class="sub">${esc([ch.species, `${ch.cls} ${ch.level}`, ch.subcls].filter(Boolean).join(" · "))}</span>
+      <span class="sub">${esc([ch.species, clsLine(ch), isMulti(ch) ? "" : ch.subcls].filter(Boolean).join(" · "))}</span>
       <span class="sub">HP ${ch.hp}/${hpMaxOf(ch)}${ch.temp ? ` +${ch.temp}` : ""} · AC ${acOf(ch)}${left ? ` · ${left} slot${left === 1 ? "" : "s"}` : ""} · ${gpText(purseCp(ch.purse))}${ch.conc ? ` · ◉ ${esc(ch.conc)}` : ""}</span>
       ${ch.player || ch.campaign ? `<span class="sub">${esc([ch.campaign, ch.player ? "played by " + ch.player : ""].filter(Boolean).join(" · "))}</span>` : ""}
       <div class="acts"><button class="btn small ${on ? "" : "main"}" data-act="switchpc" data-id="${ch.id}">${on ? "Play" : "Play them"}</button>
@@ -1916,7 +2034,7 @@ function toSurvey(c) {
   const persona = [["Trait", c.story.traits], ["Ideal", c.story.ideals], ["Bond", c.story.bonds], ["Flaw", c.story.flaws]].filter(([, v]) => (v || "").trim()).map(([k, v]) => `${k}: ${v.replace(/\s*\n\s*-?\s*/g, " ").replace(/^-\s*/, "").trim()}`).join("\n");
   const attacks = c.attacks.map(a => ({ name: a.name, hit: a.save ? `${AB_SHORT[a.save.ab].toUpperCase()} ${a.save.dc}` : rollsToHit(a) ? asc(atkOf(c, a)) : "", dmg: dmgOfAtk(c, a), dtype: a.dtype || "" }))
     .concat(c.spells.filter(s => s.lvl === 0 && s.roll && s.roll.kind !== "heal" && !c.attacks.some(a => a.name.toLowerCase().startsWith(s.name.toLowerCase())))
-      .map(s => ({ name: s.name, hit: s.roll.kind === "save" ? `${AB_SHORT[s.roll.save].toUpperCase()} ${dcOf(c)}` : asc(satkOf(c)), dmg: spellExpr(c, s, 0), dtype: s.roll.type || "" })));
+      .map(s => ({ name: s.name, hit: s.roll.kind === "save" ? `${AB_SHORT[s.roll.save].toUpperCase()} ${dcOf(c, s)}` : asc(satkOf(c, s)), dmg: spellExpr(c, s, 0), dtype: s.roll.type || "" })));
   const slots = Array.from({ length: 10 }, (_, L) => ({ max: +((c.slots[L] || {}).max) || 0, used: +((c.slots[L] || {}).used) || 0 }));
   const saveWord = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
   return {
@@ -1930,7 +2048,7 @@ function toSurvey(c) {
     senses: range ? `Darkvision ${range[1]} ft.` : "", langs: langs ? langs[1].trim() : "", looks: c.story.looks || "", persona,
     notes: [c.story.backstory, c.traits.length ? "Features: " + c.traits.map(t => t.name).join(", ") + "." : ""].filter(Boolean).join("\n\n"),
     purse: { ...c.purse }, death: { s: +c.death.ok || 0, f: +c.death.fail || 0 }, conds: c.conds.slice(), slots, attacks,
-    res: c.res.map(r => ({ name: r.name, max: +r.max || 0, used: +r.used || 0, rest: r.rest })).concat([{ name: `Hit Point Dice (d${c.hd.die})`, max: +c.hd.max || 1, used: +c.hd.used || 0, rest: "long" }]),
+    res: c.res.map(r => ({ name: r.name, max: +r.max || 0, used: +r.used || 0, rest: r.rest })).concat(hdPools(c).map(p => ({ name: `Hit Point Dice (d${p.die})`, max: +p.max || 1, used: +p.used || 0, rest: "long" }))),
     spells: c.spells.map(s => ({ name: s.name, lv: s.lvl, time: s.time || "", range: s.range || "", dur: s.dur || "", conc: !!s.conc, save: s.roll && s.roll.kind === "save" ? saveWord[s.roll.save] : s.save ? saveWord[s.save] : "",
       atk: !!(s.roll && s.roll.kind === "atk"), dmg: s.roll ? s.roll.dice : "", dtype: s.roll && s.roll.type || "", desc: s.text || "" })),
     inv: c.items.filter(i => !i.gone).map(i => ({ name: i.name, qty: +i.qty || 0, attuned: !!i.attuned }))
@@ -2079,7 +2197,7 @@ document.addEventListener("input", e => {
   if (el.dataset && el.dataset.lib && db.lib) { setPath(db.lib, el.dataset.lib, el.value); save(); return; }
   if (el.dataset && el.dataset.tbl && TBL) { const t = tblObj(); if (t) { t[el.dataset.tbl] = el.value; save(); const n = $("#tblNote"); if (n) n.textContent = tableNote(parseTable(t.text)); } return; }
   if (el.dataset && el.dataset.bgf && BGE) { const x = bgObj(); if (x) { x[el.dataset.bgf] = el.value; save(); } return; }
-  if (el.dataset.f && el.type !== "checkbox" && el.tagName !== "SELECT") { setPath(c, el.dataset.f, valOf(el)); save(); }
+  if (el.dataset.f && el.type !== "checkbox" && el.tagName !== "SELECT") { setPath(c, el.dataset.f, valOf(el)); if (el.dataset.f.startsWith("classes.") && c.classes) setClasses(c, c.classes); save(); }
   if (el.dataset.wager) { ui.wager[el.dataset.wager] = el.value; const o = $("#wagerOut"); if (o) o.innerHTML = wagerOutHtml(c); }
   // the level-up: what's typed is kept as it's typed; only the hit-point line and the button change under the fingers
   if (el.dataset.lu && LV && el.type !== "checkbox" && el.tagName !== "SELECT") {
@@ -2116,7 +2234,7 @@ document.addEventListener("change", e => {
   if (el.dataset.lu && LV && (el.tagName === "SELECT" || el.type === "checkbox")) {
     let v = el.type === "checkbox" ? el.checked : el.value;
     if (v === "__other") { v = (prompt("Type it:", "") || "").trim(); }
-    setPath(LV, el.dataset.lu, v); showLevelUp(c); return;
+    setPath(LV, el.dataset.lu, v); if (el.dataset.lu === "newCls") { LV.subcls = ""; LV.mcSkill = ""; LV.allow = false; luPrefill(c); } showLevelUp(c); return;
   }
   // the builder's dropdowns: a new class, background, or species clears what depended on the old one
   if (el.dataset.bld && BLD && el.tagName === "SELECT") {
@@ -2130,6 +2248,7 @@ document.addEventListener("change", e => {
     showBuilder(); return;
   }
   if (el.id === "pkKind") { ui_pk.kind = el.value; $("#pkOut").innerHTML = pickerResults("item"); return; }
+  if (el.id === "pkFor") { ui_pk.for = el.value; $("#ov .box").innerHTML = pickerHtml("spell"); return; }
   if (el.id === "pkCls" || el.id === "pkLv") { ui_pk.cls = $("#pkCls").checked; ui_pk.lv = $("#pkLv").value; $("#pkOut").innerHTML = pickerResults("spell"); return; }
   // a dropdown's Other…: type your own, which then stays in the list for that field
   if (el.tagName === "SELECT" && el.value === "__other") { const was = getPath(c, el.dataset.f) || ""; const v = prompt("Type it:", was); if (v != null && v.trim()) { setPath(c, el.dataset.f, v.trim()); save(); } render(); return; }
@@ -2231,7 +2350,7 @@ document.addEventListener("click", e => {
     case "traiteff": { const t = c.traits[+el.dataset.i]; const p = PRESETS.find(x => x.name === t.effect); if (p) { addEffect(c, p); save(); render(); toast(`${p.name} is on.`); } break; }
     // rolls
     case "init": rollInit(); break;
-    case "satk": rollSpellAttack(null); break;
+    case "satk": rollSpellAttack(el.dataset.cls ? { cls: el.dataset.cls, name: `${el.dataset.cls} spell attack` } : null); break;
     case "chk": rollCheck(el.dataset.ab); break;
     case "sv": rollSave(el.dataset.ab); break;
     case "sk": rollCheck(SKILL[el.dataset.k].ab, el.dataset.k); break;
@@ -2253,21 +2372,26 @@ document.addEventListener("click", e => {
     case "slot": { const s = c.slots[el.dataset.k]; const i = +el.dataset.i; const usedNow = i >= s.max - s.used; s.used = usedNow ? s.max - i - 1 : s.max - i; save(); render(); break; }
     case "res": { const r = c.res.find(x => x.id === el.dataset.id); const i = +el.dataset.i; const usedNow = i >= r.max - r.used; r.used = usedNow ? r.max - i - 1 : r.max - i; save(); render(); break; }
     case "resn": { const r = c.res.find(x => x.id === el.dataset.id); r.used = Math.max(0, Math.min(r.max, r.used + +el.dataset.d)); save(); render(); break; }
-    case "hd": { const i = +el.dataset.i; const usedNow = i >= c.hd.max - c.hd.used; c.hd.used = usedNow ? c.hd.max - i - 1 : c.hd.max - i; save(); render(); break; }
+    case "hd": { const p = hdPools(c)[+el.dataset.p || 0], i = +el.dataset.i; const usedNow = i >= p.max - p.used; p.used = usedNow ? p.max - i - 1 : p.max - i; save(); render(); break; }
+    case "pslot": { const p = c.pactSlots, i = +el.dataset.i; if (!p) break; const usedNow = i >= p.max - p.used; p.used = usedNow ? p.max - i - 1 : p.max - i; save(); render(); break; }
+    case "lupick": LV.pick = el.dataset.v === "new" ? "new" : +el.dataset.v; LV.subcls = ""; LV.mcSkill = ""; LV.allow = false; luPrefill(c); showLevelUp(c); break;
+    case "clsadd": { const list = classesOf(c).map(k => ({ ...k })); list.push({ cls: "", sub: "", level: 1, die: 8 }); setClasses(c, list); save(); render(); break; }
+    case "clsdel": { const list = classesOf(c).filter((k, j) => j !== +el.dataset.j); setClasses(c, list); save(); render(); break; }
     case "short": openOv(shortRestHtml(c), "rest"); break;
-    case "spendhd": { if (c.hd.used >= c.hd.max) break; c.hd.used++; const r = rollExpr(`1d${c.hd.die}`); const v = Math.max(0, r.total + mod(c, "con")); const was = c.hp; c.hp = Math.min(hpMaxOf(c), c.hp + v); logRoll(c, `Hit die: ${r.text} ${sg(mod(c, "con"))} = ${v}`); save(); openOv(shortRestHtml(c), "rest"); toast(`Hit die: ${r.text} ${sg(mod(c, "con"))} = ${v}. +${c.hp - was} HP`); break; }
-    case "shortdone": c.res.forEach(r => { if (r.rest === "short") r.used = 0; if (r.rest === "one") r.used = Math.max(0, r.used - 1); }); if (c.pact) Object.values(c.slots).forEach(s => s.used = 0); logRoll(c, "Short rest"); save(); closeOv(); toast("Short rest done."); break;
+    case "spendhd": { const hp0 = hdPools(c)[+el.dataset.p || 0]; if (hp0.used >= hp0.max) break; hp0.used++; const r = rollExpr(`1d${hp0.die}`); const v = Math.max(0, r.total + mod(c, "con")); const was = c.hp; c.hp = Math.min(hpMaxOf(c), c.hp + v); logRoll(c, `Hit die: ${r.text} ${sg(mod(c, "con"))} = ${v}`); save(); openOv(shortRestHtml(c), "rest"); toast(`Hit die: ${r.text} ${sg(mod(c, "con"))} = ${v}. +${c.hp - was} HP`); break; }
+    case "shortdone": c.res.forEach(r => { if (r.rest === "short") r.used = 0; if (r.rest === "one") r.used = Math.max(0, r.used - 1); }); if (c.pact) Object.values(c.slots).forEach(s => s.used = 0); if (c.pactSlots) c.pactSlots.used = 0; logRoll(c, "Short rest"); save(); closeOv(); toast("Short rest done."); break;
     case "long": if (confirm("Take a long rest?")) longRest(c); break;
     // spells
-    case "cast": { const s = c.spells.find(x => x.id === el.dataset.id); const sel = document.querySelector(`[data-castlvl="${s.id}"]`); cast(c, s, +(sel ? sel.value : s.lvl)); break; }
+    case "cast": { const s = c.spells.find(x => x.id === el.dataset.id); const sel = document.querySelector(`[data-castlvl="${s.id}"]`); if (sel && sel.value === "p") cast(c, s, c.pactSlots.lvl, "pact"); else cast(c, s, +(sel ? sel.value : s.lvl)); break; }
     case "castq": { const s = c.spells.find(x => x.id === el.dataset.id); cast(c, s, 0); break; }
-    case "spellroll": { const s = c.spells.find(x => x.id === el.dataset.id); const sel = document.querySelector(`[data-castlvl="${s.id}"]`); const lv = +(sel ? sel.value : s.lvl) || s.lvl;
+    case "spellroll": { const s = c.spells.find(x => x.id === el.dataset.id); const sel = document.querySelector(`[data-castlvl="${s.id}"]`); const lv = sel && sel.value === "p" ? c.pactSlots.lvl : +(sel ? sel.value : s.lvl) || s.lvl;
       if (s.roll.kind === "atk") rollSpellAttack(s, lv); else rollDamage(s.name, spellExpr(c, s, lv), { dtype: s.roll.type, heal: s.roll.kind === "heal", save: s.roll.kind === "save" ? { ab: s.roll.save, half: !!s.roll.half } : null, noMods: true }); break; }
     case "cartcast": { const it = c.items.find(i => i.cartSpells && !i.gone); const s = it.cartSpells.find(x => x.name === el.dataset.n); cast(c, Object.assign({ lvl: 1 }, s), s.lvl || 1, "cart"); break; }
     case "spelledit": ui.edit = ui.edit === "spell:" + el.dataset.id ? null : "spell:" + el.dataset.id; render(); break;
     case "spelldone": ui.edit = null; render(); break;
     case "addspell": ui_pk.q = ""; ui_pk.note = ""; openOv(pickerHtml("spell"), "pick:spell"); setTimeout(() => { const q = $("#pkQ"); if (q) q.focus(); }, 30); break;
     case "pkspell": { const s = spellPool().find(x => x.id === el.dataset.id); if (!s) break; const sp = spellFromData(s);
+      if (isMulti(c)) { const fc = ui_pk.for || (classesOf(c).find(k => CAST_OF[k.cls]) || {}).cls; if (fc) sp.cls = fc; }   // a multiclass caster's spell belongs to a class
       // keep the list in level order, so the Spells tab reads the same as before
       const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp);
       save(); $("#pkOut").innerHTML = pickerResults("spell"); toast(`${sp.name} added${sp.lvl ? ` (${ord(sp.lvl)} level)` : ""}.`); break; }
@@ -2314,8 +2438,8 @@ document.addEventListener("click", e => {
     case "tododone": c.todo = []; save(); render(); toast("Marked as finished."); break;
     case "tosurvey": exportAll(db.chars.find(x => x.id === el.dataset.id)); toast("In the survey: Party tab → Bring in from the Character Book…", 4000); break;
     case "levelupof": db.cur = el.dataset.id; save(); render(); startLevelUp(C()); break;
-    case "luroll": { const r = rnd(c.hd.die); LV.hp = r; LV.how = `rolled ${r} on the d${c.hd.die}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = r; break; }
-    case "luavg": { const v = c.hd.die / 2 + 1; LV.hp = v; LV.how = `the average, ${v}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = v; break; }
+    case "luroll": { const d = luTarget(c).k.die, r = rnd(d); LV.hp = r; LV.how = `rolled ${r} on the d${d}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = r; break; }
+    case "luavg": { const v = luTarget(c).k.die / 2 + 1; LV.hp = v; LV.how = `the average, ${v}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = v; break; }
     case "luasi": LV.asi = el.dataset.k; if (LV.asi === "one") LV.b = ""; showLevelUp(c); break;
     case "lufeat": LV.feats.push({ name: "", text: "", uses: false, max: 1, rest: "long" }); showLevelUp(c); break;
     case "lures": { const r = c.res.find(x => x.id === el.dataset.id); LV.res[r.id] = Math.max(0, (LV.res[r.id] ?? r.max) + +el.dataset.d); showLevelUp(c); break; }
