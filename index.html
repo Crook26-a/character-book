@@ -250,7 +250,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 30;
+const VERSION = 31;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1237,7 +1237,7 @@ function pickerHtml(kind) {
       ${isMulti(c) && classesOf(c).filter(k => classCast(c, k)).length ? `<select id="pkFor" style="width:auto" aria-label="For which class">${classesOf(c).filter(k => classCast(c, k)).map(k => `<option ${ui_pk.for === k.cls ? "selected" : ""}>${esc(k.cls)}</option>`).join("")}</select>` : ""}
       <select id="pkLv" style="width:auto"><option value="">Any level</option>${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => `<option value="${l}" ${ui_pk.lv === String(l) ? "selected" : ""}>${l ? ord(l) + " level" : "Cantrips"}</option>`).join("")}</select></div>` : ""}
     ${kind === "spell" && c.rules === "2014" ? lookup("2014 spell text", "These are the SRD 5.2's 2024 wordings, and some 2014 spells read differently. Check a new one against your 2014 Player's Handbook and change its text under Edit if it differs.") : ""}
-    ${ui_pk.note && kind === "spell" ? `<p class="verdict ok">${esc(ui_pk.note)}</p>` : ""}<div id="pkOut">${pickerResults(kind)}</div>
+    ${ui_pk.note && kind === "spell" ? `<p class="verdict ok">${esc(ui_pk.note)}</p>` : ""}${kind === "spell" && c.buildTo > (+c.level || 1) ? `<button class="btn wide main" data-act="bldnext">Spells done: on to level ${(+c.level || 1) + 1} of ${c.buildTo}</button>` : ""}<div id="pkOut">${pickerResults(kind)}</div>
     ${kind === "item" ? "" : `<button class="btn wide" data-act="${kind === "spell" ? "pkownspell" : "pkownatk"}">${kind === "spell" ? "A spell of your own…" : "An attack of your own"}</button>`}
     ${creditHtml()}<button class="btn wide" data-act="ovclose">Close</button>`;
 }
@@ -1391,7 +1391,7 @@ function levelUpHtml(c) {
   const isCaster = c.spells.length || sNew || S1.pact; const prep = c.rules === "2014" && PREPARE_2014[cls]; const R = T.R;
   const col = k => R ? parseInt((R.table[k] || {})[K]) || 0 : 0, was = k => R ? parseInt((R.table[k] || {})[K - 1]) || 0 : 0;
   const where = isMulti(c) || T.isNew ? ` (${esc(cls || "the new class")} ${K})` : "", cw = isMulti(c) || T.isNew ? cls + " " : "";
-  let h = `<div class="rr-h">Level up <small>${esc(clsLine(c))} → level ${N}${c.rules ? ` · ${esc(c.rules)} rules${c.mixed ? `, mixing in ${otherEd(c.rules)}` : ""}` : ""}</small></div>`;
+  let h = `${c.buildTo > L ? `<p class="verdict ok">Building ${esc(c.short || c.name)}: level ${N} of ${c.buildTo}.</p>` : ""}<div class="rr-h">Level up <small>${esc(clsLine(c))} → level ${N}${c.rules ? ` · ${esc(c.rules)} rules${c.mixed ? `, mixing in ${otherEd(c.rules)}` : ""}` : ""}</small></div>`;
   // which class takes the level (Joseph, 2026-11-02: multiclassing)
   const ed = edOf(c), offer = [...new Set([...(HAS_RULES ? ED(ed).classes.map(k => k.name) : CLASSES), ...(c.mixed && HAS_RULES ? ED(otherEd(ed)).classes.map(k => k.name) : []), ...ownClasses().map(k => k.name).filter(Boolean)])].filter(n => !list0.some(k => k.cls === n));
   h += `<h3>Which class</h3><div class="seg" style="margin-bottom:8px;flex-wrap:wrap">${list0.map((k, i) => `<button class="${String(LV.pick) === String(i) ? "on" : ""}" data-act="lupick" data-v="${i}">${esc(k.cls || "Class")} ${k.level} → ${k.level + 1}</button>`).join("")}<button class="${LV.pick === "new" ? "on" : ""}" data-act="lupick" data-v="new">A new class…</button></div>`;
@@ -1450,7 +1450,7 @@ function levelUpHtml(c) {
   if (grow.length) h += `<p class="note" style="margin-top:6px">Did any of these grow?</p>${grow.map(r => { const v = LV.res[r.id] ?? r.max; return `<div class="res"><span class="nm">${esc(r.name)}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="-1">−</button><span class="big">${v}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="1">+</button></div>`; }).join("")}`;
   const written = c.attacks.filter(a => asWritten(a));
   if (written.length) h += `<p class="note" style="margin-top:10px">Attacks written as on the sheet don't follow the level: change any that do (Sneak Attack, a proficiency bonus).</p>${written.map(a => `<div class="row"><span class="grow" style="align-self:center">${esc(a.name)}</span>${a.save ? "" : `<label class="fld n"><span>To hit</span><input type="number" data-lu="atk.${a.id}.hit" value="${esc(LV.atk[a.id]?.hit ?? a.hit ?? "")}"></label>`}<label class="fld n" style="flex:0 0 110px"><span>Damage</span><input data-lu="atk.${a.id}.dmgx" value="${esc(LV.atk[a.id]?.dmgx ?? a.dmgx ?? "")}"></label></div>`).join("")}`;
-  h += `<div style="height:8px"></div><div id="luGo">${luGoHtml(c)}</div><button class="btn wide" data-act="ovclose">Not now</button>`;
+  h += `<div style="height:8px"></div><div id="luGo">${luGoHtml(c)}</div>${c.buildTo > L ? `<button class="btn wide" data-act="bldlater">Finish later</button>` : `<button class="btn wide" data-act="ovclose">Not now</button>`}`;
   return h;
 }
 // redraw the panel where it is (a choice that changes what's asked)
@@ -1501,9 +1501,11 @@ function applyLevelUp(c) {
   for (const [id, v] of Object.entries(LV.atk)) { const a = c.attacks.find(x => x.id === id); if (!a) continue; if (v.hit !== undefined && v.hit !== "") a.hit = +v.hit; if (v.dmgx) a.dmgx = v.dmgx; }
   const at = isMulti(c) ? ` (${cls} ${K})` : "";
   logIt(c, `Reached level ${N}${at}: ${did.join("; ")}`);
-  c.sessions.push({ id: uid("ss"), date: today(), title: `Level ${N}${at}`, text: `${c.short || c.name} reached level ${N}${at}.\n\n${did.map(d => "- " + d).join("\n")}` });
+  if (!c.buildTo) c.sessions.push({ id: uid("ss"), date: today(), title: `Level ${N}${at}`, text: `${c.short || c.name} reached level ${N}${at}.\n\n${did.map(d => "- " + d).join("\n")}` });
   const caster = classCast(c, target) && (c.spells.length || S.slots || S.pact); LV = null; save(); closeOv();
-  toast(`Level ${N}!`, 3000);
+  const more = c.buildTo > N; if (c.buildTo && !more) { delete c.buildTo; save(); }
+  toast(more ? `Level ${N} of ${c.buildTo}.` : `Level ${N}!`, 3000);
+  if (more && !caster) { startLevelUp(c); return; }
   if (caster) { ui.tab = "spells"; render(); ui_pk.q = ""; ui_pk.lv = ""; ui_pk.for = isMulti(c) ? cls : ""; ui_pk.note = `Level ${N}${at}: add your new ${isMulti(c) ? cls + " " : ""}spells.`; openOv(pickerHtml("spell"), "pick:spell"); }
 }
 
@@ -1552,7 +1554,7 @@ function startBuilder(ed) {
   BLD = { ed: ed || "2024", cls: "", clsT: "", hd: "8", subcls: "", subclsT: "", bg: "", bgT: "", sp: "", spT: "", sub: "", subT: "", speed: "30", rc1: "", rc2: "", asiFrom: "bg",
     method: "array", pick: {}, rolls: [], buy: { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 },
     typed: { str: "", dex: "", con: "", int: "", wis: "", cha: "" }, plan: "21", plus2: "", plus1: "",
-    skills: [], extra: "", vfeat: "", eqC: "A", eqB: "A", kit: {}, eqT: "", cantrips: [], spells: [], name: "", align: "", langs: "Common", lineage: "" };
+    toLevel: "1", skills: [], extra: "", vfeat: "", eqC: "A", eqB: "A", kit: {}, eqT: "", cantrips: [], spells: [], name: "", align: "", langs: "Common", lineage: "" };
   if (ovKind === "builder") showBuilder(); else openOv(builderHtml(), "builder");
 }
 function showBuilder() { const b = $("#ov .box"); const top = b.scrollTop; b.innerHTML = builderHtml(); b.scrollTop = top; }
@@ -1662,6 +1664,8 @@ function builderHtml() {
   const nBase = L.species.filter(x => !x.of).length, nSub = L.species.filter(x => x.of).length;
   let h = `<div class="rr-h">Build a character <small>level 1 · the ${srdOf(b.ed)}, or your own</small></div>
     ${seg("ed", [["2024", "2024 rules"], ["2014", "2014 rules"], ["mix", "Mix both"]], b.ed, "blded")}
+    <label class="fld"><span>Starting level</span>${sel("toLevel", Array.from({ length: 20 }, (_, i) => [String(i + 1), `Level ${i + 1}`]), b.toLevel || "1")}</label>
+    ${+b.toLevel > 1 ? `<p class="note">This page makes level 1. Then each level up to ${+b.toLevel} comes in turn, with the level-up's choices: hit points, a class for that level (so they can start multiclassed), a subclass, ability scores or a feat, and spells. “Finish later” stops at any level.</p>${lookup("starting equipment and gold above level 1", "The SRD doesn't give them. Ask your DM (the Dungeon Master's Guide has a table), and add them under Anything else they carry or on the Items tab.")}` : ""}
     <p class="note">${mix ? "Every list has both editions, marked (2014) or (2024); each pick keeps its own edition's rules, and the class's edition runs the level-ups. " : ""}Every step is optional. Pick from the ${srdOf(b.ed)} and the app works out the numbers, or choose Other on any list and freestyle it. Whatever's left out, the character is still made and marked as not finished until it's filled in with Edit.</p>
     ${lookup(`every class, ${raceWord}, and background`, `The ${srdOf(b.ed)} ${mix ? "have" : "has"} ${L.classes.length} classes (one subclass each), ${nBase} ${only14 ? "races" : raceWord.replace("species or race", "species and races")}${nSub ? ` (${nSub} subraces)` : ""}, and ${L.backgrounds.length === 1 ? "one background" : `${L.backgrounds.length} backgrounds`}. For others, choose Other and type it, looking it up in the ${only14 ? "2014" : mix ? "2024 or 2014" : "2024"} Player's Handbook.`)}`;
   const n = { cls: only14 ? 2 : 1, bg: only14 ? 3 : 2, sp: only14 ? 1 : 3 };
@@ -1800,16 +1804,19 @@ function bldMake() {
   ch.story.profs = [cls && `Armor: ${cls.armor || "none"}`, cls && `Weapons: ${cls.weapons}`, tools && `Tools: ${tools}`, `Languages: ${b.langs}`].filter(Boolean).join("\n");
   for (const t of ch.traits) if (t.fx && t.fx.length) applyFx(ch, t.fx, { cls: clsName });
   logIt(ch, `Built at level 1 (${b.ed === "mix" ? `mixed rules: ${[cls, bg, sp].filter(Boolean).map(x => `${x.name} ${x.ed}`).join(", ")}` : `${rules} rules`}): ${[speciesName, clsName, bgName].filter(Boolean).join(", ") || "freestyle"}${todo.length ? " (not finished)" : ""}`);
+  if (+b.toLevel > 1) ch.buildTo = Math.min(20, +b.toLevel);
   db.chars.push(ch); db.cur = ch.id; save(true); BLD = null; closeOv(); ui.tab = "play"; render();
+  if (ch.buildTo) { startLevelUp(ch); toast(`${ch.name} is made at level 1. Now level 2 of ${ch.buildTo}.`, 3500); return; }
   toast(todo.length ? `${ch.name} is made, marked as not finished. Fill in the rest with Edit.` : `${ch.name} is ready: level 1. Level up from the Play tab.`, 3500);
 }
 // a character made before everything was chosen says so, on the Play tab and the PCs card, until it's done;
 // the plain fields clear themselves once they're filled in, and "It's done" clears the rest
 const UNNAMED = "Unnamed character";
 const TODO_DONE = { "a name": c => c.name.trim() && c.name !== UNNAMED, "a class": c => c.cls, "a background": c => c.bg, "a species": c => c.species };
-const todoOf = c => (c.todo || []).filter(t => !(TODO_DONE[t] && TODO_DONE[t](c)));
-const todoHtml = c => { const t = todoOf(c); return t.length ? `<div class="panel" style="border:2px dashed var(--gold)"><b>Not finished yet.</b> Still to choose: ${esc(listAnd(t))}. Fill it in with Edit (top right).
-  <div class="acts" style="margin-top:6px"><button class="btn small" data-act="tododone">It's done</button></div></div>` : ""; };
+const todoOf = c => (c.todo || []).filter(t => { const m = /^reaching level (\d+)$/.exec(t); return !(m ? (+c.level || 1) >= +m[1] : TODO_DONE[t] && TODO_DONE[t](c)); });
+const todoHtml = c => { const t = todoOf(c); return (c.buildTo > (+c.level || 1) ? `<div class="panel" style="border:2px dashed var(--gold)"><b>Building to level ${c.buildTo}:</b> level ${+c.level || 1} so far.
+  <div class="acts" style="margin-top:6px"><button class="btn small main" data-act="bldnext">On to level ${(+c.level || 1) + 1}</button><button class="btn small" data-act="bldlater">Finish later</button></div></div>` : "") + (t.length ? `<div class="panel" style="border:2px dashed var(--gold)"><b>Not finished yet.</b> Still to choose: ${esc(listAnd(t))}. Fill it in with Edit (top right).
+  <div class="acts" style="margin-top:6px"><button class="btn small" data-act="tododone">It's done</button></div></div>` : ""); };
 
 /* ══ Your own backgrounds and roll tables (Joseph, 2026-11-01). Made here (the homebrew library, which syncs) or in the
    Field Book's Rules tab (read straight from this device's storage, like its items). A background works in the
@@ -2920,6 +2927,8 @@ document.addEventListener("click", e => {
     case "applybg": ABG = { key: "", picks: {}, plus2: "", plus1: "", eq: "A" }; openOv(applyBgHtml(), "applybg"); break;
     case "abgapply": applyBg(c); break;
     case "tododone": c.todo = []; save(); render(); toast("Marked as finished."); break;
+    case "bldnext": if (c.buildTo > (+c.level || 1)) { if (ovKind) closeOv(); ui.tab = "play"; render(); startLevelUp(c); } break;
+    case "bldlater": { const to = c.buildTo; delete c.buildTo; if (to > (+c.level || 1)) c.todo = [...(c.todo || []).filter(x => !/^reaching level/.test(x)), `reaching level ${to}`]; LV = null; save(); if (ovKind) closeOv(); else render(); toast(`Stopped at level ${c.level}. Level up from the Play tab when you're ready.`, 3500); break; }
     case "tosurvey": exportAll(db.chars.find(x => x.id === el.dataset.id)); toast("In the survey: Party tab → Bring in from the Character Book…", 4000); break;
     case "levelupof": db.cur = el.dataset.id; save(); render(); startLevelUp(C()); break;
     case "luroll": { const d = luTarget(c).k.die, r = rnd(d); LV.hp = r; LV.how = `rolled ${r} on the d${d}`; $("#luHp").innerHTML = luHpHtml(c); $("#luGo").innerHTML = luGoHtml(c); const i = $('[data-lu="hp"]'); if (i) i.value = r; break; }
