@@ -250,7 +250,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 32;
+const VERSION = 33;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -301,7 +301,7 @@ const PRESETS = [
   { name: "Aid", to: ["hpmax"], bonus: "5", until: "long", note: "8 hours" },
   { name: "Pass without Trace", to: ["skill:stealth"], bonus: "10", note: "1 hour" },
   { name: "Blessing of the Trickster", adv: ["skill:stealth"], note: "Advantage on Stealth, 1 hour" },
-  { name: "Mirror Image", note: "3 duplicates, 1 minute" },
+  { name: "Mirror Image", note: "3 duplicates, 1 minute", dupes: 3 },
   { name: "Inspiration", note: "Spend it for advantage on one roll" }
 ];
 
@@ -616,8 +616,40 @@ function endConc(c, quiet) {
   if (!quiet) toast(`Concentration on ${c.conc} ended${gone.length ? ": " + gone.map(e => e.name).join(", ") + " off" : ""}.`);
   c.conc = null; save();
 }
+/* Mirror Image (Joseph, 2026-11-02: "Does mirror image work?" ... "please add it"): the duplicates counted on the effect
+   (e.dupes), and the roll by the character's own rules. 2014 (the SRD 5.1): each time a creature targets you with an
+   attack, a d20: 6 or higher with three duplicates, 8 with two, 11 with one, and the attack targets a duplicate instead
+   (AC 10 + your Dexterity modifier); a hit on it destroys it. 2024 (the SRD 5.2): each time an attack roll hits you, a
+   d6 for each duplicate; any 3 or higher, a duplicate is hit instead and destroyed. Either way the spell ends with the
+   last one, and an attacker that can't be fooled by sight isn't. */
+let MIR = null;   // the last roll: { said, ac (2014: it targets a duplicate, waiting for hit or miss) }
+function mirrorHtml(c) {
+  const e = c.effects.find(x => x.dupes > 0 && x.on !== false); if (!e) return "";
+  const old = edOf(c) === "2014";
+  return `<div class="panel" style="background:var(--paper-lit);padding:8px 10px;margin-bottom:8px"><b>Mirror Image</b>: ${e.dupes} duplicate${e.dupes === 1 ? "" : "s"} left.
+    ${MIR && MIR.ac ? "" : `<button class="btn small" data-act="mirror">${old ? "An attack targets me" : "An attack roll hits me"}</button>`}
+    ${MIR ? `<p class="verdict ${MIR.ac ? "" : "ok"}" style="margin:6px 0">${esc(MIR.said)}</p>` : ""}
+    ${MIR && MIR.ac ? `<div class="row"><button class="btn small" data-act="mirhit">It hits AC ${MIR.ac}: a duplicate is destroyed</button><button class="btn small" data-act="mirmiss">It misses</button></div>` : ""}
+    <p class="note" style="margin:4px 0 0">${old ? "The 2014 rule: a d20 when you're targeted (6+ with three, 8+ with two, 11+ with one). Not against a creature that can't see, relies on senses other than sight (blindsight), or sees illusions as false (truesight)." : "The 2024 rule: a d6 for each duplicate when an attack roll hits you; any 3 or higher, a duplicate takes it. Not against an attacker that's Blinded or has Blindsight or Truesight."}</p></div>`;
+}
+function mirrorRoll(c, kind) {
+  const e = c.effects.find(x => x.dupes > 0 && x.on !== false); if (!e) return;
+  const lose = () => { e.dupes--; if (!e.dupes) { c.effects = c.effects.filter(x => x !== e); MIR = null; toast("The last duplicate is gone: Mirror Image ends.", 3500); return " That was the last: Mirror Image ends."; } return ` ${e.dupes} left.`; };
+  if (kind === "hit") { const s = `The attack hits a duplicate, and it's destroyed.${lose()}`; MIR = { said: s }; logRoll(c, `Mirror Image: ${s}`); }
+  else if (kind === "miss") { MIR = { said: "The attack misses the duplicate. It's still there." }; logRoll(c, "Mirror Image: the attack misses the duplicate"); }
+  else if (edOf(c) === "2014") {
+    const need = { 3: 6, 2: 8, 1: 11 }[Math.min(3, e.dupes)], d = rnd(20), ac = 10 + mod(c, "dex");
+    if (d >= need) { MIR = { said: `d20 ${d} (needs ${need}): the attack targets a duplicate instead, AC ${ac}. Does it hit?`, ac }; logRoll(c, `Mirror Image: d20 ${d}, needs ${need}: it targets a duplicate`); }
+    else { MIR = { said: `d20 ${d} (needs ${need}): the attack targets you.` }; logRoll(c, `Mirror Image: d20 ${d}, needs ${need}: it targets you`); }
+  } else {
+    const rolls = Array.from({ length: e.dupes }, () => rnd(6)), off = rolls.some(r => r >= 3);
+    const s = `d6 ${rolls.join(", ")}: ${off ? `a duplicate is hit instead and destroyed.${lose()}` : "no 3 or higher, so it hits you."}`; MIR = { said: s }; logRoll(c, `Mirror Image: ${s}`);
+  }
+  save(); render();
+}
 function addEffect(c, p, extra) {
   const e = { id: uid("ef"), name: p.name, to: (p.to || []).slice(), bonus: p.bonus || "", adv: (p.adv || []).slice(), dis: (p.dis || []).slice(), once: !!p.once, until: p.until || "", note: p.note || "", on: true, ...(extra || {}) };
+  if (p.dupes) { e.dupes = p.dupes; MIR = null; }     // Mirror Image: its duplicates
   c.effects.push(e); return e;
 }
 function cast(c, sp, lvl, how) {
@@ -823,7 +855,7 @@ function playHtml(c) {
   const effPanel = `<div class="panel"><h2>On right now <small>conditions, effects, and modifiers</small></h2>
     <div class="row" style="margin-bottom:8px">${effs.length ? effs.map(e => `<button class="chip ${e.on === false ? "off" : "goodc"}" data-act="efftoggle" data-id="${e.id}" title="${esc(effDesc(e))}">${esc(e.name)}${e.bonus ? " " + esc(/^[+-]/.test(e.bonus) ? e.bonus : "+" + e.bonus) : ""}${e.conc ? " ◉" : ""}${e.once ? " ¹" : ""}</button><button class="chip" data-act="effedit" data-id="${e.id}" aria-label="Edit ${esc(e.name)}">✎</button><button class="chip" data-act="effdel" data-id="${e.id}" aria-label="Remove ${esc(e.name)}">✕</button>`).join("") : `<span class="note" style="margin:0">No spells or bonuses on you.</span>`}</div>
     ${effs.length ? `<p class="note">${effs.map(e => `<b>${esc(e.name)}</b>: ${esc(effDesc(e))}`).join(" · ")}</p>` : ""}
-    <div class="row" style="margin-bottom:10px"><select id="effPick" style="flex:1"><option value="">Add an effect…</option>${PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("")}<option value="custom">Your own…</option></select><button class="btn small" data-act="effadd">Add</button></div>
+    ${mirrorHtml(c)}<div class="row" style="margin-bottom:10px"><select id="effPick" style="flex:1"><option value="">Add an effect…</option>${PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("")}<option value="custom">Your own…</option></select><button class="btn small" data-act="effadd">Add</button></div>
     ${ui.edit === "effect" ? customEffectForm() : String(ui.edit).startsWith("effect:") ? customEffectForm(effs.find(e => "effect:" + e.id === ui.edit)) : ""}
     <div class="row" style="margin-bottom:8px">${c.conds.map(k => `<button class="chip lead" data-act="conddel" data-k="${esc(k)}" title="${esc(CONDITIONS[k] || "")}">${esc(k)} ✕</button>`).join("")}
       <select id="condPick" style="flex:1 1 150px"><option value="">Add a condition…</option>${Object.keys(CONDITIONS).filter(k => !c.conds.includes(k)).map(k => `<option>${k}</option>`).join("")}</select></div>
@@ -2800,6 +2832,9 @@ document.addEventListener("click", e => {
     case "logedit": { const l = c.log.find(x => x.id === el.dataset.id); const t = prompt("What happened:", l.text); if (t == null) break; const d = prompt("When (yyyy-mm-dd):", l.at); l.text = t.trim() || l.text; if (d && /^\d{4}-\d{2}-\d{2}$/.test(d.trim())) l.at = d.trim(); save(); render(); break; }
     case "logdel": { const l = c.log.find(x => x.id === el.dataset.id); if (confirm(`Delete “${l.text}”? (It doesn't change the purse.)`)) { c.log = c.log.filter(x => x !== l); save(); render(); } break; }
     case "effcancel": ui.edit = null; render(); break;
+    case "mirror": mirrorRoll(c, "attack"); break;
+    case "mirhit": mirrorRoll(c, "hit"); break;
+    case "mirmiss": mirrorRoll(c, "miss"); break;
     case "efftoggle": { const ef = c.effects.find(x => x.id === el.dataset.id); if (ef) ef.on = ef.on === false; save(); render(); break; }
     case "effdel": { const ef = c.effects.find(x => x.id === el.dataset.id); c.effects = c.effects.filter(x => x !== ef); if (ef && ef.name === "Aid") c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break; }
     case "conddel": c.conds = c.conds.filter(k => k !== el.dataset.k); save(); render(); break;
