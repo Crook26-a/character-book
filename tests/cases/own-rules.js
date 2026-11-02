@@ -11,10 +11,13 @@ step("a background of your own, in the library", () => {
   ui.tab = "pcs"; render(); click('[data-act="bgadd"]');
   typ('[data-bgf="name"]', "Sailor"); tick('[data-bgm="skills"][data-v="athletics"]'); tick('[data-bgm="skills"][data-v="perception"]');
   for (const k of ["str", "dex", "wis"]) tick(`[data-bgm="abilities"][data-v="${k}"]`);
-  typ('[data-bgf="tool"]', "Navigator's tools"); typ('[data-bgf="feat"]', "Alert"); typ('[data-bgf="eqA"]', "Club, Rope, and 10 GP"); typ('[data-bgf="eqB"]', "50 GP");
+  typ('[data-bgf="tool"]', "Navigator's tools"); typ('[data-bgf="eqA"]', "Club, Rope, and 10 GP"); typ('[data-bgf="eqB"]', "50 GP");
+  // the feat from the dropdown shows what it does; the feature is one of your own (Other)
+  sel('[data-bgsel="feat"]', "Alert"); const shown = q("#ov .card .txt").textContent.replace(/\s+/g, " ").slice(0, 90);
+  sel('[data-bgsel="feature"]', "__other"); typ('[data-bgf="featureName"]', "Ship's Passage"); typ('[data-bgf="featureText"]', "Free passage on a sailing ship.");
   click('[data-act="bgdone"]');
   const x = ownBgs()[0]; expect(x && x.name === "Sailor", "Sailor is kept");
-  return JSON.stringify(x);
+  return `Alert says: ${shown} | ${JSON.stringify(x)}`;
 });
 step("the builder offers it; a Human Fighter, Sailor", () => {
   click('[data-act="newbuild"]'); const id = "hb:" + ownBgs()[0].id;

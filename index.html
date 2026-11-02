@@ -250,7 +250,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 24;
+const VERSION = 25;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1554,7 +1554,7 @@ function builderHtml() {
     if (bg && bg.ed === "yours") s += `<p class="note">${esc([bg.desc, bg.skills.length && `Skills: ${listAnd(bg.skills.map(k => SKILL[k].name))}`, bg.tool && `Tool: ${bg.tool}`, bg.languages && `Languages: ${bg.languages}`,
       bg.feat && `Origin feat: ${bg.feat}`, bg.feature && `Feature: ${bg.feature.name}`, bg.abilities.length && `Ability scores: ${listAnd(bg.abilities.map(k => AB_NAME[k]), "or")} (in step 4)`].filter(Boolean).join(". "))}.</p>`; else
     if (e14(bg)) s += `<p class="note">Skills: ${esc(listAnd(bg.skills.map(k => SKILL[k].name)))}.${bg.tool ? ` Tools: ${esc(bg.tool)}.` : ""} Languages: ${esc(bg.languages.toLowerCase())}. Feature: ${esc(bg.feature.name)}.</p>`;
-    else if (bg) { const f = rFeat(bg.feat, "2024"); s += `<p class="note">Origin feat: <b>${esc(bg.feat)}</b>${f ? ` (${esc(f.desc.split(/(?<=\.)\s/)[0])})` : ""}. Skills: ${esc(listAnd(bg.skills.map(k => SKILL[k].name)))}. Tool: ${esc(bg.tool)}. Ability scores: ${esc(listAnd(bg.abilities.map(k => AB_NAME[k]), "or"))} (in step 4).</p>`; }
+    else if (bg) { const f = rFeat(bg.feat, "2024"); s += `<p class="note">Origin feat: <b>${esc(bg.feat)}</b>${f ? ` (${esc(((f.benefits || [])[0] || f.desc).split(/(?<=\.)\s/)[0])})` : ""}. Skills: ${esc(listAnd(bg.skills.map(k => SKILL[k].name)))}. Tool: ${esc(bg.tool)}. Ability scores: ${esc(listAnd(bg.abilities.map(k => AB_NAME[k]), "or"))} (in step 4).</p>`; }
     else if (b.bg === OTHER) s += txt("bgT", "Background", "e.g. Sailor");
     return s;
   };
@@ -1667,7 +1667,7 @@ function bldMake() {
     ...(cls ? cls.features.filter(f => f.lv.includes(1) && !SKIP_FEATURE.test(f.name)).map(f => ({ name: f.name, text: f.desc, src: `${cls.name} 1` })) : []),
     ...(subcls && subAt1(cls) ? subcls.features.filter(f => f.lv.includes(1)).map(f => ({ name: f.name, text: f.desc, src: `${subcls.name} 1` })) : []),
     ...(bg && bg.feature ? [{ name: bg.feature.name, text: bg.feature.desc, src: bg.name }] : []),
-    ...[bg && bg.feat, sp && sp.ed === "2024" && b.vfeat].filter(Boolean).map(n => { const f = rFeat(n, "2024") || rFeat(n, "2014"); return { name: n, text: f ? f.desc : "", src: "Origin feat" }; })];
+    ...[bg && bg.feat, sp && sp.ed === "2024" && b.vfeat].filter(Boolean).map(n => { const f = rFeat(n, "2024") || rFeat(n, "2014"); return { name: n, text: f ? f.desc : (bg && n === bg.feat && bg.featText) || "", src: "Origin feat" }; })];
   ch.res = cls ? USE_COLS.filter(col => parseInt((cls.table[col] || {})["1"])).map(col => ({ id: uid("rs"), name: useName(col), max: parseInt(cls.table[col]["1"]), used: 0, rest: restOf(cls, col) })) : [];
   const tools = [cls && cls.tools, bg && bg.tool].filter(Boolean).join("; ");
   ch.story.profs = [cls && `Armor: ${cls.armor || "none"}`, cls && `Weapons: ${cls.weapons}`, tools && `Tools: ${tools}`, `Languages: ${b.langs}`].filter(Boolean).join("\n");
@@ -1751,6 +1751,34 @@ function tableFormHtml() {
     <button class="btn wide" data-act="tbltry">Roll it once</button><div id="tblTry"></div>
     <div class="row"><button class="btn main grow" data-act="tbldone">Done</button><button class="btn danger" data-act="tbldel">Delete</button></div>`;
 }
+// a background's feat and feature (Joseph, 2026-11-01: "should be a drop down. Clicking each one should tell you what
+// it does"): what the SRD has, and for a feature your other backgrounds' too, each showing what it does once picked;
+// Other to write your own
+function bgFeatOpts() {
+  if (!HAS_RULES) return []; const seen = new Set(), out = [];
+  for (const [ed, q] of [...RULES.feats.map(q => ["2024", q]), ...RULES["2014"].feats.map(q => ["2014", q])])
+    if (["Origin", "General"].includes(q.type) && q.name !== "Ability Score Improvement" && !seen.has(q.name)) { seen.add(q.name); out.push({ ...q, srd: srdOf(ed) }); }
+  return out;
+}
+function bgFeatureOpts(x) {
+  const out = HAS_RULES ? RULES["2014"].backgrounds.filter(b => b.feature && b.feature.name).map(b => ({ name: b.feature.name, desc: b.feature.desc, from: `${b.name}, ${srdOf("2014")}`, srd: "SRD 5.1" })) : [];
+  for (const o of libBackgrounds()) if (o.id !== x.id && o.featureName && !out.some(q => q.name === o.featureName)) out.push({ name: o.featureName, desc: o.featureText || "", from: yoursLabel(o) });
+  return out;
+}
+function bgPickHtml(x, k) {
+  const feat = k === "feat", opts = feat ? bgFeatOpts() : bgFeatureOpts(x), name = feat ? x.feat : x.featureName, mine = feat ? x.featOther : x.featureOther;
+  const known = name ? opts.find(o => o.name === name) : null, cur = known ? name : mine || name ? OTHER : "";
+  const opt = o => `<option value="${esc(o.name)}" ${cur === o.name ? "selected" : ""}>${esc(o.name)}</option>`;
+  const list = feat ? [["Origin feats", opts.filter(o => o.type === "Origin")], ["Other feats", opts.filter(o => o.type !== "Origin")]].map(([g, os]) => os.length ? `<optgroup label="${g}">${os.map(opt).join("")}</optgroup>` : "").join("") : opts.map(opt).join("");
+  let h = `<label class="fld"><span>${feat ? "Origin feat (2024 style)" : "Feature (2014 style)"}</span><select data-bgsel="${k}"><option value="">None</option>${list}<option value="${OTHER}" ${cur === OTHER ? "selected" : ""}>Other (write your own)</option></select></label>`;
+  if (known) h += `<div class="card" style="margin-top:-4px"><div class="txt">${fmt(known.desc)}</div><span class="sub">${esc(known.from || known.srd)}</span>${known.srd ? `<p class="note" style="font-size:11.5px;margin:6px 0 0">${esc(known.srd === "SRD 5.1" ? SRD51_CREDIT : SRD_CREDIT)}</p>` : ""}</div>`;
+  else if (cur === OTHER) h += feat
+    ? `<label class="fld"><span>Its name</span><input data-bgf="feat" value="${esc(x.feat || "")}" placeholder="Tough"></label><label class="fld"><span>What it does</span><textarea data-bgf="featText" rows="3">${esc(x.featText || "")}</textarea></label>`
+    : `<label class="fld"><span>Its name</span><input data-bgf="featureName" value="${esc(x.featureName || "")}" placeholder="Ship's Passage"></label><label class="fld"><span>What it does</span><textarea data-bgf="featureText" rows="3">${esc(x.featureText || "")}</textarea></label>`;
+  if (!known) h += feat ? lookup("every origin feat", `The ${srdOf("2024")} has ${listAnd(opts.filter(o => o.type === "Origin").map(o => o.name))}. For another, choose Other and copy it from the 2024 Player's Handbook.`)
+    : lookup("most background features", `The ${srdOf("2014")} has only the Acolyte's (Shelter of the Faithful). For another, choose Other and copy it from the 2014 Player's Handbook; it's offered for your other backgrounds after that.`);
+  return h;
+}
 let BGE = null;   // the background of yours being written (its id)
 const bgObj = () => ownBgs().find(x => x.id === BGE) || null;
 function bgFormHtml() {
@@ -1763,8 +1791,7 @@ function bgFormHtml() {
     <div class="lab">Skill proficiencies</div>${box("skills", SKILLS.map(s => [s[0], s[1]]))}
     <div class="row">${f("tool", "Tool proficiency", "Navigator's tools")}${f("languages", "Languages", "One of your choice")}</div>
     <div class="lab">Ability scores it raises (2024 style: tick three; none for 2014 style, where the race gives them)</div>${box("abilities", ABS.map(([k, n]) => [k, n]))}
-    ${f("feat", "Origin feat (2024 style)", "Tough", "bgfeats")}<datalist id="bgfeats">${HAS_RULES ? [...RULES.feats, ...RULES["2014"].feats].map(q => `<option value="${esc(q.name)}">`).join("") : ""}</datalist>
-    ${f("featureName", "Feature (2014 style)", "Ship's Passage")}${ta("featureText", "What the feature does", "", 3)}
+    ${bgPickHtml(x, "feat")}${bgPickHtml(x, "feature")}
     ${ta("eqA", "Equipment", "A belaying pin, 50 feet of silk rope, a lucky charm, and 10 GP", 2)}${f("eqB", "Or instead (B), if it offers a choice", "50 GP")}
     <p class="note">Commas between things: what the SRD has comes in with its stats, and GP goes in the purse. Changes save as you type.</p>
     <div class="row"><button class="btn main grow" data-act="bgdone">Done</button><button class="btn danger" data-act="bgdel">Delete</button></div>`;
@@ -1819,7 +1846,7 @@ function applyBg(c) {
   if (p.tool) { addProf(`Tools: ${bg.tool}`); did.push(bg.tool); }
   if (p.langs) { addProf(`Languages: ${bg.languages}`); did.push("languages"); }
   if (p.feature) { c.traits.push({ name: bg.feature.name, text: bg.feature.desc, src: bg.name }); did.push(bg.feature.name); }
-  if (p.feat) { const f = rFeat(bg.feat, "2024") || rFeat(bg.feat, "2014"); c.traits.push({ name: bg.feat, text: f ? f.desc : "", src: "Origin feat" }); did.push(bg.feat); }
+  if (p.feat) { const f = rFeat(bg.feat, "2024") || rFeat(bg.feat, "2014"); c.traits.push({ name: bg.feat, text: f ? f.desc : bg.featText || "", src: "Origin feat" }); did.push(bg.feat); }
   if (p.asi) for (const [k, v] of [[ABG.plus2, 2], [ABG.plus1, 1]]) if (k) { c.ab[k] = Math.min(20, (+c.ab[k] || 10) + v); did.push(`${AB_SHORT[k]} +${v}`); }
   if (p.eq) { const kit = bldItems(typeof bg.equipment === "string" ? bg.equipment : bg.equipment[ABG.eq || "A"]); c.items.push(...kit.items); c.purse.gp = (+c.purse.gp || 0) + kit.gp; did.push(`${kit.items.length} item${kit.items.length === 1 ? "" : "s"}${kit.gp ? ` and ${kit.gp} gp` : ""}`); }
   logIt(c, `Background ${bg.name}: ${did.length ? listAnd(did) : "nothing added"}`); ABG = null; save(); closeOv(); render(); toast(`${bg.name}: ${did.length ? listAnd(did) : "nothing"} added.`);
@@ -2077,6 +2104,11 @@ document.addEventListener("change", e => {
   const el = e.target; const c = (el.dataset && el.dataset.ch && db.chars.find(x => x.id === el.dataset.ch)) || C();
   if (el.dataset && el.dataset.lib) return;
   if (el.dataset && (el.dataset.tbl || el.dataset.bgf)) return;
+  if (el.dataset && el.dataset.bgsel && BGE) { const x = bgObj(), k = el.dataset.bgsel, v = el.value; if (x) {
+      if (k === "feat") { if (v === OTHER) { x.featOther = true; if (bgFeatOpts().some(o => o.name === x.feat)) x.feat = ""; } else { x.feat = v; delete x.featOther; delete x.featText; } }
+      else if (v === OTHER) { x.featureOther = true; if (bgFeatureOpts(x).some(o => o.name === x.featureName)) { x.featureName = ""; x.featureText = ""; } }
+      else { const o = bgFeatureOpts(x).find(q => q.name === v); x.featureName = v; x.featureText = o ? o.desc : ""; delete x.featureOther; }
+      save(); const b = $("#ov .box"), top = b.scrollTop; b.innerHTML = bgFormHtml(); b.scrollTop = top; } return; }
   if (el.dataset && el.dataset.bgm && BGE) { const x = bgObj(); if (x) { const s = new Set(x[el.dataset.bgm] || []); if (el.checked) s.add(el.dataset.v); else s.delete(el.dataset.v); x[el.dataset.bgm] = [...s]; save(); } return; }
   if (el.dataset && el.dataset.abg && ABG) { ABG[el.dataset.abg] = el.value; if (el.dataset.abg === "key") { const bg = applyBgList().find(x => x.key === el.value); ABG.picks = bg ? Object.fromEntries(applyBgItems(c, bg).map(it => [it.k, !it.had && !it.off])) : {}; ABG.plus2 = ABG.plus1 = ""; ABG.eq = "A"; }
     if (el.dataset.abg === "plus2" && ABG.plus1 === el.value) ABG.plus1 = ""; $("#ov .box").innerHTML = applyBgHtml(); return; }

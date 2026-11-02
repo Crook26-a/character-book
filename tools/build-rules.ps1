@@ -58,7 +58,10 @@ $backgrounds = foreach ($b in ((Get-All "backgrounds") | Sort-Object name)) {
   [ordered]@{ name = $b.name; desc = [string]$b.desc; abilities = @(Ab-Keys $g["ability_score"]); feat = $g["feat"]; skills = @(Skill-Keys $g["skill_proficiency"])
     tool = $g["tool_proficiency"]; equipment = Choice ([string]$g["equipment"] -replace '^\*Choose A or B:\*\s*', '') }
 }
-$feats = foreach ($f in ((Get-All "feats") | Sort-Object name)) { [ordered]@{ name = $f.name; type = [string]$f.type; prereq = [string]$f.prerequisite; desc = [string]$f.desc
+# a feat's rules are in its benefits ("You gain the following benefits." is often all its desc says): desc carries
+# both, the benefits as a list after a blank line
+function Feat-Text($f) { (@([string]$f.desc | Where-Object { $_.Trim() }) + @((@($f.benefits | ForEach-Object { "- " + ([string]$_.desc).Trim() }) -join "`n") | Where-Object { $_ })) -join "`n`n" }
+$feats = foreach ($f in ((Get-All "feats") | Sort-Object name)) { [ordered]@{ name = $f.name; type = [string]$f.type; prereq = [string]$f.prerequisite; desc = (Feat-Text $f)
   benefits = @($f.benefits | ForEach-Object { [string]$_.desc }) } }
 
 # ── The 2014 rules: the SRD 5.1 (document srd-2014), shaped like the above where it can be. It writes its
@@ -119,10 +122,25 @@ $backgrounds14 = foreach ($b in (Get-Doc "backgrounds" "srd-2014" | Sort-Object 
     languages = [string]$g["language"].desc; equipment = ([string]$g["equipment"].desc -replace $Q, "'"); feature = [ordered]@{ name = [string]$g["feature"].name; desc = [string]$g["feature"].desc } }
 }
 $feats14 = foreach ($f in (Get-Doc "feats" "srd-2014" | Sort-Object name)) { [ordered]@{ name = $f.name; type = "General"; prereq = [string]$f.prerequisite
-  desc = (@([string]$f.desc) + @($f.benefits | ForEach-Object { "- " + $_.desc })) -join "`n"; benefits = @($f.benefits | ForEach-Object { [string]$_.desc }) } }
+  desc = ((Feat-Text $f) -replace $Q, "'"); benefits = @($f.benefits | ForEach-Object { [string]$_.desc }) } }
 
 $json = [ordered]@{ classes = @($classes); subclasses = @($subclasses); species = @($species); backgrounds = @($backgrounds); feats = @($feats)
   "2014" = [ordered]@{ classes = @($classes14); subclasses = @($subclasses14); species = @($races); backgrounds = @($backgrounds14); feats = @($feats14) } } | ConvertTo-Json -Depth 9 -Compress
 $out = "/* rules.js: made by tools\build-rules.ps1 from Open5e's copies of the SRD 5.2 (the 2024 rules) and, under ""2014"", the SRD 5.1 ($(Get-Date -Format 'yyyy-MM-dd')). Don't edit by hand. The credits are in srd.js (SRD_CREDIT) and index.html (SRD51_CREDIT). */`nconst RULES = $json;`n"
 [IO.File]::WriteAllText((Join-Path $App "rules.js"), $out, (New-Object Text.UTF8Encoding $false))
+# the Field Book's copy of what its background form offers: the feats (the SRD 5.2's, then any only in the SRD 5.1)
+# and the SRD's background features, with what each does
+$fb = Join-Path (Split-Path $App -Parent) "Field Book"
+if (Test-Path $fb) {
+  $names = @($feats | ForEach-Object { $_.name })
+  $fbFeats = @($feats | Where-Object { $_.type -in "Origin", "General" -and $_.name -ne "Ability Score Improvement" } | ForEach-Object { [ordered]@{ name = $_.name; type = $_.type; desc = $_.desc; srd = "SRD 5.2" } }) +
+    @($feats14 | Where-Object { $names -notcontains $_.name } | ForEach-Object { [ordered]@{ name = $_.name; type = "General"; desc = $_.desc; srd = "SRD 5.1" } })
+  $fbFeatures = @($backgrounds14 | Where-Object { $_.feature.name } | ForEach-Object { [ordered]@{ name = $_.feature.name; desc = $_.feature.desc; from = "$($_.name) (SRD 5.1)" } })
+  $credits = [ordered]@{
+    "SRD 5.2" = "This work includes material from the System Reference Document 5.2 (""SRD 5.2"") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode."
+    "SRD 5.1" = "This work includes material taken from the System Reference Document 5.1 (""SRD 5.1"") by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode." }
+  $fj = ([ordered]@{ feats = $fbFeats; features = $fbFeatures; credits = $credits } | ConvertTo-Json -Depth 5 -Compress)
+  [IO.File]::WriteAllText((Join-Path $fb "feats.js"), "/* feats.js: made by the Character Book's tools\build-rules.ps1 from Open5e's copies of the SRD 5.2 and SRD 5.1 (Creative Commons Attribution 4.0; credited in the form). Don't edit by hand. */`nconst RULE_PICKS = $fj;`n", (New-Object Text.UTF8Encoding $false))
+  "Field Book feats.js: $($fbFeats.Count) feats, $($fbFeatures.Count) background feature(s)"
+}
 "rules.js: 2024 $(@($classes).Count) classes, $(@($subclasses).Count) subclasses, $(@($species).Count) species, $(@($backgrounds).Count) backgrounds, $(@($feats).Count) feats; 2014 $(@($classes14).Count) classes, $(@($subclasses14).Count) subclasses, $(@($races).Count) races, $(@($backgrounds14).Count) backgrounds, $(@($feats14).Count) feats; $([int]((Get-Item (Join-Path $App 'rules.js')).Length / 1024)) KB"
