@@ -49,7 +49,7 @@ PCs tab → Homebrew: **+ A background** (skills, tool, languages, ability score
 
 ## Still to do (Joseph, 2026-11-01)
 
-Multiclassing (v26), custom subclasses and feats with their sheet changes, and the Wild Magic pieces (v27) are done. Your own classes are done too (v28). Still open: making classes, subclasses, and feats in the Field Book, AC formulas, bonuses that only apply sometimes, and choices beyond an ability score at a level.
+Multiclassing (v26), custom subclasses and feats with their sheet changes, and the Wild Magic pieces (v27) are done. Your own classes are done too (v28), and the Field Book makes classes, subclasses, and feats as well (v29: read from it like its backgrounds, and changed there). Still open: AC formulas, bonuses that only apply sometimes, and choices beyond an ability score at a level.
 
 ## Multiclassing (v26)
 

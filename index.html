@@ -250,7 +250,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 28;
+const VERSION = 29;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1987,8 +1987,10 @@ function applyBg(c) {
    (Wild Magic). A subclass can also make its class a third caster (Eldritch Knight's slots). The level-up reads them
    fresh, so a change shows from the next level; "Apply a subclass…" fills in levels already reached, from a ticked
    list. Kept in the homebrew library, which syncs. ══ */
-const ownSubs = () => (db.lib && db.lib.subclasses) || [];
-const ownFeats = () => (db.lib && db.lib.feats) || [];
+const mySubs = () => (db.lib && db.lib.subclasses) || [];
+const ownSubs = () => mergeHb(mySubs(), fromFB("subclasses"));
+const myFeats = () => (db.lib && db.lib.feats) || [];
+const ownFeats = () => mergeHb(myFeats(), fromFB("feats"));
 // shaped like the SRD's: features with lv [level] and desc, plus their fx; mine marks them as yours
 const subShape = s => ({ ...s, mine: true, features: (s.features || []).filter(f => String(f.name || "").trim()).map(f => ({ name: f.name, lv: [+f.level || 1], desc: f.text || "", fx: f.fx || [], mine: true })) });
 const ownSubShape = n => { const s = n && ownSubs().find(x => x.name === n); return s ? subShape(s) : null; };
@@ -2056,7 +2058,7 @@ function fxPickHtml(fx, path, obj) {
 }
 // the changes, edited: owner "sub:<id>:<feature index>" or "feat:<id>"
 function fxList(owner) {
-  const [k, id, fi] = owner.split(":"), o = k === "sub" ? ((ownSubs().find(s => s.id === id) || {}).features || [])[+fi] : k === "cls" ? ((ownClasses().find(s => s.id === id) || {}).features || [])[+fi] : ownFeats().find(f => f.id === id);
+  const [k, id, fi] = owner.split(":"), o = k === "sub" ? ((mySubs().find(s => s.id === id) || {}).features || [])[+fi] : k === "cls" ? ((myClasses().find(s => s.id === id) || {}).features || [])[+fi] : myFeats().find(f => f.id === id);
   return o ? (o.fx = o.fx || []) : null;
 }
 function fxEditHtml(owner) {
@@ -2087,7 +2089,7 @@ function fxEditHtml(owner) {
 }
 // the subclass form
 let SUBE = null;
-const subObj = () => ownSubs().find(s => s.id === SUBE) || null;
+const subObj = () => mySubs().find(s => s.id === SUBE) || null;
 function subFormHtml() {
   const s = subObj(); if (!s) return "";
   const f = (k, label, ph) => `<label class="fld"><span>${label}</span><input data-sbf="${k}" value="${esc(s[k] || "")}" placeholder="${esc(ph || "")}"></label>`;
@@ -2108,7 +2110,7 @@ function subFormHtml() {
 const CASTERS_LIST = ["Wizard", "Sorcerer", "Warlock", "Cleric", "Druid", "Bard"];
 // the feat form
 let FTE = null;
-const featObj = () => ownFeats().find(f => f.id === FTE) || null;
+const featObj = () => myFeats().find(f => f.id === FTE) || null;
 function featFormHtml() {
   const x = featObj(); if (!x) return "";
   return `<div class="rr-h">Your feat</div>
@@ -2123,10 +2125,10 @@ function reForm() { const b = $("#ov .box"), top = b.scrollTop; b.innerHTML = ov
 function subFeatLibHtml() {
   const subs = ownSubs(), feats = ownFeats();
   return `${classLibHtml()}<h3 style="margin-top:14px">Your subclasses</h3>
-    ${subs.length ? subs.map(s => `<div class="card"><div class="atkrow"><span class="nm">${esc(s.name || "Unnamed")}<span class="sub">${esc([s.of, `${(s.features || []).length} feature${(s.features || []).length === 1 ? "" : "s"}`, s.caster === "third" ? "third caster" : ""].filter(Boolean).join(" · "))}</span></span><button class="btn small" data-act="subedit" data-id="${s.id}">Edit</button></div></div>`).join("") : `<p class="note">None yet. The level-up offers them with the SRD's, and Apply a subclass gives one to a character already playing.</p>`}
+    ${subs.length ? subs.map(s => `<div class="card"><div class="atkrow"><span class="nm">${esc(s.name || "Unnamed")}<span class="sub">${esc([s.of, `${(s.features || []).length} feature${(s.features || []).length === 1 ? "" : "s"}`, s.caster === "third" ? "third caster" : ""].filter(Boolean).join(" · "))}</span></span>${s.fb ? `<span class="tag">Field Book</span>` : `<button class="btn small" data-act="subedit" data-id="${s.id}">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet. The level-up offers them with the SRD's, and Apply a subclass gives one to a character already playing.</p>`}
     <button class="btn wide" data-act="subadd">+ A subclass</button>
     <h3 style="margin-top:14px">Your feats</h3>
-    ${feats.length ? feats.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc([x.type, x.prereq, (x.fx || []).length ? listAnd(x.fx.map(fxSummary)) : ""].filter(Boolean).join(" · "))}</span></span><button class="btn small" data-act="ftedit" data-id="${x.id}">Edit</button></div></div>`).join("") : `<p class="note">None yet.</p>`}
+    ${feats.length ? feats.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc([x.type, x.prereq, (x.fx || []).length ? listAnd(x.fx.map(fxSummary)) : ""].filter(Boolean).join(" · "))}</span></span>${x.fb ? `<span class="tag">Field Book</span>` : `<button class="btn small" data-act="ftedit" data-id="${x.id}">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet.</p>`}
     <button class="btn wide" data-act="ftadd">+ A feat</button>`;
 }
 // Wild Magic and the like: a roll after casting, offered with the spell's result (or by itself)
@@ -2182,7 +2184,8 @@ function setSlotsFrom(c, S) {
    magic, with an ability, a class's list to borrow and/or spells of its own), the subclass level, the ability score
    improvement levels, a class table (columns by level; a column marked as a use is tracked and grows), and features
    by level with their changes to the sheet. ══ */
-const ownClasses = () => (db.lib && db.lib.classes) || [];
+const myClasses = () => (db.lib && db.lib.classes) || [];
+const ownClasses = () => mergeHb(myClasses(), fromFB("classes"));
 const SLOT_KINDS = [["", "None"], ["full", "Full (like a wizard)"], ["half", "Half (like a paladin)"], ["third", "A third (like the Eldritch Knight)"], ["pact", "Pact magic (like a warlock)"]];
 const COL_HINTS = ["Cantrips", "Prepared Spells", "Spells Known", "Rages", "Rage Damage", "Ki Points", "Focus Points", "Sorcery Points", "Channel Divinity", "Sneak Attack", "Martial Arts", "Invocations Known"];
 function classShape(x) {
@@ -2202,7 +2205,7 @@ const restOfCol = (R, col) => R && R.mine ? ((R.useCols.find(u => u.name === col
 const ownSpellNames = R => String((R && R.ownSpells) || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
 const inClassList = (R, s, listName) => !!(listName && new RegExp(`\\b${listName}\\b`, "i").test(s.cls || "")) || !!(R && R.mine && ownSpellNames(R).includes(String(s.name).toLowerCase()));
 let CLE = null;
-const clsObj = () => ownClasses().find(x => x.id === CLE) || null;
+const clsObj = () => myClasses().find(x => x.id === CLE) || null;
 function classFormHtml() {
   const x = clsObj(); if (!x) return "";
   const f = (k, label, ph) => `<label class="fld"><span>${label}</span><input data-clf="${k}" value="${esc(x[k] ?? "")}" placeholder="${esc(ph || "")}"></label>`;
@@ -2242,7 +2245,7 @@ function classFormHtml() {
 function classLibHtml() {
   const cs = ownClasses();
   return `<h3 style="margin-top:14px">Your classes</h3>
-    ${cs.length ? cs.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc([`d${x.hd || 8}`, x.primary, x.caster ? (SLOT_KINDS.find(k => k[0] === x.caster) || [, ""])[1].replace(/ \(.*/, "") + " caster" : "", `${(x.features || []).length} feature${(x.features || []).length === 1 ? "" : "s"}`].filter(Boolean).join(" · "))}</span></span><button class="btn small" data-act="cledit" data-id="${x.id}">Edit</button></div></div>`).join("") : `<p class="note">None yet. The builder and the level-up list them with the SRD's.</p>`}
+    ${cs.length ? cs.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc([`d${x.hd || 8}`, x.primary, x.caster ? (SLOT_KINDS.find(k => k[0] === x.caster) || [, ""])[1].replace(/ \(.*/, "") + " caster" : "", `${(x.features || []).length} feature${(x.features || []).length === 1 ? "" : "s"}`].filter(Boolean).join(" · "))}</span></span>${x.fb ? `<span class="tag">Field Book</span>` : `<button class="btn small" data-act="cledit" data-id="${x.id}">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet. The builder and the level-up list them with the SRD's.</p>`}
     <button class="btn wide" data-act="cladd">+ A class</button>`;
 }
 
@@ -2768,7 +2771,7 @@ document.addEventListener("click", e => {
     case "lures": { const r = c.res.find(x => x.id === el.dataset.id); LV.res[r.id] = Math.max(0, (LV.res[r.id] ?? r.max) + +el.dataset.d); showLevelUp(c); break; }
     case "luapply": applyLevelUp(c); break;
     case "libin": $("#libIn").click(); break;
-    case "libclear": if (confirm("Forget the survey's homebrew? Spells and items already on a sheet stay there, and so do your own backgrounds and tables.")) { db.lib = ownBgs().length || ownTables().length || ownSubs().length || ownFeats().length || ownClasses().length ? { spells: [], loot: [], backgrounds: ownBgs(), tables: ownTables(), subclasses: ownSubs(), feats: ownFeats(), classes: ownClasses() } : null; save(); render(); } break;
+    case "libclear": if (confirm("Forget the survey's homebrew? Spells and items already on a sheet stay there, and so do your own backgrounds and tables.")) { db.lib = ownBgs().length || ownTables().length || mySubs().length || myFeats().length || myClasses().length ? { spells: [], loot: [], backgrounds: ownBgs(), tables: ownTables(), subclasses: mySubs(), feats: myFeats(), classes: myClasses() } : null; save(); render(); } break;
     case "pkownspell": { const nm = prompt("The spell's name?"); if (!nm) break; closeOv(); const lv = parseInt(prompt("Its level (0 for a cantrip)?", "1"), 10) || 0; const s = { id: uid("sp"), name: nm, lvl: lv, text: "", time: "1 action" }; c.spells.push(s); ui.edit = "spell:" + s.id; save(); render(); break; }
     // edit sheet
     case "saveprof": { const ab = el.dataset.ab; c.saveProf = c.saveProf.includes(ab) ? c.saveProf.filter(x => x !== ab) : c.saveProf.concat(ab); save(); render(); break; }

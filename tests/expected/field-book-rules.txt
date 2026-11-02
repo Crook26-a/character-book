@@ -1,0 +1,2 @@
+1. the Field Book's class, subclass, and feat, in the library and the lists: Test Warden: Field Book only, Test Path: Field Book only, Test Knack: Field Book only | offered: classes true, Fighter subclasses Champion, Test Path, origin feats Alert, Magic Initiate, Savage Attacker, Skilled, Test Knack
+2. built with the Field Book's class: its feature's change and its use: Test Warden 1, d10, speed 35, uses Wards 2 (short), casts with wis
