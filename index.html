@@ -250,7 +250,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 31;
+const VERSION = 32;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1538,7 +1538,9 @@ const CAST_OF = { Bard: "cha", Cleric: "wis", Druid: "wis", Paladin: "cha", Rang
 // the columns of a class table that are uses to track; the rest (Rage Damage, Martial Arts…) are told in the features
 const USE_COLS = ["Rages", "Channel Divinity", "Focus Points", "Ki Points", "Sorcery Points", "Second Wind"];
 const useName = col => col === "Rages" ? "Rage" : col;
-const SKIP_FEATURE = /^(Ability Score Improvement|Epic Boon|.* Subclass)$/;
+// lines that only announce a choice: the 2024 "Fighter Subclass" and the 2014 names for it (the subclass's own
+// features come in with it)
+const SKIP_FEATURE = /^(Ability Score Improvement|Epic Boon|.* Subclass|Primal Path|Bard College|Divine Domain|Druid Circle|Martial Archetype|Monastic Tradition|Sacred Oath|Ranger Archetype|Roguish Archetype|Sorcerous Origin|Otherworldly Patron|Arcane Tradition)$/;
 // when a use comes back, from its feature's own words
 function restOf(cls, col) {
   const key = col.replace(/s$/, ""), lc = col.toLowerCase(), d = (cls.features.find(f => (f.name.startsWith(key) || f.desc.toLowerCase().includes(lc)) && /regain/i.test(f.desc)) || {}).desc || "";
