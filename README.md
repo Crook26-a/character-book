@@ -46,3 +46,7 @@ This work includes material taken from the System Reference Document 5.1 ("SRD 5
 ## Your own backgrounds and roll tables (v24)
 
 PCs tab → Homebrew: **+ A background** (skills, tool, languages, ability scores it raises for 2024 style, an origin feat, a feature for 2014 style, and its equipment as one list or an A/B choice) and **+ A table** for everyone. The Field Book's Rules tab makes the same two, and Sync brings them here (its notes stay behind). The builder lists your backgrounds, marked "yours" or "Field Book"; **Apply a background…** (Play tab → Who they are) gives one to a character already made, from a ticked list of what it would add (what the sheet already has, ability scores, and equipment start unticked). Roll tables are rows like "01–02 | what happens" (00 is 100; a line without a number joins the row above; the note says if a number has no row); a character can have their own too, and all of them roll from the Play tab's Roll tables, with any dice in a result tappable.
+
+## Still to do (Joseph, 2026-11-01)
+
+In this order: multiclassing (a character's classes as a list); then custom subclasses whose features change the sheet (ability scores, spell slots, proficiencies, uses, always-prepared spells, and ongoing bonuses) with the Wild Magic pieces (a roll offered after casting); and custom feats (name, type, prerequisite, what it does, and the same sheet changes), offered in the background feat dropdown, the level-up's feat choice, and Versatile.
