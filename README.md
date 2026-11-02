@@ -49,7 +49,7 @@ PCs tab → Homebrew: **+ A background** (skills, tool, languages, ability score
 
 ## Still to do (Joseph, 2026-11-01)
 
-Multiclassing (v26), custom subclasses and feats with their sheet changes, and the Wild Magic pieces (v27) are done. Your own classes are done too (v28), and the Field Book makes classes, subclasses, and feats as well (v29: read from it like its backgrounds, and changed there). Still open: AC formulas, bonuses that only apply sometimes, and choices beyond an ability score at a level.
+Multiclassing (v26), custom subclasses and feats with their sheet changes, and the Wild Magic pieces (v27) are done. Your own classes are done too (v28), and the Field Book makes classes, subclasses, and feats as well (v29: read from it like its backgrounds, and changed there). Your own species and races, and moving your own things to the Field Book, came in v30. Still open: AC formulas, bonuses that only apply sometimes, and choices beyond an ability score at a level.
 
 ## Multiclassing (v26)
 
@@ -62,3 +62,9 @@ PCs tab → Homebrew: **+ A subclass** (its class, features by level, and option
 ## Your own classes (v28)
 
 PCs tab → Homebrew: **+ A class**. Hit die, primary ability (multiclassing needs 13 in it), saving throws, skills (how many, from which or any), armor, weapons, tools, starting equipment (one list or A/B), what a multiclass character gets; spellcasting (none, full, half, a third, or pact magic, with an ability, and its spells from a class's list, its own named spells, or both); the subclass level and the ability score improvement levels; a class table (columns by level, like Cantrips, Prepared Spells, or Rages; a column marked as a use is tracked and grows at each level-up); and features by level with their changes to the sheet. It's in the builder (marked "yours"), the level-up (and its "A new class…"), multiclassing (requirements, proficiencies, and slots on the shared table), the subclass form, and Edit. The quick "Other (type your own)" class is still there for a one-off.
+
+## Your own species and races, and moving things to the Field Book (v30)
+
+PCs tab → Homebrew: **+ A species or race**. Size, speed, ability score increases (2014 style; leave them empty for 2024 style, where the background gives them, or +1 to two others like the half-elf), skills (named, and any of their choice), languages, and traits by character level with their changes to the sheet. One can be a subrace of another race (the SRD's or yours): the builder lists it under that race, it takes the race's traits and speed unless it sets its own, and its increases add to the race's. A trait above 1st level comes with the level-up that reaches that character level. **Apply a species or race…** (Play → Who they are) gives one to a character already made, from a ticked list (what the sheet has, and ability scores, start unticked). The Field Book's Rules tab makes them too.
+
+Each thing of yours in the library (backgrounds, tables, species and races, classes, subclasses, and feats) has **→ Field Book**: it moves into the Field Book's storage on this device (both apps live on the same site), and from then on it's changed there and still offered here. The Field Book takes it in even while it's open, and its Sync takes it to the DM's other devices.

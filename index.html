@@ -250,7 +250,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 29;
+const VERSION = 30;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -866,7 +866,7 @@ function playHtml(c) {
     ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return todoHtml(c) + hpPanel + effPanel + stats
-    + sec("who", "Who they are", "", whoHtml(c) + `<button class="btn wide" data-act="applybg">Apply a background…</button>`, false)
+    + sec("who", "Who they are", "", whoHtml(c) + `<button class="btn wide" data-act="applybg">Apply a background…</button><button class="btn wide" data-act="applyrace">Apply a species or race…</button>`, false)
     + sec("res", "Slots, features, and rests", "", resBody, true)
     + sec("atk", "Attacks", `${c.attacks.length}`, atkBody + `<button class="btn wide" data-act="addatk">+ An attack</button>`, true)
     + sec("abil", "Abilities, saves, and skills", "", abil, true)
@@ -902,7 +902,7 @@ function editHtml(c) {
     <div class="row">${fld("Name", "name", c.name)}${fld("Short name", "short", c.short || "")}</div>
     <div class="row">${fld("Player", "player", c.player || "")}${fld("Campaign", "campaign", c.campaign || "")}</div>
     <div class="row"><label class="fld"><span>Rules</span><select data-f="rules">${["2024", "2014"].map(r => `<option ${(c.rules || "2024") === r ? "selected" : ""}>${r}</option>`).join("")}</select></label><label class="check" style="align-self:flex-end"><input type="checkbox" data-f="mixed" ${c.mixed ? "checked" : ""}> Mix in ${otherEd(edOf(c))}</label>${fld("Extra HP each level", "hpPerLevel", c.hpPerLevel || 0, { n: 1 })}</div>
-    <div class="row">${pick("Species", "species", SPECIES, c.species)}${isMulti(c) ? "" : pick("Class", "cls", allClassNames(), c.cls) + fld("Level", "level", c.level, { n: 1 })}</div>
+    <div class="row">${pick("Species", "species", [...new Set([...SPECIES, ...ownRaces().map(r => r.name).filter(Boolean)])], c.species)}${isMulti(c) ? "" : pick("Class", "cls", allClassNames(), c.cls) + fld("Level", "level", c.level, { n: 1 })}</div>
     ${isMulti(c) ? `<div class="lab">Classes</div>${classesOf(c).map((k, j) => `<div class="row">${fld("Class", `classes.${j}.cls`, k.cls)}${fld("Subclass", `classes.${j}.sub`, k.sub || "")}${fld("Level", `classes.${j}.level`, k.level, { n: 1 })}${fld("Hit die", `classes.${j}.die`, k.die, { n: 1 })}${j ? `<button class="btn small danger" data-act="clsdel" data-j="${j}" style="margin-bottom:10px">✕</button>` : ""}</div>`).join("")}<p class="note">Level ${c.level} in all. The level-up adds a class for you; these are for fixing one by hand.</p>` : ""}
     <button class="btn small" data-act="clsadd" style="margin-bottom:10px">+ Another class (by hand)</button>
     <div class="row">${isMulti(c) ? "" : pick("Subclass", "subcls", subOffers(c), c.subcls)}${pick("Background", "bg", BACKGROUNDS, c.bg)}${pick("Alignment", "align", ALIGNMENTS, c.align)}</div>
@@ -1369,11 +1369,11 @@ function startLevelUp(c) {
 // an SRD class: the new class level's features and uses, from its table, filled in to check (again when the class changes)
 function luPrefill(c) {
   LV.feats = []; LV.res = {}; LV.newRes = []; LV.kept = []; LV.featPicks = [];
-  const T = luTarget(c), R = T.R, subName = T.k.sub || (LV.subcls && LV.subcls !== "__other" ? LV.subcls : ""), sub = subName ? rSubFor(c, subName) : null; if (!R && !sub) return;
+  const T = luTarget(c), R = T.R, subName = T.k.sub || (LV.subcls && LV.subcls !== "__other" ? LV.subcls : ""), sub = subName ? rSubFor(c, subName) : null;
   const onSheet = new Set(c.traits.map(t => t.name));
-  const gets = [...(R ? R.features.filter(f => f.lv.includes(T.K) && !SKIP_FEATURE.test(f.name)) : []), ...(sub ? sub.features.filter(f => f.lv.includes(T.K)) : [])];
+  const gets = [...(R ? R.features.filter(f => f.lv.includes(T.K) && !SKIP_FEATURE.test(f.name)) : []), ...(sub ? sub.features.filter(f => f.lv.includes(T.K)) : []), ...raceTraitsAt(c, (+c.level || 1) + 1)];
   LV.kept = [...new Set(gets.filter(f => onSheet.has(f.name)).map(f => f.name))];
-  LV.feats = gets.filter(f => !onSheet.has(f.name)).map(f => ({ name: f.name, text: f.desc, uses: false, max: 1, rest: "long", srd: !f.mine, mine: !!f.mine, fx: f.fx || [] }));
+  LV.feats = gets.filter(f => !onSheet.has(f.name)).map(f => ({ name: f.name, text: f.desc, uses: false, max: 1, rest: "long", srd: !f.mine, mine: !!f.mine, fx: f.fx || [], ...(f.src ? { src: f.src } : {}) }));
   if (R) for (const col of useColsOf(R)) { const v = parseInt((R.table[col] || {})[T.K]); if (!v) continue; const r = c.res.find(x => x.name === useName(col)); if (r) { if (v !== +r.max) LV.res[r.id] = v; } else LV.newRes.push({ name: useName(col), max: v, rest: restOfCol(R, col) }); }
 }
 function levelUpHtml(c) {
@@ -1494,7 +1494,7 @@ function applyLevelUp(c) {
   { const sb = target.sub ? rSubFor(c, target.sub) : null; if (sb && sb.caster === "third" && !classesOf(c).some(k => CAST_OF[k.cls])) c.castAb = sb.castAb || "int"; }   // a third caster's ability
   for (const r of LV.newRes) { c.res.push({ id: uid("rs"), name: r.name, max: r.max, used: 0, rest: r.rest }); did.push(`${r.name} ${r.max}`); }
   LV.feats.forEach((f, fi) => { if (!f.name || !f.name.trim()) return;
-    const tr = { name: f.name.trim(), text: (f.text || "").trim(), src: `${cls} ${K}` }; if (f.fx && f.fx.length) { tr.fx = f.fx; did.push(...applyFx(c, f.fx, { cls, picks: (LV.featPicks || [])[fi] })); }
+    const tr = { name: f.name.trim(), text: (f.text || "").trim(), src: f.src || `${cls} ${K}` }; if (f.fx && f.fx.length) { tr.fx = f.fx; did.push(...applyFx(c, f.fx, { cls, picks: (LV.featPicks || [])[fi] })); }
     c.traits.push(tr); did.push(f.name.trim());
     if (f.uses) c.res.push({ id: uid("rs"), name: f.name.trim(), max: +f.max || 1, used: 0, rest: f.rest || "long" });
   });
@@ -1569,7 +1569,7 @@ function bldLists(ed) {
 // what's picked: the class, background, species (2014: race), its subrace, and a 1st-level subclass (2014)
 function bldPicked() {
   const b = BLD, L = bldLists(b.ed), find = (arr, k) => arr.find(x => x.key === k) || null;
-  const cls = find(bldClasses(), b.cls), sp = L.species.find(x => x.key === b.sp && !x.of) || null, subs = sp ? L.species.filter(x => x.of === sp.name && x.ed === sp.ed) : [];
+  const cls = find(bldClasses(), b.cls), races = bldRaces(), sp = races.find(x => x.key === b.sp && !x.of) || null, subs = sp ? races.filter(x => x.of === sp.name && (x.ed === sp.ed || x.ed === "yours")) : [];
   return { L, cls, bg: find(bldBgs(), b.bg), sp, subs, sub: find(subs, b.sub), subcls: cls ? find(bldSubs(cls.name), b.subcls) : null };
 }
 const e14 = x => !!x && x.ed === "2014";
@@ -1582,10 +1582,10 @@ const subAt1 = cls => !!cls && (cls.mine ? +cls.subAt === 1 : e14(cls) && subcla
 // where the ability increases come from: a 2014 race, a 2024 background, both (you pick; the 2024 book says the
 // background), or neither: "free" (+2 and +1 anywhere) when it's typed or a mix gives none
 function bldAsi() {
-  const b = BLD, { sp, bg } = bldPicked(), race = e14(sp), back = bgGivesAsi(bg);
+  const b = BLD, { sp, sub, bg } = bldPicked(), race = raceGivesAsi(sp) || raceGivesAsi(sub), back = bgGivesAsi(bg);
   if (race && back) return b.asiFrom === "race" ? "race" : "bg";
   if (race) return "race"; if (back) return "bg";
-  return (b.ed === "2014" ? b.sp === OTHER : b.ed === "2024" ? b.bg === OTHER : !!(b.sp || b.bg)) ? "free" : "none";
+  return (b.ed === "2014" ? b.sp === OTHER || (!!sp && sp.ed === "yours") : b.ed === "2024" ? b.bg === OTHER : !!(b.sp || b.bg)) ? "free" : "none";
 }
 function bldBase() {
   const b = BLD; if (b.method === "buy") return { ...b.buy };
@@ -1684,18 +1684,20 @@ function builderHtml() {
     return s;
   };
   const spHtml = () => {
-    let s = `<h3>${n.sp}. ${only14 ? "Race" : mix ? "Species or race" : "Species"}</h3>${sel("sp", opts(L.species.filter(x => !x.of)), b.sp, `Choose a ${raceWord}`, true)}`;
+    let s = `<h3>${n.sp}. ${only14 ? "Race" : mix ? "Species or race" : "Species"}</h3>${sel("sp", opts(bldRaces().filter(x => !x.of)), b.sp, `Choose a ${raceWord}`, true)}`;
     const read = r => `<details class="sec" style="margin-top:0"><summary>Read the ${esc(r.name)} traits</summary>${r.traits.map(t => `<div class="card"><b>${esc(t.name)}</b><div class="txt">${fmt(t.desc)}</div></div>`).join("")}</details>`;
-    if (e14(sp)) {
-      s += `<p class="note">${esc(sp.size || "Medium")}, speed ${sp.speed} ft. ${bonusText(sp) ? `${esc(bonusText(sp))}${sp.choose ? `, and +1 to ${sp.choose} others` : ""}${src === "bg" ? " (not used: the background gives the increases; see step 4)" : ""}. ` : ""}${esc(listAnd(sp.traits.filter(t => !/table$/.test(t.name)).map(t => t.name)))}.</p>`;
+    if (raceLike(sp)) {
+      s += `<p class="note">${esc(sp.size || "Medium")}, speed ${sp.speed || 30} ft. ${bonusText(sp) ? `${esc(bonusText(sp))}${sp.choose ? `, and +1 to ${sp.choose} others` : ""}${src === "bg" ? " (not used: the background gives the increases; see step 4)" : ""}. ` : ""}${esc(listAnd(sp.traits.filter(t => !/table$/.test(t.name)).map(t => t.name)))}.</p>`;
+      if (sp.ed === "yours") s += raceMoreHtml(sp);
       if (subs.length) s += `<label class="fld"><span>Subrace</span>${sel("sub", opts(subs), b.sub, "—", true)}</label>${b.sub === OTHER ? txt("subT", "Subrace", "e.g. Wood Elf") + `<p class="note">Its bonus and traits go in with Edit; look them up in the 2014 Player's Handbook.</p>` : ""}`;
-      if (sub) s += `<p class="note">${esc(sub.name)}: ${esc(bonusText(sub))}. ${esc(listAnd(sub.traits.map(t => t.name)))}.</p>`;
+      if (sub) s += `<p class="note">${esc(sub.name)}: ${esc(bonusText(sub))}. ${esc(listAnd(sub.traits.map(t => t.name)))}.</p>` + (sub.ed === "yours" ? raceMoreHtml(sub) : "");
       if (sp.traits.some(t => t.name === "Draconic Ancestry")) s += `<label class="fld"><span>Your draconic ancestry (see the trait)</span><input data-bld="lineage" value="${esc(b.lineage)}" placeholder="e.g. Red"></label>`;
       s += read(sp) + (sub ? read(sub) : "");
     } else if (sp) {
       s += `<p class="note">${esc(sp.size)}, speed ${sp.speed} ft. ${esc(listAnd(sp.traits.map(t => t.name)))}.</p>`;
       if (sp.traits.some(t => /Lineage|Ancestry|Legacy/.test(t.name))) s += `<label class="fld"><span>Your ${esc(sp.traits.filter(t => /Lineage|Ancestry|Legacy/.test(t.name)).map(t => t.name.toLowerCase()).join(" and "))} (see the trait)</span><input data-bld="lineage" value="${esc(b.lineage)}" placeholder="e.g. High Elf, Red dragon"></label>`;
-      s += read(sp);
+      if (subs.length) s += `<label class="fld"><span>Subrace (yours)</span>${sel("sub", opts(subs), b.sub, "None")}</label>` + (sub ? raceMoreHtml(sub) : "");
+      s += read(sp) + (sub ? read(sub) : "");
       if (sp.traits.some(t => t.name === "Skillful")) s += `<div class="row"><label class="fld"><span>Skillful: one more skill</span>${sel("extra", SKILLS.map(s => [s[0], s[1]]), b.extra)}</label>`
         + `<label class="fld"><span>Versatile: an origin feat</span>${sel("vfeat", [...ED("2024").feats.filter(f => f.type === "Origin").map(f => f.name), ...ownFeats().filter(f => f.type === "Origin" && f.name).map(f => f.name)], b.vfeat)}</label></div>`;
     } else if (b.sp === OTHER) s += `<div class="row">${txt("spT", only14 ? "Race" : "Species", "e.g. Tabaxi")}${txt("speed", "Speed", "30", true)}</div><p class="note">Their traits go in with Edit once they're made.</p>`;
@@ -1714,14 +1716,14 @@ function builderHtml() {
     if (vals.length) h += `<p class="note">Give each score to an ability.</p><div class="row">${ABS.map(([k]) => `<label class="fld n"><span>${AB_SHORT[k]}</span><select data-bld="pick.${k}"><option value="">—</option>${vals.map((v, i) => `<option value="${i}" ${String(b.pick[k]) === String(i) ? "selected" : used.includes(String(i)) ? "disabled" : ""}>${v}</option>`).join("")}</select></label>`).join("")}</div>`;
   }
   // the increases, from wherever this build's rules put them
-  if (e14(sp) && bgGivesAsi(bg)) h += `<div class="lab">Increases from</div>${seg("asiFrom", [["bg", `the ${esc(bg.name)} background (2024)`], ["race", `the ${esc(sp.name)} race (2014)`]], b.asiFrom === "race" ? "race" : "bg")}`;
+  if ((raceGivesAsi(sp) || raceGivesAsi(sub)) && bgGivesAsi(bg)) h += `<div class="lab">Increases from</div>${seg("asiFrom", [["bg", `the ${esc(bg.name)} background (${bg.ed})`], ["race", `the ${esc(sp.name)} race (${e14(sp) ? "2014" : "yours"})`]], b.asiFrom === "race" ? "race" : "bg")}`;
   if (src === "bg") h += `<div class="lab">${esc(bg.name)}: ${esc(listAnd(bg.abilities.map(k => AB_NAME[k]), "or"))}</div>${bg.abilities.length === 3 ? seg("plan", [["21", "+2 to one, +1 to another"], ["111", "+1 to all three"]], b.plan) : ""}${b.plan === "21" || bg.abilities.length !== 3 ? plus(bg.abilities) : ""}`;
   else if (src === "race" && sp.choose) h += `<div class="lab">${esc(sp.name)}: two other ability scores +1</div>${plus(allAbs.filter(k => !(k in sp.bonus)), "rc1", "rc2", 1, 1)}`;
   else if (src === "free") h += `<div class="lab">Ability score increases${mix ? " (the 2024 rule: +2 and +1)" : ` (if your ${only14 ? "race" : "background"} gives them)`}</div>${plus(allAbs)}`;
   h += `<p class="note" id="bldSc">${bldScNote()}</p>`;
-  const given = bldGivenSkills(), have = new Set(given), anyN = e14(sp) ? sp.anySkills || 0 : 0;
+  const given = bldGivenSkills(), have = new Set(given), anyN = raceLike(sp) ? sp.anySkills || 0 : 0;
   const from = cls && !cls.skills.any && !anyN ? cls.skills.from : SKILLS.map(s => s[0]), cap = bldSkillCap();
-  const fromElse = given.length ? ` (${esc(listAnd(given.map(k => SKILL[k].name)))} come from the ${e14(sp) && sp.skills.length ? "race and background" : "background"})` : "";
+  const fromElse = given.length ? ` (${esc(listAnd(given.map(k => SKILL[k].name)))} come from the ${raceLike(sp) && sp.skills.length ? "race and background" : "background"})` : "";
   h += `<h3>5. Skills</h3><p class="note">${cls ? `Choose ${cls.skills.n}${anyN ? ` from the ${esc(cls.name)} list, and ${anyN} of any (Skill Versatility)` : ""}${fromElse}: ${b.skills.length} of ${cap}.` : `Choose any${fromElse}: ${b.skills.length} chosen.`}</p>
     ${anyN && cls && !cls.skills.any ? `<p class="note">The ${esc(cls.name)} list: ${esc(listAnd(cls.skills.from.map(k => SKILL[k].name)))}.</p>` : ""}
     <div class="row" style="margin-bottom:8px">${from.map(k => `<button class="chip ${b.skills.includes(k) ? "on" : ""}" data-act="bldskill" data-k="${k}" ${have.has(k) ? "disabled style='opacity:.45'" : ""}>${SKILL[k].name}</button>`).join("")}</div>`;
@@ -1738,7 +1740,7 @@ function builderHtml() {
       h += `<h3>7. Spells</h3>${nc ? list(b.cantrips, 0, nc, "cantrips", "Cantrips") : ""}${np.n ? list(b.spells, 1, np.n, "spells", np.label) : ""}`;
     }
   } else if (b.cls === OTHER) h += `<h3>7. Spells</h3><p class="note">If your class casts spells, add them from the Spells tab once they're made.</p>`;
-  const langHint = [e14(sp) ? `${sp.name}: ${(sp.languages.match(/speak, read, and write ([^.]+)/i) || [, "see the race"])[1]}` : sp ? "Common, plus two the 2024 rules let you choose" : "",
+  const langHint = [sp && sp.ed === "yours" ? (sp.languages ? `${sp.name}: ${sp.languages}` : "") : e14(sp) ? `${sp.name}: ${(sp.languages.match(/speak, read, and write ([^.]+)/i) || [, "see the race"])[1]}` : sp ? "Common, plus two the 2024 rules let you choose" : "",
     (e14(bg) || (bg && bg.ed === "yours")) && bg.languages ? `${bg.name}: ${bg.languages.toLowerCase()}` : ""].filter(Boolean).join("; ");
   h += `<h3>8. Who they are</h3><div class="row"><label class="fld"><span>Name</span><input data-bld="name" value="${esc(b.name)}"></label><label class="fld"><span>Alignment</span>${sel("align", ALIGNMENTS, b.align)}</label></div>
     <label class="fld"><span>Languages${langHint ? ` (${esc(langHint)})` : ""}</span><input data-bld="langs" value="${esc(b.langs)}"></label>`;
@@ -1747,15 +1749,15 @@ function builderHtml() {
 }
 const bldScNote = () => { const sc = bldScores(), src = bldAsi(); return `${src === "race" ? "With the race" : src === "bg" ? "With the background" : src === "free" ? "With the increases" : "Scores"}: ${ABS.map(([k]) => `${AB_SHORT[k]} ${sc[k] ?? "—"}${sc[k] != null ? ` (${sg(abMod(sc[k]))})` : ""}`).join(", ")}.`; };
 // skills that come with the background (and a 2014 race), and how many the class (and a half-elf) choose
-function bldGivenSkills() { const { bg, sp, sub } = bldPicked(); return [...new Set([...(bg ? bg.skills : []), ...[sp, sub].flatMap(r => e14(r) ? r.skills || [] : []), BLD.extra].filter(Boolean))]; }
-function bldSkillCap() { const { cls, sp } = bldPicked(); return cls ? cls.skills.n + (e14(sp) ? sp.anySkills || 0 : 0) : SKILLS.length; }
+function bldGivenSkills() { const { bg, sp, sub } = bldPicked(); return [...new Set([...(bg ? bg.skills : []), ...[sp, sub].flatMap(r => raceLike(r) ? r.skills || [] : []), BLD.extra].filter(Boolean))]; }
+function bldSkillCap() { const { cls, sp } = bldPicked(); return cls ? cls.skills.n + (raceLike(sp) ? sp.anySkills || 0 : 0) : SKILLS.length; }
 // what's still to choose; the character is made anyway and carries this list (c.todo) until it's done
 function bldLeft() {
   const b = BLD, { cls, bg, sp, subs } = bldPicked(), sc = bldScores(), src = bldAsi(), short = cls ? bldSkillCap() - b.skills.length : 0;
   const picks = e14(cls) ? cls.kit.flatMap((line, i) => bldItems(line["-"] || line[b.kit[i] || "a"]).pick) : [];
   const set21 = b.plus2 && b.plus1 && b.plus2 !== b.plus1;
   return [!b.name.trim() && "a name", !bldName(b.cls, b.clsT) && "a class", !bldName(b.bg, b.bgT) && "a background", !bldName(b.sp, b.spT) && `a ${b.ed === "2014" ? "race" : b.ed === "mix" ? "species or race" : "species"}`,
-    subs.length && !bldName(b.sub, b.subT) && "a subrace", subAt1(cls) && !bldName(b.subcls, b.subclsT) && "a subclass",
+    subs.length && sp.ed !== "2024" && !bldName(b.sub, b.subT) && "a subrace", subAt1(cls) && !bldName(b.subcls, b.subclsT) && "a subclass",
     !ABS.every(([k]) => sc[k] != null) && "every ability score (any left out start at 10)",
     src === "bg" && b.plan === "21" && !set21 && "the background's +2 and +1",
     src === "race" && sp.choose && !(b.rc1 && b.rc2 && b.rc1 !== b.rc2) && `the ${sp.name}'s two +1s`,
@@ -1778,17 +1780,17 @@ function bldMake() {
   const kitText = cls ? (e14(cls) ? cls.kit.map((line, i) => line["-"] || line[b.kit[i] || "a"]) : [cls.equipment[b.eqC]]) : [];
   const kit = [...kitText.map(bldItems), bg && bldItems(typeof bg.equipment === "string" ? bg.equipment : bg.equipment[b.eqB]), bldItems(b.eqT)].filter(Boolean), items = kit.flatMap(k => k.items), acx = bldAC(items, sc, cls);
   const hd = cls ? cls.hd : +b.hd || 8, tough = races.some(r => r.traits.some(t => t.name === "Dwarven Toughness")) ? 1 : 0, hp = Math.max(1, hd + abMod(sc.con) + tough);
-  const speciesName = e14(sp) || (!sp && b.ed === "2014") ? (subName || spName) + (b.lineage.trim() ? ` (${b.lineage.trim()})` : "") : spName + (sp && b.lineage.trim() ? ` (${b.lineage.trim()})` : "");
+  const useSub = e14(sp) || (!sp && b.ed === "2014") || !!sub, speciesName = (useSub ? subName || spName : spName) + (b.lineage.trim() && (useSub || sp) ? ` (${b.lineage.trim()})` : "");
   const rules = cls && cls.ed !== "yours" ? cls.ed : b.ed === "2014" ? "2014" : "2024";
   Object.assign(ch, { rules, species: speciesName, cls: clsName, subcls: subclsName, level: 1, bg: bgName, align: b.align,
     ab: sc, saveProf: cls ? cls.saves.slice() : [], skills: Object.fromEntries([...bldGivenSkills(), ...b.skills].map(k => [k, 1])),
-    castAb: (cls && cls.mine && cls.caster && cls.castAb) || CAST_OF[clsName] || "wis", ac: acx.ac, acNote: acx.note, speed: (sp && sp.speed) || +b.speed || 30, hpMax: hp, hp, hpPerLevel: tough, hd: { die: hd, max: 1, used: 0 },
+    castAb: (cls && cls.mine && cls.caster && cls.castAb) || CAST_OF[clsName] || "wis", ac: acx.ac, acNote: acx.note, speed: (sub && sub.speed) || (sp && sp.speed) || +b.speed || 30, hpMax: hp, hp, hpPerLevel: tough, hd: { die: hd, max: 1, used: 0 },
     pact: clsName === "Warlock" || !!(cls && cls.caster === "pact"), slots: cls ? bldSlots(cls, 1) : {}, purse: { cp: 0, sp: 0, ep: 0, gp: kit.reduce((a, k) => a + k.gp, 0), pp: 0 }, items });
   if (b.ed === "mix") ch.mixed = true;
   if (todo.length) ch.todo = todo;
   const seen = new Set(); ch.attacks = items.map(it => { const s = SRD_LOOT.find(x => x.id === it.from); return s && s.kind === "weapon" ? attackFromData(s) : null; }).filter(a => a && !seen.has(a.name) && seen.add(a.name));
   ch.spells = [...b.cantrips, ...b.spells].map(id => spellFromData(SRD_SPELLS.find(s => s.id === id))).sort((x, y) => x.lvl - y.lvl);
-  ch.traits = [...races.flatMap(r => r.traits.filter(t => !/table$/.test(t.name)).map(t => ({ name: t.name, text: t.desc, src: r.name }))),
+  ch.traits = [...races.flatMap(r => r.traits.filter(t => !/table$/.test(t.name)).map(t => ({ name: t.name, text: t.desc, src: r.name, ...(t.fx && t.fx.length ? { fx: t.fx } : {}) }))),
     ...(cls ? cls.features.filter(f => f.lv.includes(1) && !SKIP_FEATURE.test(f.name)).map(f => ({ name: f.name, text: f.desc, src: `${cls.name} 1`, ...(f.fx && f.fx.length ? { fx: f.fx } : {}) })) : []),
     ...(subcls && subAt1(cls) ? subcls.features.filter(f => f.lv.includes(1)).map(f => ({ name: f.name, text: f.desc, src: `${subcls.name} 1`, ...(f.fx && f.fx.length ? { fx: f.fx } : {}) })) : []),
     ...(bg && bg.feature ? [{ name: bg.feature.name, text: bg.feature.desc, src: bg.name }] : []),
@@ -1928,10 +1930,10 @@ function ownLibHtml() {
   const bgs = libBackgrounds(), ts = [...ownTables(), ...fromFB("tables")];
   const fbNote = x => x.fb ? `<span class="sub">From the Field Book: change it there.</span>` : "";
   return `<h3 style="margin-top:14px">Your backgrounds</h3>
-    ${bgs.length ? bgs.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc(listAnd((x.skills || []).map(k => (SKILL[k] || {}).name)))}${x.featureName ? ` · ${esc(x.featureName)}` : x.feat ? ` · ${esc(x.feat)}` : ""}</span>${fbNote(x)}</span>${x.fb ? "" : `<button class="btn small" data-act="bgedit" data-id="${x.id}">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet. They show in the builder's background list, marked as yours.</p>`}
+    ${bgs.length ? bgs.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc(listAnd((x.skills || []).map(k => (SKILL[k] || {}).name)))}${x.featureName ? ` · ${esc(x.featureName)}` : x.feat ? ` · ${esc(x.feat)}` : ""}</span>${fbNote(x)}</span>${x.fb ? "" : libBtns("backgrounds", x, "bgedit")}</div></div>`).join("") : `<p class="note">None yet. They show in the builder's background list, marked as yours.</p>`}
     <button class="btn wide" data-act="bgadd">+ A background</button>
     <h3 style="margin-top:14px">Roll tables for everyone</h3>
-    ${ts.length ? ts.map(t => `<div class="card"><div class="atkrow"><span class="nm">${esc(t.name || "Table")}<span class="sub">${esc(tableNote(parseTable(t.text)))}</span>${fbNote(t)}</span>${t.fb ? "" : `<button class="btn small" data-act="tbledit" data-id="${t.id}" data-w="lib">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet. Every character can roll these from the Play tab's Roll tables.</p>`}
+    ${ts.length ? ts.map(t => `<div class="card"><div class="atkrow"><span class="nm">${esc(t.name || "Table")}<span class="sub">${esc(tableNote(parseTable(t.text)))}</span>${fbNote(t)}</span>${t.fb ? "" : libBtns("tables", t, "tbledit", ' data-w="lib"')}</div></div>`).join("") : `<p class="note">None yet. Every character can roll these from the Play tab's Roll tables.</p>`}
     <button class="btn wide" data-act="tbladd" data-w="lib">+ A table</button>${subFeatLibHtml()}`;
 }
 // giving a character already made a background: what it would add, each ticked unless the sheet has it already;
@@ -2058,7 +2060,7 @@ function fxPickHtml(fx, path, obj) {
 }
 // the changes, edited: owner "sub:<id>:<feature index>" or "feat:<id>"
 function fxList(owner) {
-  const [k, id, fi] = owner.split(":"), o = k === "sub" ? ((mySubs().find(s => s.id === id) || {}).features || [])[+fi] : k === "cls" ? ((myClasses().find(s => s.id === id) || {}).features || [])[+fi] : myFeats().find(f => f.id === id);
+  const [k, id, fi] = owner.split(":"), o = k === "race" ? ((myRaces().find(s => s.id === id) || {}).features || [])[+fi] : k === "sub" ? ((mySubs().find(s => s.id === id) || {}).features || [])[+fi] : k === "cls" ? ((myClasses().find(s => s.id === id) || {}).features || [])[+fi] : myFeats().find(f => f.id === id);
   return o ? (o.fx = o.fx || []) : null;
 }
 function fxEditHtml(owner) {
@@ -2121,14 +2123,14 @@ function featFormHtml() {
     <p class="note">Changes save as you type. It's offered with the SRD's feats: a background's origin feat, the level-up's feat, and the human's Versatile.</p>
     <div class="row"><button class="btn main grow" data-act="ftdone">Done</button><button class="btn danger" data-act="ftdel">Delete</button></div>`;
 }
-function reForm() { const b = $("#ov .box"), top = b.scrollTop; b.innerHTML = ovKind === "classform" ? classFormHtml() : ovKind === "subform" ? subFormHtml() : ovKind === "featform" ? featFormHtml() : b.innerHTML; b.scrollTop = top; }
+function reForm() { const b = $("#ov .box"), top = b.scrollTop; b.innerHTML = ovKind === "raceform" ? raceFormHtml() : ovKind === "classform" ? classFormHtml() : ovKind === "subform" ? subFormHtml() : ovKind === "featform" ? featFormHtml() : b.innerHTML; b.scrollTop = top; }
 function subFeatLibHtml() {
   const subs = ownSubs(), feats = ownFeats();
-  return `${classLibHtml()}<h3 style="margin-top:14px">Your subclasses</h3>
-    ${subs.length ? subs.map(s => `<div class="card"><div class="atkrow"><span class="nm">${esc(s.name || "Unnamed")}<span class="sub">${esc([s.of, `${(s.features || []).length} feature${(s.features || []).length === 1 ? "" : "s"}`, s.caster === "third" ? "third caster" : ""].filter(Boolean).join(" · "))}</span></span>${s.fb ? `<span class="tag">Field Book</span>` : `<button class="btn small" data-act="subedit" data-id="${s.id}">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet. The level-up offers them with the SRD's, and Apply a subclass gives one to a character already playing.</p>`}
+  return `${raceLibHtml()}${classLibHtml()}<h3 style="margin-top:14px">Your subclasses</h3>
+    ${subs.length ? subs.map(s => `<div class="card"><div class="atkrow"><span class="nm">${esc(s.name || "Unnamed")}<span class="sub">${esc([s.of, `${(s.features || []).length} feature${(s.features || []).length === 1 ? "" : "s"}`, s.caster === "third" ? "third caster" : ""].filter(Boolean).join(" · "))}</span></span>${libBtns("subclasses", s, "subedit")}</div></div>`).join("") : `<p class="note">None yet. The level-up offers them with the SRD's, and Apply a subclass gives one to a character already playing.</p>`}
     <button class="btn wide" data-act="subadd">+ A subclass</button>
     <h3 style="margin-top:14px">Your feats</h3>
-    ${feats.length ? feats.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc([x.type, x.prereq, (x.fx || []).length ? listAnd(x.fx.map(fxSummary)) : ""].filter(Boolean).join(" · "))}</span></span>${x.fb ? `<span class="tag">Field Book</span>` : `<button class="btn small" data-act="ftedit" data-id="${x.id}">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet.</p>`}
+    ${feats.length ? feats.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc([x.type, x.prereq, (x.fx || []).length ? listAnd(x.fx.map(fxSummary)) : ""].filter(Boolean).join(" · "))}</span></span>${libBtns("feats", x, "ftedit")}</div></div>`).join("") : `<p class="note">None yet.</p>`}
     <button class="btn wide" data-act="ftadd">+ A feat</button>`;
 }
 // Wild Magic and the like: a roll after casting, offered with the spell's result (or by itself)
@@ -2245,8 +2247,146 @@ function classFormHtml() {
 function classLibHtml() {
   const cs = ownClasses();
   return `<h3 style="margin-top:14px">Your classes</h3>
-    ${cs.length ? cs.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc([`d${x.hd || 8}`, x.primary, x.caster ? (SLOT_KINDS.find(k => k[0] === x.caster) || [, ""])[1].replace(/ \(.*/, "") + " caster" : "", `${(x.features || []).length} feature${(x.features || []).length === 1 ? "" : "s"}`].filter(Boolean).join(" · "))}</span></span>${x.fb ? `<span class="tag">Field Book</span>` : `<button class="btn small" data-act="cledit" data-id="${x.id}">Edit</button>`}</div></div>`).join("") : `<p class="note">None yet. The builder and the level-up list them with the SRD's.</p>`}
+    ${cs.length ? cs.map(x => `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc([`d${x.hd || 8}`, x.primary, x.caster ? (SLOT_KINDS.find(k => k[0] === x.caster) || [, ""])[1].replace(/ \(.*/, "") + " caster" : "", `${(x.features || []).length} feature${(x.features || []).length === 1 ? "" : "s"}`].filter(Boolean).join(" · "))}</span></span>${libBtns("classes", x, "cledit")}</div></div>`).join("") : `<p class="note">None yet. The builder and the level-up list them with the SRD's.</p>`}
     <button class="btn wide" data-act="cladd">+ A class</button>`;
+}
+
+/* ══ Your own species and races (Joseph, 2026-11-02: "let's do custom races"). Shaped like the SRD's: size, speed,
+   ability score increases (2014 style; none for 2024 style, where the background gives them), skills, languages, and
+   traits by character level, each with its changes to the sheet. One can be a subrace of another (the SRD's or yours)
+   and comes in under it. The builder lists them with the SRD's; a trait above 1st level comes with the level-up that
+   reaches it; "Apply a species or race…" gives one to a character already made. Kept in the homebrew library, which
+   syncs, or made in the Field Book's Rules tab. ══ */
+const myRaces = () => (db.lib && db.lib.races) || [];
+const ownRaces = () => mergeHb(myRaces(), fromFB("races"));
+// traits: what comes at 1st level (the builder's); allTraits: every level's (the level-up's and Apply's)
+function raceShape(x) {
+  const all = (x.features || []).filter(f => String(f.name || "").trim()).map(f => ({ name: f.name, lv: +f.level || 1, desc: f.text || "", fx: f.fx || [], mine: true })).sort((a, b) => a.lv - b.lv);
+  const bonus = Object.fromEntries(Object.entries(x.bonus || {}).filter(([, v]) => +v).map(([k, v]) => [k, +v]));
+  return { ...x, mine: true, of: x.of || "", size: x.size || "Medium", speed: +x.speed || (x.of ? 0 : 30), bonus, choose: +x.choose || 0, skills: x.skills || [], anySkills: +x.anySkills || 0,
+    languages: x.languages || "", desc: x.desc || "", traits: all.filter(t => t.lv <= 1), allTraits: all };
+}
+const ownRaceShape = n => { const x = n && ownRaces().find(r => r.name === n); return x ? raceShape(x) : null; };
+// a race that gives ability score increases (a 2014 one, or yours with some), and one that's read the 2014 way
+const raceGivesAsi = r => !!r && (e14(r) || (r.ed === "yours" && (Object.keys(r.bonus).length > 0 || r.choose > 0)));
+const raceLike = r => e14(r) || (!!r && r.ed === "yours");
+const bldRaces = () => [...bldLists(BLD.ed).species, ...ownRaces().filter(x => x.name).map(x => ({ ...raceShape(x), ed: "yours", key: "hb:" + x.id, label: yoursLabel(x) }))];
+// what else a race of yours says, in the builder
+function raceMoreHtml(r) {
+  const later = r.allTraits.filter(t => t.lv > 1);
+  const s = [r.desc, r.skills.length && `Skills: ${listAnd(r.skills.map(k => SKILL[k].name))}${r.anySkills ? `, and ${r.anySkills} of their choice` : ""}`, !r.skills.length && r.anySkills && `Skills: ${r.anySkills} of their choice`,
+    r.languages && `Languages: ${r.languages}`, later.length && `Later: ${listAnd(later.map(t => `${t.name} at level ${t.lv}`))}`].filter(Boolean).join(". ");
+  return s ? `<p class="note">${esc(s)}.</p>` : "";
+}
+// a character's races of yours (a subrace and the race it's of), from the name on the sheet
+function racesOf(c) {
+  const r = ownRaceShape(String(c.species || "").replace(/\s*\(.*\)$/, "").trim()); if (!r) return [];
+  const p = r.of ? ownRaceShape(r.of) : null; return [p, r].filter(Boolean);
+}
+// the traits a level-up brings: those of the new character level
+const raceTraitsAt = (c, N) => racesOf(c).flatMap(r => r.allTraits.filter(t => t.lv === N).map(t => ({ ...t, lv: [N], src: r.name })));
+const SRD_RACE_NAMES = () => HAS_RULES ? [...new Set([...RULES.species, ...RULES["2014"].species].filter(r => !r.of).map(r => r.name))] : SPECIES;
+let RCE = null;
+const raceObj = () => myRaces().find(x => x.id === RCE) || null;
+function raceFormHtml() {
+  const x = raceObj(); if (!x) return "";
+  const f = (k, label, ph, num) => `<label class="fld${num ? " n" : ""}"><span>${label}</span><input data-rcf="${k}" ${num ? 'type="number" inputmode="numeric"' : ""} value="${esc(x[k] ?? "")}" placeholder="${esc(ph || "")}"></label>`;
+  const sel = (k, os, cur) => `<select data-rcf="${k}">${os.map(([v, l]) => `<option value="${esc(v)}" ${String(cur ?? "") === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  const parents = [...new Set([...SRD_RACE_NAMES(), ...ownRaces().filter(r => r.id !== x.id && !r.of && r.name).map(r => r.name)])];
+  const ts = (x.features || []).map((q, i) => ({ q, i })).sort((a, b) => (+a.q.level || 1) - (+b.q.level || 1));
+  return `<div class="rr-h">Your species or race</div>
+    <div class="row">${f("name", "Name", "Forest Gnome")}<label class="fld"><span>A subrace of</span>${sel("of", [["", "None: its own"], ...parents.map(n => [n, n])], x.of || "")}</label></div>
+    <label class="fld"><span>What it is</span><textarea data-rcf="desc" rows="2">${esc(x.desc || "")}</textarea></label>
+    <div class="row"><label class="fld"><span>Size</span>${sel("size", [...(x.of ? [["", "As the race"]] : []), ...["Small", "Medium", "Large", "Small or Medium"].map(s => [s, s])], x.size ?? (x.of ? "" : "Medium"))}</label>${f("speed", "Speed", x.of ? "as the race" : "30", true)}</div>
+    <div class="lab">Ability score increases (2014 style; leave them empty for 2024 style, where the background gives them)</div>
+    <div class="row">${ABS.map(([k]) => `<label class="fld n"><span>${AB_SHORT[k]}</span><input data-rcb="${k}" type="number" inputmode="numeric" value="${esc((x.bonus || {})[k] ?? "")}"></label>`).join("")}</div>
+    <label class="fld"><span>And</span>${sel("choose", [["", "nothing more"], ["2", "+1 to two others they choose (like the half-elf)"]], String(x.choose || ""))}</label>
+    <div class="lab">Skill proficiencies</div><div class="row" style="flex-wrap:wrap;gap:0 12px;margin-bottom:8px">${SKILLS.map(s => `<label class="check" style="margin:2px 0"><input type="checkbox" data-rcm="skills" data-v="${s[0]}" ${(x.skills || []).includes(s[0]) ? "checked" : ""}> ${esc(s[1])}</label>`).join("")}</div>
+    <div class="row">${f("anySkills", "And skills of their choice", "0", true)}${f("languages", "Languages", "Common and Gnomish")}</div>
+    <h3>Traits, by character level</h3>
+    ${ts.map(({ q, i }) => `<div class="panel" style="background:var(--paper-lit)"><div class="row"><label class="fld n" style="flex:0 0 80px"><span>Level</span><input type="number" inputmode="numeric" data-rcff="${i}.level" value="${esc(q.level || 1)}"></label><label class="fld"><span>Trait</span><input data-rcff="${i}.name" value="${esc(q.name || "")}"></label><button class="btn small danger" data-act="racfdel" data-i="${i}" style="margin-bottom:10px">✕</button></div>
+      <label class="fld"><span>What it does</span><textarea data-rcff="${i}.text" rows="3">${esc(q.text || "")}</textarea></label>${fxEditHtml(`race:${x.id}:${i}`)}</div>`).join("")}
+    <button class="btn wide" data-act="racfadd">+ A trait</button>
+    <p class="note">Changes save as you type. The builder lists it with the SRD's (a subrace under its race); a trait above 1st level comes with the level-up that reaches it; Apply a species or race (Who they are) gives it to a character already made.</p>
+    <div class="row"><button class="btn main grow" data-act="racdone">Done</button><button class="btn danger" data-act="racdel">Delete</button></div>`;
+}
+// a library entry's buttons: yours can be changed here or moved to the Field Book; the Field Book's are changed there
+const libBtns = (cat, x, act, extra = "") => x.fb ? `<span class="tag">Field Book</span>` : `<button class="btn small" data-act="${act}" data-id="${x.id}"${extra}>Edit</button><button class="btn small" data-act="tofb" data-c="${cat}" data-id="${x.id}" title="Move it to the Field Book">→ Field Book</button>`;
+function raceLibHtml() {
+  const rs = ownRaces();
+  return `<h3 style="margin-top:14px">Your species and races</h3>
+    ${rs.length ? rs.map(x => { const r = raceShape(x); return `<div class="card"><div class="atkrow"><span class="nm">${esc(x.name || "Unnamed")}<span class="sub">${esc([r.of ? `a subrace of ${r.of}` : `${r.size}, speed ${r.speed || 30}`, Object.entries(r.bonus).map(([k, v]) => `${AB_SHORT[k]} +${v}`).join(", "), `${r.allTraits.length} trait${r.allTraits.length === 1 ? "" : "s"}`].filter(Boolean).join(" · "))}</span></span>${libBtns("races", x, "racedit")}</div></div>`; }).join("") : `<p class="note">None yet. The builder lists them with the SRD's species and races.</p>`}
+    <button class="btn wide" data-act="racadd">+ A species or race</button>`;
+}
+// one of yours, moved to the Field Book (Joseph, 2026-11-02: "it needs to be able to send from the character sheet to
+// the field book on this stuff"). Both apps live on the same site, so it's written straight into the Field Book's
+// storage on this device; from then on it's changed there, still offered here, and the Field Book's Sync takes it on.
+function sendToFB(cat, id) {
+  const L = libOwn()[cat] || [], x = L.find(q => q.id === id); if (!x) return;
+  if (!confirm(`Move ${x.name || "this"} to the Field Book? From then on it's changed in the Field Book's Rules tab, and it's still offered here.`)) return;
+  let fb = fbData(); fb = fb && typeof fb === "object" ? fb : {};
+  const y = JSON.parse(JSON.stringify(x)); y.fbEdited = Date.now();
+  fb[cat] = (Array.isArray(fb[cat]) ? fb[cat] : []).filter(q => q.id !== id).concat(y);
+  if (fb.deleted) delete fb.deleted[id];
+  try { localStorage.setItem("fieldbook", JSON.stringify(fb)); } catch (e) { return toast("The Field Book's storage is full: nothing moved."); }
+  L.splice(L.indexOf(x), 1); save(); render(); toast(`${x.name || "It"} is in the Field Book's Rules tab. Its Sync takes it to your other devices.`, 4000);
+}
+// a species or race for a character already made: what it would add, each ticked unless the sheet has it; ability
+// scores start unticked (a sheet that's been played usually has them)
+let ARC = null;   // { key, picks: {}, rc1, rc2 }
+function applyRaceList() {
+  const srd = (ed, arr) => arr.map(x => ({ ...x, ed, key: `${x.name}@${ed}`, label: `${x.name} (${ed}${x.of ? `, ${x.of}` : ""})` }));
+  return [...ownRaces().filter(x => x.name).map(x => ({ ...raceShape(x), ed: "yours", key: "hb:" + x.id, label: yoursLabel(x) })), ...(HAS_RULES ? [...srd("2024", RULES.species), ...srd("2014", RULES["2014"].species)] : [])];
+}
+// a subrace comes with its race (yours, or the SRD's in the character's edition)
+function applyRaceChain(c, r) {
+  if (!r.of) return [r];
+  const cands = applyRaceList().filter(x => x.name === r.of && !x.of), p = cands.find(x => x.ed === r.ed) || cands.find(x => x.ed === "yours") || cands.find(x => x.ed === edOf(c)) || cands[0];
+  return [p, r].filter(Boolean);
+}
+function applyRaceItems(c, r) {
+  const chain = applyRaceChain(c, r), on = new Set(c.traits.map(t => t.name)), profs = String(c.story.profs || "").toLowerCase(), L = +c.level || 1;
+  const out = [{ k: "name", label: `Species: ${r.name}${c.species && c.species !== r.name ? ` (instead of ${c.species})` : ""}`, had: c.species === r.name }];
+  const speed = chain.map(x => +x.speed || 0).filter(Boolean).pop();
+  if (speed) out.push({ k: "speed", label: `Speed ${speed} ft.`, had: +c.speed === speed });
+  for (const s of new Set(chain.flatMap(x => x.skills || []))) out.push({ k: "skill:" + s, label: `Skill: ${SKILL[s].name}`, had: skillLv(c, s) >= 1 });
+  const langs = chain.map(x => !x.languages ? "" : x.ed === "yours" ? x.languages : (x.languages.match(/speak, read, and write ([^.]+)/i) || [])[1] || "").filter(Boolean).join("; ");
+  if (langs) out.push({ k: "langs", label: `Languages: ${langs}`, had: profs.includes(langs.toLowerCase()) });
+  chain.forEach((x, ci) => (x.allTraits || x.traits.map(t => ({ ...t, lv: 1 }))).filter(t => t.lv <= L && !/table$/.test(t.name))
+    .forEach((t, ti) => out.push({ k: `t:${ci}:${ti}`, label: `${t.name}${t.lv > 1 ? ` (level ${t.lv})` : ""}`, had: on.has(t.name), t, src: x.name })));
+  const bonus = {}; for (const x of chain) for (const [k, v] of Object.entries(x.bonus || {})) bonus[k] = (bonus[k] || 0) + v;
+  const choose = chain.some(x => +x.choose > 0);
+  if (Object.keys(bonus).length || choose) out.push({ k: "asi", label: `Ability scores: ${[Object.entries(bonus).map(([k, v]) => `${AB_SHORT[k]} +${v}`).join(", "), choose && "+1 to two others"].filter(Boolean).join(", and ")}`, off: true, bonus, choose });
+  return out;
+}
+function applyRaceHtml() {
+  const c = C(), list = applyRaceList(), r = list.find(x => x.key === ARC.key) || null;
+  const sel = (k, os, cur) => `<select data-arc="${k}"><option value="">—</option>${os.map(([v, l]) => `<option value="${esc(v)}" ${cur === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  let h = `<div class="rr-h">Apply a species or race <small>${esc(c.short || c.name)}</small></div>
+    <label class="fld"><span>Species or race</span>${sel("key", list.map(x => [x.key, x.label]), ARC.key)}</label>`;
+  if (r) {
+    const items = applyRaceItems(c, r), asi = items.find(it => it.k === "asi");
+    h += `<p class="note">Tick what to add. What the sheet already has starts unticked, and so do ability scores, since a character already made usually has them. Traits above level ${+c.level || 1} come with the level-up.</p>`
+      + items.map(it => `<label class="check"><input type="checkbox" data-arcp="${it.k}" ${ARC.picks[it.k] ? "checked" : ""}> ${esc(it.label)}${it.had ? " <small>(already on the sheet)</small>" : ""}</label>`).join("");
+    if (asi && asi.choose && ARC.picks.asi) { const free = ABS.map(([k]) => k).filter(k => !(k in asi.bonus));
+      h += `<div class="row"><label class="fld"><span>+1</span>${sel("rc1", free.map(k => [k, AB_NAME[k]]), ARC.rc1)}</label><label class="fld"><span>+1</span>${sel("rc2", free.filter(k => k !== ARC.rc1).map(k => [k, AB_NAME[k]]), ARC.rc2)}</label></div>`; }
+  }
+  return h + `<button class="btn wide main" data-act="arcapply" ${r ? "" : "disabled"}>Apply</button><button class="btn wide" data-act="ovclose">Not now</button>`;
+}
+function applyRace(c) {
+  const r = applyRaceList().find(x => x.key === ARC.key); if (!r) return;
+  const p = ARC.picks, did = [];
+  for (const it of applyRaceItems(c, r)) {
+    if (!p[it.k]) continue;
+    if (it.k === "name") { c.species = r.name; did.push("the name"); }
+    else if (it.k === "speed") { c.speed = +it.label.match(/\d+/)[0]; did.push(it.label.toLowerCase()); }
+    else if (it.k.startsWith("skill:")) { const s = it.k.slice(6); c.skills[s] = Math.max(1, skillLv(c, s)); did.push(SKILL[s].name); }
+    else if (it.k === "langs") { c.story.profs = [String(c.story.profs || "").trim(), it.label].filter(Boolean).join("\n"); did.push("languages"); }
+    else if (it.k.startsWith("t:")) { const tr = { name: it.t.name, text: it.t.desc, src: it.src }; if (it.t.fx && it.t.fx.length) { tr.fx = it.t.fx; did.push(...applyFx(c, it.t.fx, {})); } c.traits.push(tr); did.push(it.t.name); }
+    else if (it.k === "asi") { const add = [...Object.entries(it.bonus), ...(it.choose ? [[ARC.rc1, 1], [ARC.rc2 !== ARC.rc1 ? ARC.rc2 : "", 1]] : [])];
+      for (const [k, v] of add) if (k) { c.ab[k] = Math.min(20, (+c.ab[k] || 10) + v); did.push(`${AB_SHORT[k]} +${v}`); } }
+  }
+  logIt(c, `Species ${r.name}: ${did.length ? listAnd(did) : "nothing added"}`); ARC = null; save(); closeOv(); render(); toast(`${r.name}: ${did.length ? listAnd(did.slice(0, 4)) + (did.length > 4 ? ", and more" : "") : "nothing"} added.`, 3500);
 }
 
 /* ── PCs: every character you play, on one shelf ── */
@@ -2479,6 +2619,9 @@ document.addEventListener("input", e => {
   if (el.dataset && el.dataset.clf && CLE) { const x = clsObj(); if (x && el.tagName !== "SELECT" && el.type !== "checkbox") { x[el.dataset.clf] = el.value; save(); } return; }
   if (el.dataset && el.dataset.clc && CLE) { const x = clsObj(); if (x && el.tagName !== "SELECT" && el.type !== "checkbox") { setPath(x.cols, el.dataset.clc, el.value); save(); } return; }
   if (el.dataset && el.dataset.clff && CLE) { const x = clsObj(); if (x) { setPath(x.features, el.dataset.clff, /level$/.test(el.dataset.clff) ? +el.value || 1 : el.value); save(); } return; }
+  if (el.dataset && el.dataset.rcf && RCE) { const x = raceObj(); if (x && el.tagName !== "SELECT") { x[el.dataset.rcf] = el.value; save(); } return; }
+  if (el.dataset && el.dataset.rcb && RCE) { const x = raceObj(); if (x) { x.bonus = x.bonus || {}; if (el.value === "") delete x.bonus[el.dataset.rcb]; else x.bonus[el.dataset.rcb] = +el.value || 0; save(); } return; }
+  if (el.dataset && el.dataset.rcff && RCE) { const x = raceObj(); if (x) { setPath(x.features, el.dataset.rcff, /level$/.test(el.dataset.rcff) ? +el.value || 1 : el.value); save(); } return; }
   if (el.dataset && el.dataset.sbf && SUBE) { const s = subObj(); if (s && el.tagName !== "SELECT") { s[el.dataset.sbf] = el.value; save(); } return; }
   if (el.dataset && el.dataset.sff && SUBE) { const s = subObj(); if (s) { setPath(s.features, el.dataset.sff, /level$/.test(el.dataset.sff) ? +el.value || 1 : el.value); save(); } return; }
   if (el.dataset && el.dataset.ftf && FTE) { const x = featObj(); if (x && el.tagName !== "SELECT") { x[el.dataset.ftf] = el.value; save(); } return; }
@@ -2510,6 +2653,12 @@ document.addEventListener("change", e => {
   if (el.dataset && (el.dataset.tbl || el.dataset.bgf)) return;
   if (el.dataset && (el.dataset.sbf || el.dataset.ftf)) { if (el.tagName === "SELECT") { const o = el.dataset.sbf ? subObj() : featObj(); if (o) { o[el.dataset.sbf || el.dataset.ftf] = el.value; save(); reForm(); } } return; }
   if (el.dataset && el.dataset.sff) return;
+  if (el.dataset && (el.dataset.rcb || el.dataset.rcff)) return;
+  if (el.dataset && el.dataset.rcf && RCE) { if (el.tagName === "SELECT") { const x = raceObj(); if (x) { x[el.dataset.rcf] = el.value; save(); reForm(); } } return; }
+  if (el.dataset && el.dataset.rcm && RCE) { const x = raceObj(); if (x) { const s = new Set(x[el.dataset.rcm] || []); if (el.checked) s.add(el.dataset.v); else s.delete(el.dataset.v); x[el.dataset.rcm] = SKILLS.map(q => q[0]).filter(k => s.has(k)); save(); } return; }
+  if (el.dataset && el.dataset.arc && ARC) { ARC[el.dataset.arc] = el.value; if (el.dataset.arc === "key") { const r = applyRaceList().find(x => x.key === el.value); ARC.picks = r ? Object.fromEntries(applyRaceItems(c, r).map(it => [it.k, !it.had && !it.off])) : {}; ARC.rc1 = ARC.rc2 = ""; }
+    if (el.dataset.arc === "rc1" && ARC.rc2 === el.value) ARC.rc2 = ""; $("#ov .box").innerHTML = applyRaceHtml(); return; }
+  if (el.dataset && el.dataset.arcp && ARC) { ARC.picks[el.dataset.arcp] = el.checked; $("#ov .box").innerHTML = applyRaceHtml(); return; }
   if (el.dataset && (el.dataset.clf || el.dataset.clc) && CLE) { const x = clsObj(); if (x && (el.tagName === "SELECT" || el.type === "checkbox")) { const v = el.type === "checkbox" ? el.checked : el.value;
       if (el.dataset.clf) { x[el.dataset.clf] = v; if (el.dataset.clf === "caster" && v && x.listFrom === undefined) x.listFrom = "Wizard"; } else setPath(x.cols, el.dataset.clc, v); save(); reForm(); } return; }
   if (el.dataset && el.dataset.clff) return;
@@ -2720,6 +2869,15 @@ document.addEventListener("click", e => {
     case "bldskill": { const k = el.dataset.k, n = bldSkillCap(); BLD.skills = BLD.skills.includes(k) ? BLD.skills.filter(x => x !== k) : BLD.skills.length < n ? BLD.skills.concat(k) : BLD.skills; showBuilder(); break; }
     case "bldspell": { const key = el.dataset.k, id = el.dataset.id; BLD[key] = BLD[key].includes(id) ? BLD[key].filter(x => x !== id) : BLD[key].concat(id); showBuilder(); break; }
     case "bldmake": bldMake(); break;
+    case "racadd": { const x = { id: uid("rc"), name: "", bonus: {}, skills: [], features: [] }; (libOwn().races = libOwn().races || []).push(x); RCE = x.id; save(); openOv(raceFormHtml(), "raceform"); break; }
+    case "racedit": RCE = el.dataset.id; openOv(raceFormHtml(), "raceform"); break;
+    case "racfadd": { const x = raceObj(); if (x) { x.features = x.features || []; x.features.push({ level: Math.max(1, ...x.features.map(q => +q.level || 1)), name: "", text: "", fx: [] }); save(); reForm(); } break; }
+    case "racfdel": { const x = raceObj(); if (x && confirm("Take this trait out?")) { x.features.splice(+el.dataset.i, 1); save(); reForm(); } break; }
+    case "racdone": { const x = raceObj(); if (x && !String(x.name || "").trim()) { const L = libOwn().races; L.splice(L.indexOf(x), 1); toast("Not kept: it had no name."); } RCE = null; save(); closeOv(); render(); break; }
+    case "racdel": { const x = raceObj(); if (x && confirm(`Delete ${x.name || "this"}? Characters who have it keep their sheets.`)) { const L = libOwn().races; L.splice(L.indexOf(x), 1); RCE = null; save(); closeOv(); render(); } break; }
+    case "applyrace": ARC = { key: "", picks: {}, rc1: "", rc2: "" }; openOv(applyRaceHtml(), "applyrace"); break;
+    case "arcapply": applyRace(c); break;
+    case "tofb": sendToFB(el.dataset.c, el.dataset.id); break;
     case "cladd": { const x = { id: uid("cl"), name: "", hd: 8, saves: [], skillsN: 2, skillsFrom: [], subAt: 3, asi: "4, 8, 12, 16, 19", cols: [], features: [] }; (libOwn().classes = libOwn().classes || []).push(x); CLE = x.id; save(); openOv(classFormHtml(), "classform"); break; }
     case "cledit": CLE = el.dataset.id; openOv(classFormHtml(), "classform"); break;
     case "clcoladd": { const x = clsObj(); if (x) { (x.cols = x.cols || []).push({ name: "", vals: Array(20).fill(""), use: false, rest: "long" }); save(); reForm(); } break; }
@@ -2771,7 +2929,7 @@ document.addEventListener("click", e => {
     case "lures": { const r = c.res.find(x => x.id === el.dataset.id); LV.res[r.id] = Math.max(0, (LV.res[r.id] ?? r.max) + +el.dataset.d); showLevelUp(c); break; }
     case "luapply": applyLevelUp(c); break;
     case "libin": $("#libIn").click(); break;
-    case "libclear": if (confirm("Forget the survey's homebrew? Spells and items already on a sheet stay there, and so do your own backgrounds and tables.")) { db.lib = ownBgs().length || ownTables().length || mySubs().length || myFeats().length || myClasses().length ? { spells: [], loot: [], backgrounds: ownBgs(), tables: ownTables(), subclasses: mySubs(), feats: myFeats(), classes: myClasses() } : null; save(); render(); } break;
+    case "libclear": if (confirm("Forget the survey's homebrew? Spells and items already on a sheet stay there, and so do your own backgrounds and tables.")) { db.lib = ownBgs().length || ownTables().length || mySubs().length || myFeats().length || myClasses().length || myRaces().length ? { spells: [], loot: [], backgrounds: ownBgs(), tables: ownTables(), subclasses: mySubs(), feats: myFeats(), classes: myClasses(), races: myRaces() } : null; save(); render(); } break;
     case "pkownspell": { const nm = prompt("The spell's name?"); if (!nm) break; closeOv(); const lv = parseInt(prompt("Its level (0 for a cantrip)?", "1"), 10) || 0; const s = { id: uid("sp"), name: nm, lvl: lv, text: "", time: "1 action" }; c.spells.push(s); ui.edit = "spell:" + s.id; save(); render(); break; }
     // edit sheet
     case "saveprof": { const ab = el.dataset.ab; c.saveProf = c.saveProf.includes(ab) ? c.saveProf.filter(x => x !== ab) : c.saveProf.concat(ab); save(); render(); break; }
