@@ -49,7 +49,7 @@ PCs tab → Homebrew: **+ A background** (skills, tool, languages, ability score
 
 ## Still to do (Joseph, 2026-11-01)
 
-Multiclassing (v26), custom subclasses and feats with their sheet changes, and the Wild Magic pieces (v27) are done. Still open: making subclasses and feats in the Field Book, AC formulas, bonuses that only apply sometimes, choices beyond an ability score at a level, and custom classes.
+Multiclassing (v26), custom subclasses and feats with their sheet changes, and the Wild Magic pieces (v27) are done. Your own classes are done too (v28). Still open: making classes, subclasses, and feats in the Field Book, AC formulas, bonuses that only apply sometimes, and choices beyond an ability score at a level.
 
 ## Multiclassing (v26)
 
@@ -58,3 +58,7 @@ The level-up starts with **Which class**: one the character has, or **A new clas
 ## Your own subclasses and feats, and Wild Magic (v27)
 
 PCs tab → Homebrew: **+ A subclass** (its class, features by level, and optionally a third caster's spellcasting, like the Eldritch Knight: slots from 3rd level, an ability, and a spell list) and **+ A feat** (kind, prerequisite, and text). A feature or a feat can carry **changes to the sheet**: an ability score (or one the player chooses), a skill or expertise, a saving throw, an armor, weapon, tool, or language, a use to track (a number, or the proficiency bonus, a modifier, or the class level, kept up to date), always-prepared spells, hit points per level, speed, an ongoing bonus (counted like an item's), and **a roll after casting**: after a spell of a class cast with a slot, roll a die (d20), and on the numbers given roll a table and bring a use back (Wild Magic Surge and Tides of Chaos). The level-up offers your subclasses with the SRD's and fills in their features, reading them as they are at that level; **Apply a subclass…** (Play tab → Features and traits) gives one to a character already playing, with a ticked list of the features up to their level (what the sheet already has starts unticked). Your feats are offered in a background's feat, the level-up's feat, and Versatile. Not yet: subclasses and feats made in the Field Book; AC formulas (a feature's "13 + Dex" stays its text).
+
+## Your own classes (v28)
+
+PCs tab → Homebrew: **+ A class**. Hit die, primary ability (multiclassing needs 13 in it), saving throws, skills (how many, from which or any), armor, weapons, tools, starting equipment (one list or A/B), what a multiclass character gets; spellcasting (none, full, half, a third, or pact magic, with an ability, and its spells from a class's list, its own named spells, or both); the subclass level and the ability score improvement levels; a class table (columns by level, like Cantrips, Prepared Spells, or Rages; a column marked as a use is tracked and grows at each level-up); and features by level with their changes to the sheet. It's in the builder (marked "yours"), the level-up (and its "A new class…"), multiclassing (requirements, proficiencies, and slots on the shared table), the subclass form, and Edit. The quick "Other (type your own)" class is still there for a one-off.
