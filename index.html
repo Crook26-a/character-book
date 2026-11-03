@@ -250,7 +250,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 34;
+const VERSION = 35;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1578,7 +1578,7 @@ function startBuilder(ed) {
   BLD = { ed: ed || "2024", cls: "", clsT: "", hd: "8", subcls: "", subclsT: "", bg: "", bgT: "", sp: "", spT: "", sub: "", subT: "", speed: "30", rc1: "", rc2: "", asiFrom: "bg",
     method: "array", pick: {}, rolls: [], buy: { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 },
     typed: { str: "", dex: "", con: "", int: "", wis: "", cha: "" }, plan: "21", plus2: "", plus1: "",
-    toLevel: "1", skills: [], extra: "", vfeat: "", eqC: "A", eqB: "A", kit: {}, eqT: "", cantrips: [], spells: [], name: "", align: "", langs: "Common", lineage: "" };
+    toLevel: "1", hiRoll: "", magic: {}, magicT: {}, skills: [], extra: "", vfeat: "", eqC: "A", eqB: "A", kit: {}, eqT: "", cantrips: [], spells: [], name: "", align: "", langs: "Common", lineage: "" };
   if (ovKind === "builder") showBuilder(); else openOv(builderHtml(), "builder");
 }
 function showBuilder() { const b = $("#ov .box"); const top = b.scrollTop; b.innerHTML = builderHtml(); b.scrollTop = top; }
@@ -1689,7 +1689,7 @@ function builderHtml() {
   let h = `<div class="rr-h">Build a character <small>level 1 · the ${srdOf(b.ed)}, or your own</small></div>
     ${seg("ed", [["2024", "2024 rules"], ["2014", "2014 rules"], ["mix", "Mix both"]], b.ed, "blded")}
     <label class="fld"><span>Starting level</span>${sel("toLevel", Array.from({ length: 20 }, (_, i) => [String(i + 1), `Level ${i + 1}`]), b.toLevel || "1")}</label>
-    ${+b.toLevel > 1 ? `<p class="note">This page makes level 1. Then each level up to ${+b.toLevel} comes in turn, with the level-up's choices: hit points, a class for that level (so they can start multiclassed), a subclass, ability scores or a feat, and spells. “Finish later” stops at any level.</p>${lookup("starting equipment and gold above level 1", "The SRD doesn't give them. Ask your DM (the Dungeon Master's Guide has a table), and add them under Anything else they carry or on the Items tab.")}` : ""}
+    ${+b.toLevel > 1 ? `<p class="note">This page makes level 1. Then each level up to ${+b.toLevel} comes in turn, with the level-up's choices: hit points, a class for that level (so they can start multiclassed), a subclass, ability scores or a feat, and spells. “Finish later” stops at any level. Starting at level ${+b.toLevel} also brings ${esc(hiStartText(+b.toLevel))} (step 6).</p>` : ""}
     <p class="note">${mix ? "Every list has both editions, marked (2014) or (2024); each pick keeps its own edition's rules, and the class's edition runs the level-ups. " : ""}Every step is optional. Pick from the ${srdOf(b.ed)} and the app works out the numbers, or choose Other on any list and freestyle it. Whatever's left out, the character is still made and marked as not finished until it's filled in with Edit.</p>
     ${lookup(`every class, ${raceWord}, and background`, `The ${srdOf(b.ed)} ${mix ? "have" : "has"} ${L.classes.length} classes (one subclass each), ${nBase} ${only14 ? "races" : raceWord.replace("species or race", "species and races")}${nSub ? ` (${nSub} subraces)` : ""}, and ${L.backgrounds.length === 1 ? "one background" : `${L.backgrounds.length} backgrounds`}. For others, choose Other and type it, looking it up in the ${only14 ? "2014" : mix ? "2024 or 2014" : "2024"} Player's Handbook.`)}`;
   const n = { cls: only14 ? 2 : 1, bg: only14 ? 3 : 2, sp: only14 ? 1 : 3 };
@@ -1761,6 +1761,7 @@ function builderHtml() {
   if (bg && typeof bg.equipment === "string") h += bg.equipment.trim() ? `<div class="lab">${esc(bg.name)}${tag(bg)}</div><p class="note" style="margin:2px 0 6px">${esc(bg.equipment)}</p>` : "";
   else if (bg) h += `<div class="lab">${esc(bg.name)}${tag(bg)}</div>${Object.entries(bg.equipment).map(([k, t]) => `<label class="check"><input type="radio" name="bldeqb" data-act="bldset" data-f="eqB" data-v="${k}" ${b.eqB === k ? "checked" : ""}> (${k}) ${esc(t)}</label>`).join("")}`;
   h += txt("eqT", cls || bg ? "Anything else they carry" : "What they carry", "e.g. Longsword, Shield, 2 Daggers, and 10 GP") + `<p class="note">Commas between things. What the SRD has comes with its stats; GP goes in the purse.${e14(cls) ? " Choices like “any simple weapon” come in to be named." : ""}</p>`;
+  if (hiStart(+b.toLevel)) h += hiStartHtml();
   if (cls) {
     const nc = parseInt((cls.table.Cantrips || {})["1"]) || 0, np = bldSpellCount(cls, cls.ed, bldScores());
     if (nc || np.n) {
@@ -1792,8 +1793,42 @@ function bldLeft() {
     src === "free" && b.ed === "mix" && !set21 && "the +2 and +1",
     short > 0 && `${short} more skill${short === 1 ? "" : "s"}`,
     sp && sp.ed === "2024" && sp.traits.some(t => t.name === "Skillful") && !b.extra && "the Skillful skill", sp && sp.ed === "2024" && sp.traits.some(t => t.name === "Versatile") && !b.vfeat && "the Versatile feat",
-    picks.length && `which ${listAnd(picks)}`].filter(Boolean);
+    picks.length && `which ${listAnd(picks)}`, ...hiMagicLeft()].filter(Boolean);
 }
+/* Starting above level 1 (Joseph, 2026-11-03, from a photo of the 2024 Player's Handbook's "Starting Equipment at
+   Higher Levels" table): the normal starting equipment, plus gold and magic items by starting level. The gold is a
+   base plus 1d10 × a multiple; each magic item is picked by rarity from the item list, or typed. */
+const HI_START = [
+  { from: 2, gp: 0, per: 0, magic: { Common: 1 } },
+  { from: 5, gp: 500, per: 25, magic: { Common: 1, Uncommon: 1 } },
+  { from: 11, gp: 5000, per: 250, magic: { Common: 2, Uncommon: 3, Rare: 1 } },
+  { from: 17, gp: 20000, per: 250, magic: { Common: 2, Uncommon: 4, Rare: 3, "Very Rare": 1 } }];
+const hiStart = L => L > 1 ? HI_START.filter(r => L >= r.from).pop() : null;
+const hiSlots = r => Object.entries(r.magic).flatMap(([k, n]) => Array.from({ length: n }, (_, i) => `${k}.${i}`));
+const hiMagicText = r => listAnd(Object.entries(r.magic).map(([k, n]) => `${n} ${k}`)) + ` magic item${hiSlots(r).length === 1 ? "" : "s"}`;
+const hiStartText = L => { const r = hiStart(L); return r ? `${r.gp ? `${r.gp.toLocaleString()} GP plus 1d10 × ${r.per} GP, ` : ""}${hiMagicText(r)}` : ""; };
+// an item's rarity can be several ("Uncommon (+1), Rare (+2), Very Rare (+3)"); any of them fits that slot
+const rarities = x => String(x.rarity || "").split(/,|\bor\b/).map(s => s.replace(/\(.*?\)/g, "").trim().toLowerCase()).filter(Boolean);
+const hiPool = rar => itemPool().filter(x => rarities(x).includes(rar.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name));
+const hiItemName = k => { const v = (BLD.magic || {})[k]; return v === OTHER ? ((BLD.magicT || {})[k] || "").trim() : v ? (itemPool().find(x => x.id === v) || {}).name || "" : ""; };
+function hiMagicLeft() {
+  const r = hiStart(+BLD.toLevel); if (!r) return [];
+  return Object.keys(r.magic).map(rar => { const n = hiSlots(r).filter(k => k.startsWith(rar + ".") && !hiItemName(k)).length; return n && `${n} ${rar} magic item${n === 1 ? "" : "s"}`; }).filter(Boolean);
+}
+function hiStartHtml() {
+  const b = BLD, L = +b.toLevel, r = hiStart(L); b.magic = b.magic || {}; b.magicT = b.magicT || {};
+  let s = `<div class="lab">Starting at level ${L}</div><p class="note">The normal starting equipment above, plus ${esc(hiStartText(L))}.${b.ed === "2014" ? " (This is the 2024 Player's Handbook's table; ask your DM if they use another.)" : ""}</p>`;
+  if (r.gp) s += `<div class="row" style="align-items:flex-end;margin-bottom:8px"><label class="fld n"><span>1d10</span><input data-bld="hiRoll" type="number" inputmode="numeric" min="1" max="10" value="${esc(b.hiRoll || "")}" placeholder="—"></label>
+    <button class="btn small" data-act="bldhiroll">${b.hiRoll ? "Roll again" : "Roll 1d10"}</button></div>
+    <p class="note" id="bldHiGp">${hiGpNote()}</p>`;
+  s += hiSlots(r).map(k => { const rar = k.split(".")[0], pool = hiPool(rar);
+    return `<label class="fld"><span>${esc(rar)} magic item</span><select data-bld="magic.${k}"><option value="">—</option>${pool.map(x => `<option value="${esc(x.id)}" ${b.magic[k] === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}<option value="${OTHER}" ${b.magic[k] === OTHER ? "selected" : ""}>Other (type your own)</option></select></label>`
+      + (b.magic[k] === OTHER ? `<label class="fld"><span>Its name</span><input data-bld="magicT.${k}" value="${esc(b.magicT[k] || "")}" placeholder="e.g. Cloak of Many Fashions"></label>` : ""); }).join("");
+  const thin = Object.keys(r.magic).filter(rar => hiPool(rar).length < 5);
+  if (thin.length) s += lookup(`many ${listAnd(thin)} magic items`, `The SRD has ${listAnd(thin.map(rar => `${hiPool(rar).length} ${rar}`))}. For others, choose Other and type the name, looking it up in the Dungeon Master's Guide (or ask your DM); its details go in on the Items tab.`);
+  return s;
+}
+const hiGpNote = () => { const r = hiStart(+BLD.toLevel), d = +BLD.hiRoll; return d >= 1 && d <= 10 ? `${r.gp.toLocaleString()} + ${d} × ${r.per} = <b>${(r.gp + d * r.per).toLocaleString()} GP</b>, into the purse.` : `Roll or type the 1d10. Left blank, it's rolled when they're made.`; };
 function bldGoHtml() {
   const left = bldLeft();
   return `<div style="height:8px"></div><p class="note" style="text-align:center">${left.length ? `Not chosen yet: ${esc(listAnd(left))}. You can still make them: they'll be marked as not finished until it's filled in.` : "Everything's chosen."}</p>
@@ -1827,6 +1862,16 @@ function bldMake() {
   const tools = [cls && cls.tools, bg && bg.tool].filter(Boolean).join("; ");
   ch.story.profs = [cls && `Armor: ${cls.armor || "none"}`, cls && `Weapons: ${cls.weapons}`, tools && `Tools: ${tools}`, `Languages: ${b.langs}`].filter(Boolean).join("\n");
   for (const t of ch.traits) if (t.fx && t.fx.length) applyFx(ch, t.fx, { cls: clsName });
+  const hi = hiStart(+b.toLevel);
+  if (hi) {
+    const got = hiSlots(hi).map(k => { const v = (b.magic || {})[k], rar = k.split(".")[0];
+      if (v === OTHER) { const name = ((b.magicT || {})[k] || "").trim(); return name && { id: uid("it"), name, qty: 1, where: "On me", note: "", value: rar }; }
+      const x = v && itemPool().find(y => y.id === v); return x && itemFromData(x); }).filter(Boolean);
+    ch.items.push(...got);
+    let d = +b.hiRoll; if (hi.gp && !(d >= 1 && d <= 10)) d = rnd(10);
+    if (hi.gp) ch.purse.gp += hi.gp + d * hi.per;
+    logIt(ch, `Starting at level ${+b.toLevel}: ${hi.gp ? `${(hi.gp + d * hi.per).toLocaleString()} GP (${hi.gp.toLocaleString()} + 1d10 [${d}] × ${hi.per})` : "no extra gold"}${got.length ? `; ${listAnd(got.map(it => it.name))}` : ""}`);
+  }
   logIt(ch, `Built at level 1 (${b.ed === "mix" ? `mixed rules: ${[cls, bg, sp].filter(Boolean).map(x => `${x.name} ${x.ed}`).join(", ")}` : `${rules} rules`}): ${[speciesName, clsName, bgName].filter(Boolean).join(", ") || "freestyle"}${todo.length ? " (not finished)" : ""}`);
   if (+b.toLevel > 1) ch.buildTo = Math.min(20, +b.toLevel);
   db.chars.push(ch); db.cur = ch.id; save(true); BLD = null; closeOv(); ui.tab = "play"; render();
@@ -2670,8 +2715,8 @@ document.addEventListener("input", e => {
   }
   // the builder's typing: only the scores line and the make button change under the fingers
   if (el.dataset.bld && BLD && el.tagName === "INPUT") {
-    const f = el.dataset.bld; if (f.startsWith("typed.")) BLD.typed[f.slice(6)] = el.value; else BLD[f] = el.value;
-    const sc = $("#bldSc"), go = $("#bldGo"); if (sc) sc.innerHTML = bldScNote(); if (go) go.innerHTML = bldGoHtml(); return;
+    const f = el.dataset.bld; if (f.startsWith("typed.")) BLD.typed[f.slice(6)] = el.value; else if (f.startsWith("magicT.")) (BLD.magicT = BLD.magicT || {})[f.slice(7)] = el.value; else BLD[f] = el.value;
+    const sc = $("#bldSc"), go = $("#bldGo"), gp = $("#bldHiGp"); if (sc) sc.innerHTML = bldScNote(); if (go) go.innerHTML = bldGoHtml(); if (gp) gp.innerHTML = hiGpNote(); return;
   }
   if (el.id === "pkQ") { ui_pk.q = el.value; const o = $("#pkOut"); if (o) o.innerHTML = pickerResults(String(ovKind).slice(5)); }
   if (el.id === "newItem") { const o = $("#itemSug"); if (o) o.innerHTML = itemSuggestHtml(el.value); }
@@ -2718,7 +2763,7 @@ document.addEventListener("change", e => {
   // the builder's dropdowns: a new class, background, or species clears what depended on the old one
   if (el.dataset.bld && BLD && el.tagName === "SELECT") {
     const f = el.dataset.bld, v = el.value;
-    if (f.startsWith("pick.")) BLD.pick[f.slice(5)] = v; else BLD[f] = v;
+    if (f.startsWith("pick.")) BLD.pick[f.slice(5)] = v; else if (f.startsWith("magic.")) (BLD.magic = BLD.magic || {})[f.slice(6)] = v; else BLD[f] = v;
     if (f === "cls") { BLD.skills = []; BLD.cantrips = []; BLD.spells = []; BLD.eqC = "A"; BLD.kit = {}; BLD.subcls = ""; }
     if (f === "bg") { BLD.plus2 = ""; BLD.plus1 = ""; BLD.eqB = "A"; const bg = bldPicked().bg; if (bg) BLD.skills = BLD.skills.filter(k => !bg.skills.includes(k)); }
     if (f === "sp") { BLD.extra = ""; BLD.vfeat = ""; BLD.lineage = ""; BLD.sub = ""; BLD.rc1 = ""; BLD.rc2 = ""; BLD.skills = []; }
@@ -2895,6 +2940,7 @@ document.addEventListener("click", e => {
     case "newbuild": startBuilder(); break;
     case "blded": startBuilder(el.dataset.v); break;
     case "bldkit": BLD.kit[el.dataset.i] = el.dataset.v; showBuilder(); break;
+    case "bldhiroll": BLD.hiRoll = String(rnd(10)); showBuilder(); break;
     case "bldset": { const f = el.dataset.f, v = el.dataset.v; BLD[f] = v; if (f === "method") { BLD.pick = {}; } showBuilder(); break; }
     case "bldbuy": { const k = el.dataset.k, v = BLD.buy[k] + +el.dataset.d; if (v < 8 || v > 15) break; const spent = ABS.reduce((a, [x]) => a + BUY_COST[x === k ? v : BLD.buy[x]], 0); if (spent > 27) { toast("No points left."); break; } BLD.buy[k] = v; showBuilder(); break; }
     case "bldroll": BLD.rolls = Array.from({ length: 6 }, () => { const d = [rnd(6), rnd(6), rnd(6), rnd(6)].sort((a, b) => a - b); return d[1] + d[2] + d[3]; }); BLD.pick = {}; showBuilder(); break;

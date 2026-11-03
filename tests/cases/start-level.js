@@ -38,3 +38,14 @@ step("a level can go to a new class: fighter 1, rogue 1", () => {
   click('[data-act="lupick"][data-v="new"]'); sel('[data-lu="newCls"]', "Rogue"); click('[data-act="luavg"]'); click('[data-act="luapply"]');
   const c = C(); return `${clsLine(c)}, level ${c.level}, hit dice ${hdText(c)}, building ${c.buildTo ?? "done"}`;
 });
+step("starting at level 5 brings gold and magic items by the table (Joseph's photo, 2026-11-03)", () => {
+  ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); sel('[data-bld="toLevel"]', "5"); sel('[data-bld="cls"]', "Fighter");
+  const left = (q("#bldGo").textContent.match(/Not chosen yet: ([^.]*)\./) || [, "(none)"])[1].match(/\d+ \w+ magic items?/g).join(", ");
+  typ('[data-bld="hiRoll"]', "4"); const gp = q("#bldHiGp").textContent;
+  const unc = q('[data-bld="magic.Uncommon.0"]'), pick = unc.options[1].value, pickName = unc.options[1].textContent; sel('[data-bld="magic.Uncommon.0"]', pick);
+  sel('[data-bld="magic.Common.0"]', OTHER); typ('[data-bld="magicT.Common.0"]', "Test Trinket");
+  typ('[data-bld="name"]', "Test Five"); click('[data-act="bldmake"]'); closeOv();
+  const c = C(), got = c.items.filter(it => it.name === pickName || it.name === "Test Trinket").map(it => `${it.name} (${it.value})`);
+  expect(got.length === 2, "both magic items", got);
+  return `left before: ${left} | ${gp} | made: ${got.join(", ")}; gp ${c.purse.gp}; level ${c.level}, building to ${c.buildTo}`;
+});
