@@ -6,7 +6,7 @@ const withRoll = (v, f) => { const r = Math.random; Math.random = () => v; try {
 step("Gnick casts Blink: no question, and it's on", () => {
   const c = C(); ui.tab = "play"; render(); const asked = []; const was = window.confirm; window.confirm = m => { asked.push(m); return true; };
   const slots = c.slots[3].used; cast(c, c.spells.find(s => s.name === "Blink"), 3, "slot"); window.confirm = was; render();
-  return `asked: ${asked.length ? asked.join(" / ") : "nothing"} | 3rd-level slots used ${slots} → ${c.slots[3].used} | ${box()}`;
+  return `asked: ${asked.length ? asked.join(" / ") : "nothing"} | 3rd-level slots used ${slots} → ${c.slots[3].used} | ${box()} | the toast: ${(document.querySelector("#toast") || {}).textContent || ""}`;
 });
 step("end of turn: a 5 sends him away; the start of his turn brings him back; a 2 keeps him here", () => {
   withRoll(0.7, () => q('[data-act="blinkroll"]').click()); const away = box(); q('[data-act="blinkback"]').click(); const back = box();
