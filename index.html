@@ -322,7 +322,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 47;
+const VERSION = 48;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1328,7 +1328,8 @@ function spellCap(c, cls) {
   const ed = edOf(c), R = ownClassShape(k.cls) || rClass(k.cls, ed) || (c.mixed ? rClass(k.cls, otherEd(ed)) : null), K = +k.level || 1;
   const col = n => R && R.table && R.table[n] ? parseInt(R.table[n][K]) || 0 : 0, S = luSlots(c, list);
   const top = Math.max(0, ...Object.keys(S.slots || {}).map(Number).filter(n => S.slots[n] > 0), S.pact ? +S.pact.lvl || 0 : 0);
-  const p14 = c.rules === "2014" && (PREPARE_2014[k.cls] ? Math.max(1, mod(c, PREPARE_2014[k.cls]) + K) : k.cls === "Paladin" && K >= 2 ? Math.max(1, mod(c, "cha") + Math.floor(K / 2)) : 0);
+  // a 2014 Wizard's list is the spellbook (the builder gives it six): six, and two more each Wizard level
+  const p14 = c.rules === "2014" && (k.cls === "Wizard" ? 6 + 2 * (K - 1) : PREPARE_2014[k.cls] ? Math.max(1, mod(c, PREPARE_2014[k.cls]) + K) : k.cls === "Paladin" && K >= 2 ? Math.max(1, mod(c, "cha") + Math.floor(K / 2)) : 0);
   const mine = c.spells.filter(s => s.tag !== "D" && (!isMulti(c) || !s.cls || s.cls === k.cls));
   // an SRD class with no Cantrips column has none (a Paladin); for one of your own it's not known
   return { cls: k.cls, top, cantrips: col("Cantrips") || col("Cantrips Known") || (R && !R.mine ? 0 : null), spells: col("Prepared Spells") || col("Spells Known") || p14 || null,

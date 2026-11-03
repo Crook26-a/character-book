@@ -62,3 +62,11 @@ step("the spell list after a level-up: only what they can cast, only as many as 
   click('#ov [data-act="bldnext"]'); click('#ov [data-act="bldlater"]');
   return `${capText} | ${hidden}; Aura of Life listed ${high} | added ${added}: ${full} | took off ${offName}: ${after} | Bless: ${desc}…`;
 });
+step("a 2014 wizard's spell room after a level-up is the spellbook (six, and two a level), not what's prepared", () => {
+  BLD = null; ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); click('[data-act="blded"][data-v="2014"]'); sel('[data-bld="toLevel"]', "2"); sel('[data-bld="cls"]', "Wizard"); sel('[data-bld="sp"]', "Human");
+  ["int", "dex", "con", "wis", "cha", "str"].forEach((k, i) => sel(`[data-bld="pick.${k}"]`, String(i)));
+  const six = [...document.querySelectorAll('[data-act="bldspell"][data-k="spells"]')].slice(0, 6); six.forEach(b => q(`[data-act="bldspell"][data-k="spells"][data-id="${b.dataset.id}"]`).click());
+  typ('[data-bld="name"]', "Test Book"); click('[data-act="bldmake"]'); click('[data-act="luavg"]'); click('[data-act="luapply"]');
+  const c = C(), cap = spellCap(c, c.cls), adds = document.querySelectorAll('#pkOut [data-act="pkspell"]').length; closeOv();
+  return `level ${c.level}: spells ${cap.hasS} of ${cap.spells}, cantrips ${cap.hasC} of ${cap.cantrips}, Add buttons ${adds > 0 ? "there" : "none"}`;
+});
