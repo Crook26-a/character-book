@@ -1,5 +1,5 @@
 // Service worker: caches the whole app so it opens instantly, even offline.
-const CACHE = "character-book-v52";
+const CACHE = "character-book-v53";
 // the shop's pixel font, kept from its first load on (a cache of its own, so a new version doesn't throw it away)
 const FONTS = "character-book-fonts";
 const ASSETS = ["./", "./index.html", "./srd.js", "./qrcode.min.js", "./rules.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png",

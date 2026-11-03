@@ -13,7 +13,7 @@ step("Gnick's numbers at 5th level", () => {
 step("a Stealth check, then a Luck point", () => {
   ui.tab = "play"; render(); click('[data-act="sk"][data-k="stealth"]');
   expect(R && R.type === "d20", "a d20 roll on screen"); click('[data-act="luck"]');
-  expect(res(G(), "Lucky").used === 1 && R.luck.length === 1, "a Luck point spent, a third die"); closeOv();
+  expect(res(G(), "Lucky").used === 1 && !!R.lucked, "a Luck point spent, Advantage (the 2024 rule, 2026-11-03)"); closeOv();
   return "Luck left " + resLeft(res(G(), "Lucky"));
 });
 step("Bless: concentration and the d4 on an attack", () => {

@@ -326,7 +326,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 52;
+const VERSION = 53;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -616,6 +616,15 @@ function tidyDice(expr) { // "1d4+1d4+3" reads as "2d4+3"
 }
 
 /* ── the roll on screen ── */
+/* Lucky (Joseph, 2026-11-03: "I do want you to fix that. I like the flat 3 though"): the feat by the 2024 rules, which
+   the table plays whatever a character was built from, but with 3 Luck points (the 2014 number), back on a long rest.
+   A point on your own d20 test gives you Advantage (Disadvantage and Advantage cancel; it adds nothing to a roll that
+   already has Advantage); against an attack roll on you, the attacker has Disadvantage. Taking the feat (the builder,
+   a level-up, or a sheet from before) gives the use; the halfling trait of the same name is told apart by its text. */
+const isLuckFeat = t => /^Lucky\b/.test(t.name || "") && !/roll(?:s)? a 1\b/i.test(t.text || "");
+function ensureLucky(c) { if ((c.traits || []).some(isLuckFeat) && !res(c, "Lucky")) { c.res = c.res || []; c.res.push({ id: uid("rs"), name: "Lucky", max: 3, used: 0, rest: "long", note: "feat" }); return true; } return false; }
+// the halfling's Luck (2014 "Lucky", 2024 "Luck"): a 1 on the d20 of an attack, check, or save is rerolled, and the new roll stands
+const halflingLuck = c => (c.traits || []).some(t => /^Luck(y)?\b/.test(t.name || "") && /roll(?:s)? a 1\b/i.test(t.text || ""));
 function showRoll() { openOv(rollHtml() + surgeHtml(), "roll"); }
 function rollHtml() {
   const c = C(); const r = R; if (!r) return "";
@@ -648,9 +657,10 @@ function rollHtml() {
     ${verdict}${why}${r.hint ? `<p class="note">${esc(r.hint)}</p>` : ""}${r.spent ? `<p class="note">Used up: ${esc(listAnd(r.spent))}.</p>` : ""}
     ${r.ctx.kind !== "death" ? `<div class="row" style="margin-bottom:10px"><div class="seg">${[["normal", "Normal"], ["adv", "Advantage"], ["dis", "Disadvantage"]].map(([k, l]) => `<button class="${r.mode === k ? "on" : ""}" data-act="rmode" data-m="${k}">${l}</button>`).join("")}</div></div>` : ""}
     <div class="row" style="margin-bottom:10px;align-items:center"><span class="lab">Rolled a real die?</span><input type="number" min="1" max="20" inputmode="numeric" style="width:80px" data-act="realdie" value="${r.real ?? ""}" placeholder="d20"></div>
-    ${r.luck.length ? `<p class="note">Lucky: tap the die you want to use.</p>` : ""}
+    ${r.luck.length ? `<p class="note">Lucky: tap the die you want to use.</p>` : ""}${r.lucked ? `<p class="note">A Luck point: ${r.lucked === "adv" ? "Advantage, the higher d20" : "it cancels the Disadvantage: one d20"}.</p>` : ""}${r.hlr ? `<p class="note">${esc(r.hlr)}</p>` : ""}
     <div class="row" style="margin-bottom:10px">
-      ${lucky && r.ctx.kind !== "plain" ? `<button class="btn small" data-act="luck" ${resLeft(lucky) ? "" : "disabled"}>Use a Luck point (${resLeft(lucky)} left)</button>` : ""}
+      ${lucky && ["atk", "save", "check", "init"].includes(r.ctx.kind) && !r.lucked ? `<button class="btn small" data-act="luck" ${resLeft(lucky) && r.mode !== "adv" ? "" : "disabled"} ${r.mode === "adv" ? 'title="It already has Advantage: a Luck point adds nothing"' : ""}>Use a Luck point (${resLeft(lucky)} left)${r.mode === "adv" ? ": already Advantage" : ""}</button>` : ""}
+      ${halflingLuck(c) && ["atk", "save", "check", "init"].includes(r.ctx.kind) && r.real == null && !r.hlr && usedIx >= 0 && dice[usedIx] === 1 ? `<button class="btn small good" data-act="hluck">Halfling Luck: reroll the 1</button>` : ""}
       ${wager && ["atk", "save", "check"].includes(r.ctx.kind) ? `<button class="btn small" data-act="wagerfrom">This was a Pious Wager…</button>` : ""}
       ${ammo ? `<button class="btn small" data-act="ammoback">Got the ${esc(ammo.name.toLowerCase())} back (${ammo.qty} left)</button>` : ""}
     </div>
@@ -973,7 +983,7 @@ function playHtml(c) {
     ${c.pactSlots ? `<div class="res"><span class="nm">Pact slots (${ord(c.pactSlots.lvl)} level)<small>${c.pactSlots.max - c.pactSlots.used} of ${c.pactSlots.max} · short or long rest</small></span>${pips(c.pactSlots.max, c.pactSlots.used, "pslot", "", true)}</div>` : ""}
     ${c.res.map(r => `<div class="res"><span class="nm">${esc(r.name)}<small>${resLeft(r)} of ${r.max} · ${r.rest === "short" ? "short or long rest" : r.rest === "one" ? "one back each short rest, all on a long" : r.rest === "long" ? "long rest" : "doesn't come back on its own"}${r.note ? " · " + esc(r.note) : ""}</small></span>${r.max <= 12 ? pips(r.max, r.used, "res", `data-id="${r.id}"`) : `<button class="btn tiny" data-act="resn" data-id="${r.id}" data-d="1">Use</button><span class="big">${resLeft(r)}</span><button class="btn tiny" data-act="resn" data-id="${r.id}" data-d="-1">+1</button>`}</div>`).join("")}
     ${hdPools(c).map((p, j) => `<div class="res"><span class="nm">Hit dice (d${p.die})<small>${p.max - p.used} of ${p.max}</small></span>${pips(p.max, p.used, "hd", `data-p="${j}"`)}</div>`).join("")}
-    ${res(c, "Lucky") ? `<div class="row" style="margin:8px 0"><button class="btn small" data-act="luckvs">Lucky: an attack against me</button></div>` : ""}
+    ${res(c, "Lucky") ? `<div class="row" style="margin:8px 0"><button class="btn small" data-act="luckvs">Lucky: an attack roll against me has Disadvantage (${resLeft(res(c, "Lucky"))} left)</button></div>` : ""}
     <div class="row" style="margin:10px 0"><button class="btn grow" data-act="short">Short rest…</button><button class="btn grow" data-act="long">Long rest</button></div>
     ${(+c.level || 1) < 20 ? `<button class="btn wide" data-act="levelup">Level up to ${(+c.level || 1) + 1}…</button>` : ""}`;
   const atkBody = c.attacks.map((a, i) => { const am = a.ammo ? c.items.find(x => x.id === a.ammo) : null;
@@ -1673,6 +1683,7 @@ function applyLevelUp(c) {
   });
   for (const [id, v] of Object.entries(LV.atk)) { const a = c.attacks.find(x => x.id === id); if (!a) continue; if (v.hit !== undefined && v.hit !== "") a.hit = +v.hit; if (v.dmgx) a.dmgx = v.dmgx; }
   const at = isMulti(c) ? ` (${cls} ${K})` : "";
+  if (ensureLucky(c)) did.push("3 Luck points");
   logIt(c, `Reached level ${N}${at}: ${did.join("; ")}`);
   if (!c.buildTo) c.sessions.push({ id: uid("ss"), date: today(), title: `Level ${N}${at}`, text: `${c.short || c.name} reached level ${N}${at}.\n\n${did.map(d => "- " + d).join("\n")}` });
   const caster = classCast(c, target) && (c.spells.length || S.slots || S.pact); LV = null; save(); closeOv();
@@ -2273,6 +2284,7 @@ function bldMake() {
   const tools = [cls && cls.tools, bg && bg.tool].filter(Boolean).join("; ");
   ch.story.profs = [cls && `Armor: ${cls.armor || "none"}`, cls && `Weapons: ${cls.weapons}`, tools && `Tools: ${tools}`, `Languages: ${b.langs}`].filter(Boolean).join("\n");
   for (const t of ch.traits) if (t.fx && t.fx.length) applyFx(ch, t.fx, { cls: clsName });
+  ensureLucky(ch);                 // the Lucky feat brings its 3 Luck points
   if (hi) {
     const got = hiSlots(hi).map(k => { const v = (b.magic || {})[k], rar = k.split(".")[0];
       if (v === OTHER) { const name = ((b.magicT || {})[k] || "").trim(); return name && { id: uid("it"), name, qty: 1, where: "On me", note: "", value: rar }; }
@@ -3092,7 +3104,7 @@ async function importFile(f) {
   for (const ch of d.db.chars) { const i = db.chars.findIndex(x => x.id === ch.id); if (i >= 0) db.chars[i] = norm(ch); else db.chars.push(norm(ch)); }
   db.cur = d.db.cur || db.cur; save(true); closeOv(); toast("Brought in: " + names);
 }
-function norm(ch) { const b = blankChar(ch.name || "Someone"); return Object.assign(b, ch, { story: Object.assign(b.story, ch.story || {}) }); }
+function norm(ch) { const b = blankChar(ch.name || "Someone"), o = Object.assign(b, ch, { story: Object.assign(b.story, ch.story || {}) }); ensureLucky(o); return o; }
 
 /* ══ wiring ══ */
 function getPath(o, path) { return path.split(".").reduce((a, k) => a == null ? a : a[k], o); }
@@ -3311,8 +3323,14 @@ document.addEventListener("click", e => {
       R.label = `${t.name}: ${SKILL[k] ? SKILL[k].name : AB_NAME[k]}`; if (t.rollExtra) { const x = rollExpr(t.rollExtra); R.hint = `${t.rollExtra}: ${x.total}`; } showRoll(); break; }
     case "rmode": R.mode = el.dataset.m; R.pick = null; save(); showRoll(); break;
     case "pickdie": if (R.luck.length) { R.pick = +el.dataset.i; save(); showRoll(); } break;
-    case "luck": { const r = res(c, "Lucky"); if (!resLeft(r)) break; r.used++; R.luck.push(rnd(20)); R.pick = R.d.length + R.luck.length - 1; save(); showRoll(); toast("Luck point spent: tap the die you want."); break; }
-    case "luckvs": { const r = res(c, "Lucky"); if (!resLeft(r)) { toast("No Luck points left."); break; } r.used++; save(); rollPlain("Lucky against an attack", "1d20", "Your d20 against the attacker's: pick which one the attack uses."); break; }
+    // a Luck point by the 2024 rule: Advantage (with Disadvantage, the two cancel); a real die means rolling another one
+    case "luck": { const r = res(c, "Lucky"); if (!resLeft(r) || R.mode === "adv" || R.lucked) break; r.used++; R.lucked = R.mode === "dis" ? "cancel" : "adv"; R.mode = R.mode === "dis" ? "normal" : "adv"; R.pick = null;
+      { const keep = R; logRoll(c, `Luck point (${resLeft(r)} left): ${R.lucked === "adv" ? "Advantage" : "Disadvantage cancelled"} on ${R.label}`); R = keep; } save(); showRoll();
+      toast(R.real != null ? (R.lucked === "adv" ? "Luck point spent: roll a second d20 and take the higher." : "Luck point spent: Disadvantage cancelled, so one die counts.") : "Luck point spent."); break; }
+    // a halfling's 1, rerolled: the new roll stands, even if it's another 1
+    case "hluck": { const i = R.mode === "normal" ? 0 : R.mode === "adv" ? (R.d[0] >= R.d[1] ? 0 : 1) : (R.d[0] <= R.d[1] ? 0 : 1); if (R.d[i] !== 1 || R.hlr) break;
+      R.d[i] = rnd(20); R.pick = i; R.hlr = `Halfling Luck: the 1 rerolled, ${R.d[i]}; that roll stands.`; { const keep = R; logRoll(c, `${R.label}: ${R.hlr}`); R = keep; } save(); showRoll(); break; }
+    case "luckvs": { const r = res(c, "Lucky"); if (!resLeft(r)) { toast("No Luck points left."); break; } r.used++; logRoll(c, `Luck point (${resLeft(r)} left): the attacker has Disadvantage`); save(); render(); toast("Luck point spent: the attack roll against you has Disadvantage (the attacker rolls two d20s and uses the lower).", 5000); break; }
     case "ammoback": { const it = c.items.find(i => i.id === R.ammo); if (it) it.qty++; R.ammo = null; save(); showRoll(); break; }
     case "rolldmg": { const u = usedD(R); const d = R.dmg; rollDamage(d.label.endsWith("damage") ? d.label : d.label + " damage", d.expr, { dtype: d.dtype, crit: u === 20 }); break; }
     case "rerolldmg": rollDamage(R.label, R.expr, { dtype: R.dtype, crit: R.crit, heal: R.heal, save: R.save, noMods: !R.extra.length && !R.flat }); break;
@@ -3696,6 +3714,8 @@ if (!db.fixes.includes("trait-rolls")) { for (const ch of db.chars) for (const t
 if (!db.fixes.includes("gnick-player")) { const g = db.chars.find(ch => ch.id === "ch_gnick"); if (g && !g.player) g.player = "Joseph"; db.fixes.push("gnick-player"); save(); }
 // Gnick gave the rapier back (Joseph, 2026-11-01)
 if (!db.fixes.includes("gnick-rapier-back")) { const g = db.chars.find(ch => ch.id === "ch_gnick"); if (g) { const r = g.items.find(i => i.id === "it_rapier"); if (r && !r.gone) { r.gone = true; r.note = (r.note || "") + " Given back (2026-11-01)."; logIt(g, "Gave the rapier back"); } g.attacks = g.attacks.filter(a => a.id !== "at_rapier"); } db.fixes.push("gnick-rapier-back"); save(); }
+// sheets made with the Lucky feat before it brought its Luck points (2026-11-03)
+if (!db.fixes.includes("lucky-uses")) { for (const ch of db.chars) ensureLucky(ch); db.fixes.push("lucky-uses"); save(); }
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
