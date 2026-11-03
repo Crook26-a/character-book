@@ -92,7 +92,7 @@ step("Done shopping closes it all; the build is kept, and Start over begins afre
   return `full screen ${full}, Done at the top ${doneAtTop} | after Done: overlay ${closed ? "closed" : "still open"}, the button says "${btn}" | carried on: ${kept} | Start over: ${fresh}`;
 });
 step("A blank sheet opens a fresh builder, asking before it throws away an unfinished one", () => {
-  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newchar"]'); const opened = `${ovKind}, class "${BLD.cls}"`;
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newchar"]'); const opened = `${ovKind}, class "${BLD.cls}", the name box ${document.activeElement.dataset.bld === "name" ? "first and focused" : "not focused"}, ${q("#ov .fld input").dataset.bld === "name" ? "at the top" : "not at the top"}`;
   sel('[data-bld="cls"]', "Fighter"); closeOv(); render(); let asked = ""; const was = window.confirm;
   window.confirm = m => { asked = m; return false; }; click('[data-act="newchar"]'); const kept = `${ovKind || "nothing open"}, class ${BLD.cls}`;
   window.confirm = () => true; click('[data-act="newchar"]'); window.confirm = was; const fresh = `${ovKind}, class "${BLD.cls}"`; closeOv(); BLD = null;

@@ -315,7 +315,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 42;
+const VERSION = 43;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1753,6 +1753,7 @@ function builderHtml() {
   const raceWord = only14 ? "race" : mix ? "species or race" : "species", tag = x => mix && x ? ` (${x.ed})` : "";
   const nBase = L.species.filter(x => !x.of).length, nSub = L.species.filter(x => x.of).length;
   let h = `<div class="rr-h">Build a character <small>level 1 · the ${srdOf(b.ed)}, or your own</small><button class="btn small" style="margin-left:auto" data-act="bldover">Start over</button></div>
+    <label class="fld"><span>Their name</span><input data-bld="name" value="${esc(b.name)}" placeholder="Who are they?" autocomplete="off"></label>
     ${seg("ed", [["2024", "2024 rules"], ["2014", "2014 rules"], ["mix", "Mix both"]], b.ed, "blded")}
     <label class="fld"><span>Starting level</span>${sel("toLevel", Array.from({ length: 20 }, (_, i) => [String(i + 1), `Level ${i + 1}`]), b.toLevel || "1")}</label>
     ${+b.toLevel > 1 ? `<p class="note">This page makes level 1. Then each level up to ${+b.toLevel} comes in turn, with the level-up's choices: hit points, a class for that level (so they can start multiclassed), a subclass, ability scores or a feat, and spells. “Finish later” stops at any level. Starting at level ${+b.toLevel} also brings ${esc(hiStartText(+b.toLevel))} (step 6).</p>` : ""}
@@ -1841,7 +1842,7 @@ function builderHtml() {
   } else if (b.cls === OTHER) h += `<h3>7. Spells</h3><p class="note">If your class casts spells, add them from the Spells tab once they're made.</p>`;
   const langHint = [sp && sp.ed === "yours" ? (sp.languages ? `${sp.name}: ${sp.languages}` : "") : e14(sp) ? `${sp.name}: ${(sp.languages.match(/speak, read, and write ([^.]+)/i) || [, "see the race"])[1]}` : sp ? "Common, plus two the 2024 rules let you choose" : "",
     (e14(bg) || (bg && bg.ed === "yours")) && bg.languages ? `${bg.name}: ${bg.languages.toLowerCase()}` : ""].filter(Boolean).join("; ");
-  h += `<h3>8. Who they are</h3><div class="row"><label class="fld"><span>Name</span><input data-bld="name" value="${esc(b.name)}"></label><label class="fld"><span>Alignment</span>${sel("align", ALIGNMENTS, b.align)}</label></div>
+  h += `<h3>8. Who they are</h3><div class="row"><label class="fld"><span>Alignment</span>${sel("align", ALIGNMENTS, b.align)}</label></div>
     <label class="fld"><span>Languages${langHint ? ` (${esc(langHint)})` : ""}</span><input data-bld="langs" value="${esc(b.langs)}"></label>`;
   const credits = [b.ed !== "2014" && creditHtml(), b.ed !== "2024" && `<p class="note" style="font-size:11.5px">${esc(SRD51_CREDIT)}</p>`].filter(Boolean).join("");
   return h + `<div id="bldGo">${bldGoHtml()}</div>${credits}`;
@@ -3072,7 +3073,7 @@ document.addEventListener("click", e => {
     // a blank sheet is a fresh build (Joseph, 2026-11-03: "I like the carry on building set up better"): every step can be
     // left empty, so it's still a blank sheet if nothing's chosen. Without the rules, it's the bare sheet as before
     case "newchar": { if (HAS_RULES) { const busy = BLD && (BLD.cls || BLD.name.trim() || Object.keys(BLD.bought || {}).length || Object.keys(BLD.sold || {}).length);
-        if (busy && !confirm("Start a fresh one? The unfinished build will be lost.")) break; BLD = null; if (ovKind) closeOv(); startBuilder(); break; }
+        if (busy && !confirm("Start a fresh one? The unfinished build will be lost.")) break; BLD = null; if (ovKind) closeOv(); startBuilder(); const n = $('#ov [data-bld="name"]'); if (n) n.focus(); break; }
       const nm = prompt("Their name?"); if (!nm) break; const ch = blankChar(nm); db.chars.push(ch); db.cur = ch.id; ui.editMode = true; ui.tab = "play"; save(); closeOv(); toast("Fill in the sheet, then tap Done (top right)."); break; }
     case "switchpc": db.cur = el.dataset.id; ui.tab = "play"; ui.edit = null; ui.itemOpen = null; saveUi(); save(); render(); scrollTo(0, 0); break;
     case "delpc": { const ch = db.chars.find(x => x.id === el.dataset.id); if (!ch || db.chars.length < 2) break;
