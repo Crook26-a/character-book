@@ -315,7 +315,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 41;
+const VERSION = 42;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -3069,7 +3069,11 @@ document.addEventListener("click", e => {
     case "menu": openOv(menuHtml(), "menu"); break;
     case "ovclose": closeOv(); break;
     case "switch": db.cur = el.dataset.id; save(); closeOv(); break;
-    case "newchar": { const nm = prompt("Their name?"); if (!nm) break; const ch = blankChar(nm); db.chars.push(ch); db.cur = ch.id; ui.editMode = true; ui.tab = "play"; save(); closeOv(); toast("Fill in the sheet, then tap Done (top right)."); break; }
+    // a blank sheet is a fresh build (Joseph, 2026-11-03: "I like the carry on building set up better"): every step can be
+    // left empty, so it's still a blank sheet if nothing's chosen. Without the rules, it's the bare sheet as before
+    case "newchar": { if (HAS_RULES) { const busy = BLD && (BLD.cls || BLD.name.trim() || Object.keys(BLD.bought || {}).length || Object.keys(BLD.sold || {}).length);
+        if (busy && !confirm("Start a fresh one? The unfinished build will be lost.")) break; BLD = null; if (ovKind) closeOv(); startBuilder(); break; }
+      const nm = prompt("Their name?"); if (!nm) break; const ch = blankChar(nm); db.chars.push(ch); db.cur = ch.id; ui.editMode = true; ui.tab = "play"; save(); closeOv(); toast("Fill in the sheet, then tap Done (top right)."); break; }
     case "switchpc": db.cur = el.dataset.id; ui.tab = "play"; ui.edit = null; ui.itemOpen = null; saveUi(); save(); render(); scrollTo(0, 0); break;
     case "delpc": { const ch = db.chars.find(x => x.id === el.dataset.id); if (!ch || db.chars.length < 2) break;
       if (!confirm(`Delete ${ch.name} for good? Save a backup first if you're not sure.`)) break;
