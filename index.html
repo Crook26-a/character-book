@@ -326,7 +326,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 49;
+const VERSION = 50;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -378,6 +378,7 @@ const PRESETS = [
   { name: "Pass without Trace", to: ["skill:stealth"], bonus: "10", note: "1 hour" },
   { name: "Blessing of the Trickster", adv: ["skill:stealth"], note: "Advantage on Stealth, 1 hour" },
   { name: "Mirror Image", note: "3 duplicates, 1 minute", dupes: 3 },
+  { name: "Blink", note: "1 minute: a d6 at the end of each of your turns", blink: true, self: true },
   { name: "Inspiration", note: "Spend it for advantage on one roll" }
 ];
 
@@ -713,9 +714,31 @@ function mirrorRoll(c) {
   const s = `d6 ${rolls.join(", ")}: ${off ? `a duplicate is hit instead and destroyed.${end}` : "no 3 or higher, so it hits you."}`;
   MIR = e.dupes > 0 ? { said: s } : null; logRoll(c, `Mirror Image: ${s}`); save(); render();
 }
+/* Blink (Joseph, 2026-11-03: "does blink currently work" ... "Do so"), by the 2024 rules like Mirror Image (the SRD 5.2):
+   1 minute; a d6 at the end of each of your turns, and on 4-6 you vanish to the Ethereal Plane until the start of your
+   next turn, then come back within 10 feet of where you left. The minute is ten turns (e.left); the effect is e.blink
+   ("here" or "away"). */
+let BLK = null;   // the last roll: { said }
+function blinkHtml(c) {
+  const e = c.effects.find(x => x.blink && x.on !== false); if (!e) return "";
+  const away = e.blink === "away";
+  return `<div class="panel" style="background:var(--paper-lit);padding:8px 10px;margin-bottom:8px"><b>Blink</b>: ${away ? "<b>on the Ethereal Plane</b> until the start of your next turn" : "here"}; ${e.left} turn${e.left === 1 ? "" : "s"} of its minute left.
+    ${away ? `<button class="btn small" data-act="blinkback">Start of my turn: come back</button>` : `<button class="btn small" data-act="blinkroll">End of my turn: roll the d6</button>`}
+    ${BLK ? `<p class="verdict ok" style="margin:6px 0">${esc(BLK.said)}</p>` : ""}
+    <p class="note" style="margin:4px 0 0">${away ? "While there, you can affect and be affected only by creatures on the Ethereal Plane, and you see the plane you left in shades of gray, no further than 60 feet. You come back to an unoccupied space you can see within 10 feet of where you left." : "On a 4 to 6 you vanish to the Ethereal Plane until the start of your next turn."}</p></div>`;
+}
+function blinkRoll(c) {
+  const e = c.effects.find(x => x.blink && x.on !== false); if (!e) return;
+  const d = rnd(6), go = d >= 4; e.left = Math.max(0, (+e.left || 10) - 1);
+  let s = `d6 ${d}: ${go ? "you vanish to the Ethereal Plane until the start of your next turn." : "you stay where you are."}`;
+  if (!e.left) { c.effects = c.effects.filter(x => x !== e); s += ` That was its last turn: Blink ends${go ? ", and you come back now" : ""}.`; toast("Blink ends.", 3000); BLK = null; }
+  else { e.blink = go ? "away" : "here"; BLK = { said: s }; }
+  logRoll(c, `Blink: ${s}`); save(); render();
+}
 function addEffect(c, p, extra) {
   const e = { id: uid("ef"), name: p.name, to: (p.to || []).slice(), bonus: p.bonus || "", adv: (p.adv || []).slice(), dis: (p.dis || []).slice(), once: !!p.once, until: p.until || "", note: p.note || "", on: true, ...(extra || {}) };
   if (p.dupes) { e.dupes = p.dupes; MIR = null; }     // Mirror Image: its duplicates
+  if (p.blink) { e.blink = "here"; e.left = 10; BLK = null; }   // Blink: where you are, and the turns left of its minute
   c.effects.push(e); return e;
 }
 function cast(c, sp, lvl, how) {
@@ -731,9 +754,12 @@ function cast(c, sp, lvl, how) {
     s.used++;
   } else if (sp.conc && !setConc(c, sp.name)) return;
   const up = Math.max(0, lvl - sp.lvl);
-  if (sp.effect) {
-    const p = PRESETS.find(x => x.name === sp.effect) || { name: sp.effect };
-    if (confirm(`${sp.name}: are you one of the targets?`)) {
+  // a spell on yourself only (Blink) needs no question, and works on a sheet made before it had an effect
+  const self = PRESETS.find(x => x.self && x.name === sp.name), eff = sp.effect || (self && self.name);
+  if (eff) {
+    const p = PRESETS.find(x => x.name === eff) || { name: eff };
+    if (p.self) c.effects = c.effects.filter(x => x.name !== p.name);   // cast again: starts afresh
+    if (p.self || confirm(`${sp.name}: are you one of the targets?`)) {
       const extra = { conc: !!sp.conc };
       if (p.name === "Aid") { extra.bonus = String(5 * (1 + up)); }
       addEffect(c, p, extra);
@@ -921,7 +947,7 @@ function playHtml(c) {
   const effPanel = `<div class="panel"><h2>On right now <small>conditions, effects, and modifiers</small></h2>
     <div class="row" style="margin-bottom:8px">${effs.length ? effs.map(e => `<button class="chip ${e.on === false ? "off" : "goodc"}" data-act="efftoggle" data-id="${e.id}" title="${esc(effDesc(e))}">${esc(e.name)}${e.bonus ? " " + esc(/^[+-]/.test(e.bonus) ? e.bonus : "+" + e.bonus) : ""}${e.conc ? " ◉" : ""}${e.once ? " ¹" : ""}</button><button class="chip" data-act="effedit" data-id="${e.id}" aria-label="Edit ${esc(e.name)}">✎</button><button class="chip" data-act="effdel" data-id="${e.id}" aria-label="Remove ${esc(e.name)}">✕</button>`).join("") : `<span class="note" style="margin:0">No spells or bonuses on you.</span>`}</div>
     ${effs.length ? `<p class="note">${effs.map(e => `<b>${esc(e.name)}</b>: ${esc(effDesc(e))}`).join(" · ")}</p>` : ""}
-    ${mirrorHtml(c)}<div class="row" style="margin-bottom:10px"><select id="effPick" style="flex:1"><option value="">Add an effect…</option>${PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("")}<option value="custom">Your own…</option></select><button class="btn small" data-act="effadd">Add</button></div>
+    ${mirrorHtml(c)}${blinkHtml(c)}<div class="row" style="margin-bottom:10px"><select id="effPick" style="flex:1"><option value="">Add an effect…</option>${PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("")}<option value="custom">Your own…</option></select><button class="btn small" data-act="effadd">Add</button></div>
     ${ui.edit === "effect" ? customEffectForm() : String(ui.edit).startsWith("effect:") ? customEffectForm(effs.find(e => "effect:" + e.id === ui.edit)) : ""}
     <div class="row" style="margin-bottom:8px">${c.conds.map(k => `<button class="chip lead" data-act="conddel" data-k="${esc(k)}" title="${esc(CONDITIONS[k] || "")}">${esc(k)} ✕</button>`).join("")}
       <select id="condPick" style="flex:1 1 150px"><option value="">Add a condition…</option>${Object.keys(CONDITIONS).filter(k => !c.conds.includes(k)).map(k => `<option>${k}</option>`).join("")}</select></div>
@@ -3263,6 +3289,8 @@ document.addEventListener("click", e => {
     case "logdel": { const l = c.log.find(x => x.id === el.dataset.id); if (confirm(`Delete “${l.text}”? (It doesn't change the purse.)`)) { c.log = c.log.filter(x => x !== l); save(); render(); } break; }
     case "effcancel": ui.edit = null; render(); break;
     case "mirror": mirrorRoll(c); break;
+    case "blinkroll": blinkRoll(c); break;
+    case "blinkback": { const e = c.effects.find(x => x.blink); if (e) { e.blink = "here"; BLK = null; logRoll(c, "Blink: back from the Ethereal Plane"); save(); render(); } break; }
     case "efftoggle": { const ef = c.effects.find(x => x.id === el.dataset.id); if (ef) ef.on = ef.on === false; save(); render(); break; }
     case "effdel": { const ef = c.effects.find(x => x.id === el.dataset.id); c.effects = c.effects.filter(x => x !== ef); if (ef && ef.name === "Aid") c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break; }
     case "conddel": c.conds = c.conds.filter(k => k !== el.dataset.k); save(); render(); break;
