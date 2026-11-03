@@ -102,3 +102,11 @@ step("mix: a 2024 Wizard, 2014 High Elf, 2014 Acolyte; offered both editions' su
   const c = db.chars.find(x => x.name === "Test Mix Wizard"); expect(c, "made");
   return sheet(c) + `; rules ${c.rules}; subclasses ${subOffers(c).join(" / ")}; feats incl. Grappler ${featsFor(c).some(f => f.name === "Grappler")}; who: ${whoHtml(c).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").match(/Rules [^A-Z]*\d{4}[^A-Z]*/)}`;
 });
+step("step 4 says the class's most important ability", () => {
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); const none = q("#bldKey") ? "shown" : "not shown";
+  const say = () => q("#bldKey").textContent;
+  const out = ["Fighter", "Monk", "Wizard"].map(n => { sel('[data-bld="cls"]', n); return say(); });
+  click('[data-act="blded"][data-v="2014"]'); sel('[data-bld="cls"]', "Paladin"); out.push("2014: " + say());
+  closeOv(); BLD = null;
+  return `no class yet: ${none} | ${out.join(" | ")}`;
+});

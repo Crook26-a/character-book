@@ -321,7 +321,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 44;
+const VERSION = 45;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1805,7 +1805,10 @@ function builderHtml() {
     return s;
   };
   h += only14 ? spHtml() + clsHtml() + bgHtml() : clsHtml() + bgHtml() + spHtml();
-  h += `<h3>4. Ability scores</h3>${seg("method", [["array", "Standard array"], ["buy", "Point buy"], ["roll", "Roll"], ["type", "Type them"]], b.method)}`;
+  // the class's most important ability (Joseph, 2026-11-03): its primary ability (2024, or your own class's), or for a
+  // 2014 class what the SRD 5.1 asks to multiclass into it, which names the same
+  const key = cls && mcNeed(cls.name, cls.ed), keyText = key && listAnd(key.map(g => g.map(k => AB_NAME[k]).join(" or ")));
+  h += `<h3>4. Ability scores</h3>${cls ? `<p class="note" id="bldKey">${key ? `<b>Most important for ${/^[aeiou]/i.test(cls.name) ? "an" : "a"} ${esc(cls.name)}: ${esc(keyText)}.</b> Give ${key.length > 1 ? "them your highest scores" : "it your highest score"}.` : `This class doesn't say which ability matters most. Its spellcasting ability, if it has one, is a good guess; or ask your DM.`}</p>` : ""}${seg("method", [["array", "Standard array"], ["buy", "Point buy"], ["roll", "Roll"], ["type", "Type them"]], b.method)}`;
   if (b.method === "buy") {
     const spent = ABS.reduce((a, [k]) => a + BUY_COST[b.buy[k]], 0);
     h += `<p class="note">27 points: ${27 - spent} left. Scores from 8 to 15.</p>` + ABS.map(([k, n]) => `<div class="res"><span class="nm">${n}</span><button class="btn tiny" data-act="bldbuy" data-k="${k}" data-d="-1">−</button><span class="big">${b.buy[k]}</span><button class="btn tiny" data-act="bldbuy" data-k="${k}" data-d="1">+</button></div>`).join("");
