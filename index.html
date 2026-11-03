@@ -199,18 +199,19 @@
     padding: 14px 14px calc(16px + env(safe-area-inset-bottom)); }
   #ov .box.pic { background: #000; padding: 8px; text-align: center; }
   #ov .box.pic img { max-width: 100%; max-height: 80vh; }
-  /* the gear shop: a pixel market stall with colours of its own, the same in light and dark. Laid out like a Skyrim
-     shop (Joseph, 2026-11-03): the wares in a dark box on the left, the keeper standing on the right, talking */
-  #ov .box.shop { padding: 0 0 calc(12px + env(safe-area-inset-bottom)); border-top: 0; color: #e9e2cf;
-    background: repeating-linear-gradient(90deg, #6e4420 0 22px, #5a3519 22px 24px); }
-  .px-shop { font-family: 'Pixelify Sans', ui-monospace, Menlo, Consolas, monospace; font-size: 15px; }
+  /* the gear shop, with colours of its own, the same in light and dark. Joseph's picture of Vorsk at the stall fills
+     it (2026-11-03: "this is what I want, and then the box of items would be on the left"), framed so Vorsk stands on
+     the right; the box of wares floats on the left, like a Skyrim shop, and scrolls on its own */
+  #ov .box.shop { padding: 0; border-top: 0; color: #e9e2cf; height: 92vh; overflow: hidden; background: #2a2418; }
+  .px-shop { position: relative; height: 100%; font-family: 'Pixelify Sans', ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    background: #2a2418 url("pictures/vorsk-stall.jpg") 37% 50% / cover no-repeat; image-rendering: pixelated; }
+  @media (min-width: 560px) { .px-shop { background-position: 30% 50%; } .px-say { font-size: 14px; } }
   .px-shop svg { display: block; }
-  .px-awning { height: 32px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' shape-rendering='crispEdges'%3E%3Crect width='6' height='5' fill='%232f66d0'/%3E%3Crect x='6' width='6' height='5' fill='%23f4f1e8'/%3E%3Crect y='5' width='6' height='1' fill='%231f3f8f'/%3E%3Crect x='6' y='5' width='6' height='1' fill='%239aa3b5'/%3E%3Crect x='1' y='6' width='4' height='1' fill='%231f3f8f'/%3E%3Crect x='7' y='6' width='4' height='1' fill='%239aa3b5'/%3E%3Crect x='2' y='7' width='2' height='1' fill='%231f3f8f'/%3E%3Crect x='8' y='7' width='2' height='1' fill='%239aa3b5'/%3E%3C/svg%3E") repeat-x; background-size: 48px 32px; image-rendering: pixelated; }
-  .px-hall { display: grid; grid-template-columns: minmax(0, 1fr) 104px; gap: 10px; padding: 10px 8px 0; align-items: start; }
-  @media (min-width: 560px) { .px-hall { grid-template-columns: minmax(0, 1fr) 168px; gap: 16px; padding: 12px 14px 0; } .px-keep svg { width: 160px; height: auto; } .px-say { font-size: 14px; } }
   /* the box of wares */
-  .px-box { background: rgba(12, 14, 26, .94); min-width: 0; box-shadow: -3px 0 0 0 #0a0b14, 3px 0 0 0 #0a0b14, 0 -3px 0 0 #0a0b14, 0 3px 0 0 #0a0b14, inset 0 0 0 1px #3a4270; }
-  .px-boxhead { position: sticky; top: 0; z-index: 2; background: #10121f; border-bottom: 2px solid #3a4270; }
+  .px-box { position: absolute; left: 8px; top: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); width: min(58%, 420px); display: flex; flex-direction: column;
+    background: rgba(12, 14, 26, .93); box-shadow: -3px 0 0 0 #0a0b14, 3px 0 0 0 #0a0b14, 0 -3px 0 0 #0a0b14, 0 3px 0 0 #0a0b14, inset 0 0 0 1px #3a4270; image-rendering: auto; }
+  .px-boxhead { flex: none; background: #10121f; border-bottom: 2px solid #3a4270; }
+  .px-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .px-counter { display: flex; align-items: center; gap: 6px; padding: 7px 8px 2px; }
   .px-gold { font-size: 18px; color: #ffd23f; text-shadow: 2px 2px 0 #000; }
   .px-counter small { color: #b9b3a0; }
@@ -243,25 +244,23 @@
   .px-btn:active { transform: translateY(2px); box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset 3px 3px 0 0 #b07d1a; }
   .px-btn.px-take { background: #93d07f; box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset -3px -3px 0 0 #4c8a3c; }
   .px-btn.small { padding: 1px 7px; }
-  .px-btn.wide { display: block; width: calc(100% - 24px); margin: 14px auto 0; padding: 9px; font-size: 18px; background: #2f66d0; color: #fbf3dc;
+  .px-btn.wide { flex: none; display: block; width: calc(100% - 22px); margin: 8px auto 9px; padding: 9px; font-size: 18px; background: #2f66d0; color: #fbf3dc;
     box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset -3px -3px 0 0 #1f3f8f; }
   .px-note { font-size: 13.5px; color: #b9b3a0; margin: 8px 8px 0; line-height: 1.3; }
   .px-body .px-note { margin: 12px 0 0; }
   .px-body .px-dm, .px-body .px-owed { margin: 6px 0 8px; padding: 6px 8px; background: #1a2240; border-left: 4px solid #6fa3f5; color: #d9d3c0; }
   .px-body .px-owed { background: #1d2b1c; border-left-color: #93d07f; }
   .px-none { padding: 14px 0; text-align: center; color: #b9b3a0; }
-  /* the keeper, standing */
-  .px-side { position: sticky; top: 10px; display: flex; flex-direction: column; align-items: center; }
-  .px-say { position: relative; width: 100%; box-sizing: border-box; background: #fbf3dc; color: #14182e; padding: 5px 7px; margin-bottom: 14px; line-height: 1.2; font-size: 13px;
-    box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000; }
-  .px-say::after { content: ""; position: absolute; left: 30%; bottom: -12px; width: 9px; height: 9px; background: #000; }
+  /* Vorsk talks from beside his head; when cross, the bubble shakes and the stall crackles blue */
+  .px-say { position: absolute; right: 10px; top: 5%; width: calc(42% - 30px); max-width: 230px; box-sizing: border-box; background: #fbf3dc; color: #14182e;
+    padding: 5px 7px; line-height: 1.2; font-size: 13px; image-rendering: auto; box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000; }
+  .px-say::after { content: ""; position: absolute; left: 22%; bottom: -12px; width: 9px; height: 9px; background: #000; }
   .px-say b { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #1f3f8f; }
-  .px-keep { transform-origin: bottom center; }
-  .px-keep.mad { animation: px-shake .35s steps(2) 2; }
-  .px-keep.mad svg { filter: drop-shadow(0 0 3px #fff6a0) drop-shadow(0 0 6px #6fa3f5); }
+  .px-shop.mad .px-say { animation: px-shake .35s steps(2) 2; }
+  .px-shop.mad::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 75% 35%, rgba(111, 163, 245, .45), transparent 45%); animation: px-zap .6s steps(3) 1 forwards; }
   @keyframes px-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
-  @media (prefers-reduced-motion: reduce) { .px-keep.mad { animation: none; } }
-  .px-floor { width: 90%; height: 6px; margin-top: -3px; background: rgba(0, 0, 0, .45); }
+  @keyframes px-zap { 0% { opacity: 1; } 50% { opacity: .2; } 70% { opacity: .9; } 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .px-shop.mad .px-say, .px-shop.mad::after { animation: none; } .px-shop.mad::after { display: none; } }
   .rr-h { font-size: 19px; margin: 0 0 8px; display: flex; gap: 8px; align-items: baseline; }
   .rr-h small { color: var(--ink-soft); font-size: 13px; }
   .dice { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
@@ -315,7 +314,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 38;
+const VERSION = 39;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1961,53 +1960,6 @@ function pxSvg(rows, scale) {
   rows.forEach((row, y) => { for (let x = 0; x < row.length;) { let e = x; while (e < row.length && row[e] === row[x]) e++; if (PX_PAL[row[x]]) r += `<rect x="${x}" y="${y}" width="${e - x}" height="1" fill="${PX_PAL[row[x]]}"/>`; x = e; } });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${rows.length}" width="${w * scale}" height="${rows.length * scale}" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
 }
-const PX_DRAGON = [
-  "......................K...K.....",
-  ".....................KLK.KLK....",
-  "....KK..............KLLK.KLDK...",
-  "...KHHK.....KKKKKKKKLLDKKLDDK...",
-  "...KHHK...KKBBBBBBBBBBDDKBDDK...",
-  "....KHHK.KBBBBBBBBBBBBBBDDBDK...",
-  "....KHHKKBBBBBBKKKKBBBBBBDDDK...",
-  ".....KHBBBBBBBBBKYYKBBBBBBDDK...",
-  "....KBBBBBBBBBBBBKKBBBBBBBDDK...",
-  "...KBKBBBBBBBBBBBBBBBBBBBDDK....",
-  "...KBBBBBBBBBBBBBBBBBBBBDDK.....",
-  "...KKKKKKKKKKKKKBBBBBBBBDDK.....",
-  "....KHLHLLLLLLLKBBBBBBBDDK......",
-  ".....KKKKKKKKKKLLBBBBBDDK.......",
-  "..............KLLBBBBBDK........",
-  "..........KKKKKLLBBBBDDKKKKK....",
-  "........KKBBBBKLLLBBBDKBBBBBKK..",
-  ".......KBBBBBBBKLLLBDKBBBBBBBBK.",
-  "......KBBBBBBBBBKAAAAAABBBBBBBK.",
-  "......KBBBBBBBBBAAAGAAAABBBBBBK.",
-  "......KBBBKKKKKKKKKKKKKKKKBBBBK.",
-  "......KBBKLLLLLLLLLLLLLLLKBBBBK.",
-  "......KBBKBBBBBBBBBBBBBBBKBBBBK.",
-  "......KBBBKKKKKKKKKKKKKKKKBBBBK.",
-  "......KAAAAAAAAAAAAAAAAAAAAAAAK.",
-  "......KAAAAaAAAAAAAAAAAAAaAAAAK."];
-// standing at full height beside the wares (Joseph, 2026-11-03: "like a Skyrim shop"): the bust above, then apron, legs, tail
-const PX_KEEPER = [...PX_DRAGON,
-  "......KaaaaaaaaaaaGGaaaaaaaaaaK.",
-  ".......KAAAAAAAAAAAAAAAAAAAAAK..",
-  ".......KAAAAAAAAAAAAAAAAAAAAAK..",
-  ".......KAAAAaAAAAAAAAAAAaAAAAK..",
-  ".......KAAAAAAAAAAAAAAAAAAAAAK..",
-  "........KAAAAAAAAAAAAAAAAAAAK...",
-  "........KAAAAAAAAAAAAAAAAAAAK...",
-  "........KKKKKKKKKKKKKKKKKKKKK...",
-  ".........KDBBDK.....KDBBDK......",
-  ".........KDBBDK.....KDBBDK......",
-  ".........KDBBDK.....KDBBDKK.....",
-  ".........KDBBDK.....KDBBDKDK....",
-  ".........KDBBDK.....KDBBDKBDK...",
-  "........KDBBBDK.....KDBBBDKBDK..",
-  "........KDBBBDK.....KDBBBDK.KBK.",
-  ".......KDBBBBDK....KDBBBBDK.KBK.",
-  "......KHBHBBBDK...KHBHBBBDK.KK..",
-  "......KKKKKKKKK...KKKKKKKKK....."];
 const PX_ICONS = {
   weapon: ["......KK", ".....KWK", "....KWSK", "K..KWSK.", "KK.WSK..", ".KGSK...", ".KNKK...", "KNK....."],
   armor: [".KKKKKK.", "KBBGGBBK", "KBBGGBBK", "KGGGGGGK", "KBBGGBBK", ".KBGGBK.", "..KBBK..", "...KK..."],
@@ -2021,7 +1973,6 @@ const PX_ICONS = {
   scroll: ["........", ".KKKKKK.", "KWTTTTWK", ".KTTTTK.", ".KTKKTK.", ".KTTTTK.", "KWTTTTWK", ".KKKKKK."],
   "magic item": ["...K....", "..KGK...", ".KGWGK..", "KGWWWGK.", ".KGWGK..", "..KGK...", "...K....", "........"],
   coin: ["..KKKK..", ".KGGGGK.", "KGGWGGOK", "KGWGGGOK", "KGGGGGOK", "KGGGGOOK", ".KOOOOK.", "..KKKK.."] };
-const PX_AWNING = ["BBBBBBWWWWWW", "BBBBBBWWWWWW", "BBBBBBWWWWWW", "BBBBBBWWWWWW", "BBBBBBWWWWWW", "DDDDDDSSSSSS", ".DBBD..SWWS.", "..DD....SS.."];
 const SHOP_KINDS = [["weapon", "Weapons"], ["armor", "Armor"], ["gear", "Adventuring gear"], ["tool", "Tools"], ["potion", "Potions"], ["poison", "Poisons"],
   ["trade good", "Trade goods"], ["mount", "Mounts"], ["vehicle", "Vehicles"], ["scroll", "Scrolls"], ["magic item", "Magic items"]];
 const shopKind = x => PX_ICONS[x.kind] && x.kind !== "coin" ? x.kind : "gear";
@@ -2080,17 +2031,18 @@ function shopHtml() {
       + `<div class="px-row px-total"><span class="px-nm">Left to carry out</span><span class="px-pr">${g.cp < 0 ? `${esc(fmtCp(-g.cp))} short` : esc(fmtCp(g.cp))}</span></div>`;
   }
   const tab = (v, l) => `<button class="px-tab${t === v ? " on" : ""}" data-act="shoptab" data-v="${v}">${l}</button>`, nt = shopTaken().length;
-  // the wares in a box on the left, the keeper standing on the right, talking
-  return `<div class="px-shop"><div class="px-awning"></div><div class="px-hall">
+  // Vorsk at the stall is the whole picture (Joseph's, pictures/vorsk-stall.jpg); the box of wares floats on the left
+  // and scrolls on its own, and Vorsk talks from beside his head
+  return `<div class="px-shop${SHOP.mad ? " mad" : ""}" role="img" aria-label="${SHOPKEEP}, a blue dragonborn, at a market stall">
     <div class="px-box"><div class="px-boxhead"><div class="px-counter">${pxSvg(PX_ICONS.coin, 2)}<span class="px-gold">${g.cp < 0 ? `${esc(fmtCp(-g.cp))} short` : esc(fmtCp(g.cp))}</span><small>${g.cp < 0 ? "sell or put back" : "to spend"}</small></div>
       <div class="px-tabs">${tab("buy", "Buy")}${tab("sell", "Sell")}${tab("basket", `Basket${nb + ns + nt ? ` (${nb + ns + nt})` : ""}`)}</div></div>
-      ${SHOP.note ? `<p class="px-note">${esc(SHOP.note)}</p>` : ""}<div class="px-body">${body}</div></div>
-    <div class="px-side"><div class="px-say"><b>${SHOPKEEP}</b>${esc(SHOP.say)}</div><div class="px-keep${SHOP.mad ? " mad" : ""}">${pxSvg(PX_KEEPER, 3)}</div><div class="px-floor"></div></div></div>
-    <button class="px-btn wide" data-act="shopback">Done shopping</button></div>`;
+      <div class="px-scroll">${SHOP.note ? `<p class="px-note">${esc(SHOP.note)}</p>` : ""}<div class="px-body">${body}</div></div>
+      <button class="px-btn wide" data-act="shopback">Done shopping</button></div>
+    <div class="px-say"><b>${SHOPKEEP}</b>${esc(SHOP.say)}</div></div>`;
 }
 // the owed magic items taken in the shop (or picked in step 6 from the list), for the basket
 const shopTaken = () => { const r = hiStart(+BLD.toLevel); return r ? hiSlots(r).map(k => ({ k, x: magicById((BLD.magic || {})[k]) })).filter(o => o.x) : []; };
-function reShop() { const b = $("#ov .box"), top = b.scrollTop; b.innerHTML = shopHtml(); b.scrollTop = top; }
+function reShop() { const s = $("#ov .px-scroll"), top = s ? s.scrollTop : 0; $("#ov .box").innerHTML = shopHtml(); const n = $("#ov .px-scroll"); if (n) n.scrollTop = top; }
 function shopSumHtml() {
   const g = bldGear(), nb = g.bought.reduce((a, o) => a + o.n, 0), ns = g.sold.reduce((a, s) => a + s.n, 0), hi = hiStart(+BLD.toLevel), unrolled = hi && hi.gp && !(+BLD.hiRoll >= 1 && +BLD.hiRoll <= 10);
   return `<div id="bldShop"><div class="row" style="align-items:center;margin:8px 0 4px"><button class="btn main" data-act="shopopen">Shop for Gear</button>

@@ -13,11 +13,11 @@ step("a 2024 fighter takes the gold instead and goes shopping", () => {
   const opt = [...document.querySelectorAll('[name="bldeqc"]')].map(r => r.parentElement.textContent.trim()).find(t => /gold instead/.test(t));
   click('[name="bldeqc"][data-v="C"]'); const sum = q("#bldShop .note").textContent;
   click('[data-act="shopopen"]'); expect(ovKind === "shop", "the shop is open", ovKind); expect(sayIn("hello"), "a greeting", said());
-  return `option: ${opt} | builder: ${sum} | shop: ${gold()}, ${document.querySelectorAll("#shopList .px-row").length} things for sale, the dragon's ${q(".px-keep svg") ? "drawn" : "missing"}`;
+  return `option: ${opt} | builder: ${sum} | shop: ${gold()}, ${document.querySelectorAll("#shopList .px-row").length} things for sale, the picture: ${/vorsk-stall.jpg/.test(getComputedStyle(q(".px-shop")).backgroundImage) ? "Vorsk at the stall" : "missing"}`;
 });
 step("buying takes the gold; what's too dear is refused", () => {
   click('[data-act="shopbuy"][data-id="srd:longsword"]'); expect(sayIn("buy"), "a sale line", said()); const after = gold();
-  click('[data-act="shopbuy"][data-id="srd:airship"]'); expect(sayIn("broke"), "a refusal", said()); expect(q(".px-keep.mad"), "the dragon is cross");
+  click('[data-act="shopbuy"][data-id="srd:airship"]'); expect(sayIn("broke"), "a refusal", said()); expect(q(".px-shop.mad"), "the dragon is cross");
   return `after a longsword: ${after}; after an airship: ${gold()}, bought ${JSON.stringify(BLD.bought)}`;
 });
 step("only what I can afford, search, and kinds", () => {

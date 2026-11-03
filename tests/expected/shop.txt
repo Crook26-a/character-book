@@ -1,4 +1,4 @@
-1. a 2024 fighter takes the gold instead and goes shopping: option: (C) 155 GP (gold instead) | builder: 155 GP to spend | shop: 155 GP, 330 things for sale, the dragon's drawn
+1. a 2024 fighter takes the gold instead and goes shopping: option: (C) 155 GP (gold instead) | builder: 155 GP to spend | shop: 155 GP, 330 things for sale, the picture: Vorsk at the stall
 2. buying takes the gold; what's too dear is refused: after a longsword: 140 GP; after an airship: 140 GP, bought {"srd:longsword":1}
 3. only what I can afford, search, and kinds: affordable rows 298, too dear among them 0 | rope: Rope, Rope, hempen (50 feet), Rope, silk (50 feet) | armor filter shows: Armor
 4. selling the kit back at full price, and buying it back: kit A: 11 GP short | to sell: Chain Mail, Greatsword, Flail, Javelin, Dungeoneer's Pack | sold the chain mail: 64 GP | buying it back with the longsword bought: refused, 64 GP | longsword put back: 79 GP | bought it back: 4 GP | sold again: 79 GP
