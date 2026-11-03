@@ -246,6 +246,7 @@
     box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e, inset -3px -3px 0 0 #1f3f8f; }
   .px-note { font-size: 14px; color: #5a4a2e; margin: 10px 12px 0; line-height: 1.3; }
   .px-body .px-note { margin: 12px 0 0; }
+  .px-body .px-dm { margin: 4px 0 8px; padding: 6px 8px; background: #fbf3dc; border-left: 4px solid #2f66d0; }
   .px-none { padding: 14px 0; text-align: center; color: #7a4a26; }
   .rr-h { font-size: 19px; margin: 0 0 8px; display: flex; gap: 8px; align-items: baseline; }
   .rr-h small { color: var(--ink-soft); font-size: 13px; }
@@ -300,7 +301,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 36;
+const VERSION = 37;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1103,7 +1104,7 @@ function itemsHtml(c) {
   const groups = placesOf(c).map(l => [l, shown.filter(i => !i.gone && whereOf(i) === l)]).filter(g => g[1].length);
   const gone = shown.filter(i => i.gone);
   const itemCard = i => EM() ? `<div class="card ${i.gone ? "gone" : ""}">${itemForm(c, i)}</div>` : `<div class="card tap ${i.gone ? "gone" : ""}" data-act="itemopen" data-id="${i.id}"><span class="nm">${i.qty > 1 || i.qty === 0 ? `${i.qty} × ` : ""}${esc(i.name)}${i.attuned ? `<span class="tag g">attuned</span>` : i.attune ? `<span class="tag">attunement</span>` : ""}${i.check ? `<span class="tag c">still have it?</span>` : ""}</span>
-      ${i.value || (i.mods || []).some(m => m.bonus && (m.to || []).length) ? `<span class="sub">${esc([i.value, ...(i.mods || []).filter(m => m.bonus && (m.to || []).length).map(m => effDesc({ to: m.to, bonus: m.bonus }))].filter(Boolean).join(" · "))}${i.attune && !i.attuned && (i.mods || []).length ? " (when attuned)" : ""}</span>` : ""}
+      ${i.value || (i.mods || []).some(m => m.bonus && (m.to || []).length) ? `<span class="sub">${esc([worthText(i), ...(i.mods || []).filter(m => m.bonus && (m.to || []).length).map(m => effDesc({ to: m.to, bonus: m.bonus }))].filter(Boolean).join(" · "))}${i.attune && !i.attuned && (i.mods || []).length ? " (when attuned)" : ""}</span>` : ""}
       ${i.note ? `<span class="sub">${esc(i.note.split("\n")[0].slice(0, 120))}</span>` : ""}
       ${i.use && (i.use.label || i.use.heal) && !i.gone ? `<div class="acts"><button class="btn small good" data-act="use" data-id="${i.id}">${esc(i.use.label || "Use")}${i.use.heal ? ` (${esc(i.use.heal)})` : ""}</button></div>` : ""}
       ${ui.itemOpen === i.id ? itemForm(c, i) : ""}</div>`;
@@ -1342,7 +1343,7 @@ function itemSuggestHtml(q) {
   return found.map(x => itemPickCard(x, m ? m[1] : "")).join("");
 }
 // one item to pick: name, where it's from or its rarity, then kind, worth, and attunement
-const itemPickCard = (x, n) => `<button class="card tap" data-act="pkitem" data-id="${esc(x.id)}" style="padding:7px 10px"><span class="nm" style="font-size:15.5px">${n ? n + " × " : ""}${esc(x.name)}${x.hb ? `<span class="tag g">${x.fb ? "Field Book" : "Homebrew"}</span>` : x.rarity ? `<span class="tag g">${esc(x.rarity)}</span>` : ""}</span><span class="sub">${esc([x.kind, x.value, /attunement/i.test(x.att || "") || x.attune === true ? "attunement" : ""].filter(Boolean).join(" · "))}</span></button>`;
+const itemPickCard = (x, n) => `<button class="card tap" data-act="pkitem" data-id="${esc(x.id)}" style="padding:7px 10px"><span class="nm" style="font-size:15.5px">${n ? n + " × " : ""}${esc(x.name)}${x.hb ? `<span class="tag g">${x.fb ? "Field Book" : "Homebrew"}</span>` : x.rarity ? `<span class="tag g">${esc(x.rarity)}</span>` : ""}</span><span class="sub">${esc([x.kind, x.value || (estCp(x.rarity, x) ? `about ${fmtCp(estCp(x.rarity, x))}` : ""), /attunement/i.test(x.att || "") || x.attune === true ? "attunement" : ""].filter(Boolean).join(" · "))}</span></button>`;
 
 /* ══ level up: what changes by itself, and what's yours to decide ══
    The tables below are the same in the 2014 and 2024 Player's Handbooks unless a line says otherwise. Class features
@@ -1897,10 +1898,28 @@ const priceCp = v => { const m = /([\d,]+(?:\.\d+)?)\s*(cp|sp|ep|gp|pp)\b/i.exec
 const fmtCp = cp => { const g = Math.floor(cp / 100), s = Math.floor(cp % 100 / 10), c = cp % 10; return [g && `${g.toLocaleString()} GP`, s && `${s} SP`, c && `${c} CP`].filter(Boolean).join(" ") || "0 GP"; };
 const cpPurse = cp => ({ cp: cp % 10, sp: Math.floor(cp % 100 / 10), ep: 0, gp: Math.floor(cp / 100), pp: 0 });
 const goldOnly = t => /^\s*[\d,]+\s*GP\.?\s*$/i.test(String(t || ""));
-const kitPrice = it => priceCp(it.value);
+/* A magic item's estimated value (Joseph, 2026-11-03), from the SRD 5.2's "Magic Item Rarities and Values" table:
+   by rarity, halved for a consumable other than a Spell Scroll; an Artifact is priceless. The SRD leaves it to the DM
+   whether magic items are bought and sold at all, and where (MAGIC_DM), so the shop sells them only when switched on.
+   Counted as consumable here: Potions (oils and philters among them), magic ammunition, and the dusts. */
+const RARITY_GP = { common: 100, uncommon: 400, rare: 4000, "very rare": 40000, legendary: 200000 };
+const MAGIC_DM = "These are estimates: the SRD's value by rarity, halved for a consumable other than a Spell Scroll; an Artifact is priceless. Whether magic items are for sale at all is up to your DM: Common ones can often be bought in a town or city, Uncommon and Rare ones usually only in cities, and rarer ones only in wondrous places. Your DM can set other prices, or the seller might ask for a service instead of coin.";
+const consumable = x => !!x && (x.cat === "Potion" || x.kind === "potion" || /^(Ammunition|Dust of)\b/.test(x.name || ""));
+const estCp = (rar, x) => { const gp = RARITY_GP[String(rar || "").replace(/\(.*?\)/g, "").trim().toLowerCase()]; return gp ? gp * 100 / (consumable(x) ? 2 : 1) : null; };
+// an item on a sheet whose worth is its rarity ("Rare") gets the estimate beside it
+const srcItem = it => it && it.from ? SRD_LOOT.find(x => x.id === it.from) || libLoot().find(x => x.id === it.from) || null : null;
+const worthText = it => { const v = String(it.value || ""), e = !priceCp(v) && estCp(v, srcItem(it) || it); return e ? `${v} (about ${fmtCp(e)})` : v; };
+const kitPrice = it => priceCp(it.value) || estCp(it.value, srcItem(it) || it);
+// an item that comes in several rarities ("Uncommon (+1), Rare (+2), Very Rare (+3)", "Rare or Uncommon") is sold as each one
+function magicVariants(x) {
+  const parts = String(x.rarity || "").split(/,|\bor\b/).map(s => s.trim()).filter(Boolean);
+  return parts.map(p => { const rar = p.replace(/\(.*?\)/g, "").trim(), plus = (/\((\+\d)\)/.exec(p) || [])[1], cp = estCp(rar, x);
+    const name = parts.length < 2 ? x.name : plus && /\+1\/\+2\/\+3/.test(x.name) ? x.name.replace(/\+1\/\+2\/\+3/, plus) : `${x.name} (${plus || rar})`;
+    return cp && { ...x, id: parts.length < 2 ? x.id : `${x.id}#${plus || rar}`, base: x.id, name, rarity: rar, cp, est: true }; }).filter(Boolean);
+}
 let SHOP = null, SHOP_POOL = null;
-const shopPool = () => SHOP_POOL || (SHOP_POOL = [...SRD_LOOT, ...libLoot().map(x => ({ ...x, hb: true }))]
-  .map(x => ({ ...x, cp: priceCp(x.value || x.cost || x.price) })).filter(x => x.cp > 0));
+const shopPool = () => SHOP_POOL || (SHOP_POOL = [...SRD_LOOT, ...libLoot().map(x => ({ ...x, hb: true }))].flatMap(x => {
+  const cp = priceCp(x.value || x.cost || x.price); return cp > 0 ? [{ ...x, cp }] : x.rarity ? magicVariants(x) : []; }));
 function bldGear() {
   const b = BLD, { cls, bg } = bldPicked(), hi = hiStart(+b.toLevel), d = +b.hiRoll, gold14 = e14(cls) && b.kitGold;
   const kitText = cls && !gold14 ? (e14(cls) ? cls.kit.map((line, i) => line["-"] || line[b.kit[i] || "a"]) : [cls.equipment[b.eqC]]) : [];
@@ -1912,7 +1931,7 @@ function bldGear() {
     if (!k || !p) continue; it.qty -= k; cp += k * p; sold.push({ name, n: k, p }); }
   const own = items.map(it => ({ ...it }));
   for (const [id, n] of Object.entries(b.bought || {})) { const x = n > 0 && shopPool().find(y => y.id === id); if (!x) continue; cp -= n * x.cp; bought.push({ x, n });
-    const have = items.find(it => it.from === id && it.qty > 0); if (have) have.qty += n; else items.push({ ...itemFromData(x, n), where: "On me" }); }
+    const have = items.find(it => it.from === id && it.qty > 0); if (have) have.qty += n; else items.push({ ...itemFromData(x, n), where: "On me", ...(x.base ? { from: x.base } : {}) }); }
   return { items: items.filter(it => it.qty > 0), own, cp, start, sold, bought };
 }
 // the pixel art: each picture is rows of letters, one letter a colour (PX_PAL), a dot see-through
@@ -1975,28 +1994,32 @@ const SHOP_SAY = {
   sell: ["Full price. Tell the other merchants I'm soft and I'll fry you.", "I'll take it. Barely used, I hope.", "Hmph. Fair trade. Full coin, like the sign says."],
   back: ["Changed your mind? Typical.", "Back it goes. Make up your mind.", "Put it back where you found it. Exactly where."],
   nosell: ["I don't know what that's worth, and neither do you. No."],
-  afford: ["There. Everything your sad little purse can manage."] };
+  afford: ["There. Everything your sad little purse can manage."],
+  magic: ["Magic, eh? Your DM had better have said yes.", "The good stuff's under the counter. Prices are what they are."] };
 function shopSay(k) { const a = SHOP_SAY[k]; let s; do s = a[Math.floor(Math.random() * a.length)]; while (a.length > 1 && s === SHOP.say); SHOP.say = s; SHOP.mad = k === "broke" || k === "nosell"; }
 function shopListHtml(g) {
   const q = SHOP.q.trim().toLowerCase(), have = BLD.bought || {};
-  const list = shopPool().filter(x => (!SHOP.kind || shopKind(x) === SHOP.kind) && (!q || x.name.toLowerCase().includes(q)) && (!SHOP.afford || x.cp <= g.cp))
+  const list = shopPool().filter(x => (SHOP.magic || !x.est) && (!SHOP.kind || shopKind(x) === SHOP.kind) && (!q || x.name.toLowerCase().includes(q)) && (!SHOP.afford || x.cp <= g.cp))
     .sort((a, b) => SHOP_KINDS.findIndex(k => k[0] === shopKind(a)) - SHOP_KINDS.findIndex(k => k[0] === shopKind(b)) || a.name.localeCompare(b.name));
   if (!list.length) return `<p class="px-none">${SHOP.afford ? "Nothing here your purse can cover." : "Nothing like that on the stall."}</p>`;
   let last = "";
-  return list.slice(0, 400).map(x => { const k = shopKind(x), head = k !== last ? `<div class="px-kind">${esc((SHOP_KINDS.find(s => s[0] === k) || [, "Other"])[1])}</div>` : ""; last = k;
-    return head + `<div class="px-row${x.cp > g.cp ? " dim" : ""}">${pxIcon(k)}<span class="px-nm">${esc(x.name)}${x.hb ? ` <small>yours</small>` : ""}</span><span class="px-pr">${esc(fmtCp(x.cp))}</span>
+  return list.map(x => { const k = shopKind(x), head = k !== last ? `<div class="px-kind">${esc((SHOP_KINDS.find(s => s[0] === k) || [, "Other"])[1])}</div>` : ""; last = k;
+    return head + `<div class="px-row${x.cp > g.cp ? " dim" : ""}">${pxIcon(k)}<span class="px-nm">${esc(x.name)}${x.hb ? ` <small>yours</small>` : ""}${x.est ? ` <small>${esc(x.rarity)}</small>` : ""}</span><span class="px-pr">${x.est ? "~" : ""}${esc(fmtCp(x.cp))}</span>
       ${have[x.id] ? `<button class="px-btn small" data-act="shopless" data-id="${esc(x.id)}" aria-label="Put one back">−</button><b class="px-n">${have[x.id]}</b>` : ""}<button class="px-btn" data-act="shopbuy" data-id="${esc(x.id)}">Buy</button></div>`; }).join("");
 }
 function shopHtml() {
   const g = bldGear(), nb = g.bought.reduce((a, o) => a + o.n, 0), ns = g.sold.reduce((a, s) => a + s.n, 0), t = SHOP.tab;
   let body = "";
   if (t === "buy") {
-    const unpriced = SRD_LOOT.length + libLoot().length - shopPool().length;
+    const seen = new Set(shopPool().map(x => x.base || x.id)), none = [...SRD_LOOT, ...libLoot()].filter(x => !seen.has(x.id));
+    const arts = none.filter(x => /artifact/i.test(x.rarity || "")).length;
     body = `<div class="px-filters"><input id="shopQ" placeholder="Search the stall" value="${esc(SHOP.q)}" autocomplete="off">
-      <select id="shopKind"><option value="">Everything</option>${SHOP_KINDS.filter(([k]) => shopPool().some(x => shopKind(x) === k)).map(([k, l]) => `<option value="${k}" ${SHOP.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select>
-      <label class="px-check"><input type="checkbox" data-act="shopafford" ${SHOP.afford ? "checked" : ""}> Only what I can afford</label></div>
+      <select id="shopKind"><option value="">Everything</option>${SHOP_KINDS.filter(([k]) => shopPool().some(x => (SHOP.magic || !x.est) && shopKind(x) === k)).map(([k, l]) => `<option value="${k}" ${SHOP.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <label class="px-check"><input type="checkbox" data-act="shopafford" ${SHOP.afford ? "checked" : ""}> Only what I can afford</label>
+      <label class="px-check"><input type="checkbox" data-act="shopmagic" ${SHOP.magic ? "checked" : ""}> Magic items, at estimated value (if your DM allows)</label></div>
+      ${SHOP.magic ? `<p class="px-note px-dm"><b>For the DM to say:</b> ${esc(MAGIC_DM)}</p>` : ""}
       <div id="shopList">${shopListHtml(g)}</div>
-      <p class="px-note">Not on the stall: ${unpriced} things in the item list with no price, magic items among them (the SRD gives them none). Ask your DM what they cost; add them on the Items tab once made, or give a library item a worth (like “25 gp”) and it's sold here.</p>`;
+      ${none.length ? `<p class="px-note">Not on the stall: ${none.length} thing${none.length === 1 ? "" : "s"} in the item list with no price or rarity to go by${arts ? ` (${arts} of them Artifacts, which are priceless)` : ""}. Ask your DM what they cost and add them on the Items tab once made, or give a library item a worth (like “25 gp”) and it's sold here.</p>` : ""}`;
   } else if (t === "sell") {
     const mine = g.own.filter(it => it.qty > 0);
     body = (mine.length ? mine.map(it => { const p = kitPrice(it);
@@ -3148,6 +3171,7 @@ document.addEventListener("click", e => {
     case "shopback": openOv(builderHtml(), "builder"); $("#ov .box").scrollTop = BLD.top || 0; break;
     case "shoptab": SHOP.tab = el.dataset.v; SHOP.note = ""; reShop(); break;
     case "shopafford": SHOP.afford = el.checked; if (SHOP.afford) shopSay("afford"); reShop(); break;
+    case "shopmagic": SHOP.magic = el.checked; if (SHOP.magic) shopSay("magic"); reShop(); break;
     case "shopbuy": { const x = shopPool().find(y => y.id === el.dataset.id); if (!x) break;
       if (x.cp > bldGear().cp) shopSay("broke"); else { BLD.bought = BLD.bought || {}; BLD.bought[x.id] = (BLD.bought[x.id] || 0) + 1; shopSay("buy"); } reShop(); break; }
     case "shopless": { const k = el.dataset.id, o = BLD.bought || {}; if (o[k] > 0) { o[k]--; if (!o[k]) delete o[k]; } shopSay("back"); reShop(); break; }

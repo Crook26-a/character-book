@@ -49,3 +49,14 @@ step("a 2014 build can take gold instead of the class's equipment", () => {
   typ('[data-bld="kitGoldT"]', "120"); const sum = q("#bldShop .note").textContent, left2 = /starting gold/.test(q("#bldGo").textContent) ? "still asks" : "satisfied";
   return `${left1}; typed 120: ${sum}; ${left2}; a lookup note: ${!!q(".lookup")}`;
 });
+step("magic items at estimated value, only when switched on (SRD 5.2 values by rarity)", () => {
+  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); sel('[data-bld="toLevel"]', "17"); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
+  BLD.hiRoll = "1"; showBuilder(); click('[data-act="shopopen"]');
+  const off = shopPool().filter(x => x.est).length, shown0 = document.querySelectorAll('#shopList [data-id^="srd:bag-of-holding"]').length;
+  click('[data-act="shopmagic"]'); expect(sayIn("magic"), "a magic line", said()); expect(q(".px-dm"), "the DM note");
+  const price = id => { const r = q(`#shopList [data-id="${id}"]`); return r ? r.closest(".px-row").textContent.replace(/\s+/g, " ").trim() : "(not listed)"; };
+  const rows = ["srd:bag-of-holding", "srd:potion-of-healing", "srd:longsword-plus-1#+2", "srd:feather-token-anchor#Uncommon", "srd:oil-of-slipperiness"].map(price).join(" / ");
+  click('[data-act="shopbuy"][data-id="srd:longsword-plus-1#+1"]'); const g = gold(); click('[data-act="shopback"]');
+  typ('[data-bld="name"]', "Test Magic"); click('[data-act="bldmake"]'); const c = C(), it = c.items.find(i => /Longsword, \+1/.test(i.name));
+  return `estimated items ${off}, shown before switching on ${shown0} | ${rows} | after a Longsword, +1: ${g} | on the sheet: ${it ? `${it.name}, ${worthText(it)}, from ${it.from}` : "(missing)"}`;
+});
