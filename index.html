@@ -13,6 +13,8 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap">
 <style>
   /* the same aged plat sheet as Ordinate Survey and the Field Book: rag paper, iron-gall ink, red lead for the marks */
   :root {
@@ -197,6 +199,54 @@
     padding: 14px 14px calc(16px + env(safe-area-inset-bottom)); }
   #ov .box.pic { background: #000; padding: 8px; text-align: center; }
   #ov .box.pic img { max-width: 100%; max-height: 80vh; }
+  /* the gear shop: a pixel market stall with colours of its own, the same in light and dark */
+  #ov .box.shop { background: #f3e2b8; padding: 0 0 calc(12px + env(safe-area-inset-bottom)); border-top: 0; color: #14182e; }
+  .px-shop { font-family: 'Pixelify Sans', ui-monospace, Menlo, Consolas, monospace; font-size: 16px; }
+  .px-shop svg { display: block; }
+  .px-top { position: sticky; top: 0; z-index: 2; background: #f3e2b8; }
+  .px-awning { height: 32px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' shape-rendering='crispEdges'%3E%3Crect width='6' height='5' fill='%232f66d0'/%3E%3Crect x='6' width='6' height='5' fill='%23f4f1e8'/%3E%3Crect y='5' width='6' height='1' fill='%231f3f8f'/%3E%3Crect x='6' y='5' width='6' height='1' fill='%239aa3b5'/%3E%3Crect x='1' y='6' width='4' height='1' fill='%231f3f8f'/%3E%3Crect x='7' y='6' width='4' height='1' fill='%239aa3b5'/%3E%3Crect x='2' y='7' width='2' height='1' fill='%231f3f8f'/%3E%3Crect x='8' y='7' width='2' height='1' fill='%239aa3b5'/%3E%3C/svg%3E") repeat-x; background-size: 48px 32px; image-rendering: pixelated; }
+  .px-scene { display: flex; align-items: flex-end; gap: 10px; padding: 6px 12px 0; min-height: 84px;
+    background: linear-gradient(#ffcf8a 0 34%, #f6b26b 34% 62%, #e89a52 62% 100%); }
+  .px-keep { flex: none; transform-origin: bottom center; }
+  .px-keep.mad { animation: px-shake .35s steps(2) 2; }
+  .px-keep.mad svg { filter: drop-shadow(0 0 3px #fff6a0) drop-shadow(0 0 6px #6fa3f5); }
+  @keyframes px-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+  @media (prefers-reduced-motion: reduce) { .px-keep.mad { animation: none; } }
+  .px-say { flex: 1; align-self: center; position: relative; background: #fbf3dc; margin: 0 4px 10px 6px; padding: 6px 9px; line-height: 1.25; font-size: 15px;
+    box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e; }
+  .px-say::before { content: ""; position: absolute; left: -12px; bottom: 6px; width: 9px; height: 6px; background: #14182e; }
+  .px-say b { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #1f3f8f; }
+  .px-counter { display: flex; align-items: center; gap: 8px; padding: 6px 12px; color: #fbf3dc; border-top: 4px solid #4f2f16;
+    background: repeating-linear-gradient(0deg, #8a5a2b 0 7px, #6e4420 7px 9px); }
+  .px-gold { font-size: 20px; color: #ffd23f; text-shadow: 2px 2px 0 #14182e; }
+  .px-counter small { opacity: .85; }
+  .px-tabs { display: flex; gap: 6px; padding: 8px 12px 6px; border-bottom: 3px solid #14182e; }
+  .px-tab { flex: 1; font: inherit; padding: 5px 0; border: 0; background: #e2cb93; color: #14182e; cursor: pointer;
+    box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e; }
+  .px-tab.on { background: #2f66d0; color: #fbf3dc; }
+  .px-body { padding: 4px 12px 10px; }
+  .px-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 4px; }
+  .px-filters input#shopQ, .px-filters select { font: inherit; flex: 1 1 140px; min-width: 0; background: #fbf3dc; color: #14182e; border: 0; padding: 5px 7px; border-radius: 0;
+    box-shadow: -2px 0 0 0 #14182e, 2px 0 0 0 #14182e, 0 -2px 0 0 #14182e, 0 2px 0 0 #14182e; }
+  .px-check { display: flex; gap: 6px; align-items: center; font-size: 15px; }
+  .px-kind { margin: 12px 0 4px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #1f3f8f; border-bottom: 2px dashed #b9a06a; }
+  .px-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #e2cb93; }
+  .px-row.dim .px-nm, .px-row.dim .px-pr { opacity: .5; }
+  .px-row.px-total { border-top: 3px solid #14182e; border-bottom: 0; font-size: 18px; }
+  .px-ic { flex: none; font-style: normal; }
+  .px-nm { flex: 1; min-width: 0; line-height: 1.2; }
+  .px-nm small { color: #7a4a26; }
+  .px-pr { flex: none; color: #7a4a26; text-align: right; }
+  .px-n { min-width: 14px; text-align: center; }
+  .px-btn { font: inherit; flex: none; border: 0; cursor: pointer; padding: 4px 10px; margin: 3px; background: #ffd23f; color: #14182e;
+    box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e, inset -3px -3px 0 0 #b07d1a; }
+  .px-btn:active { transform: translateY(2px); box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e, inset 3px 3px 0 0 #b07d1a; }
+  .px-btn.small { padding: 2px 8px; }
+  .px-btn.wide { display: block; width: calc(100% - 30px); margin: 12px auto 0; padding: 9px; font-size: 18px; background: #2f66d0; color: #fbf3dc;
+    box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e, inset -3px -3px 0 0 #1f3f8f; }
+  .px-note { font-size: 14px; color: #5a4a2e; margin: 10px 12px 0; line-height: 1.3; }
+  .px-body .px-note { margin: 12px 0 0; }
+  .px-none { padding: 14px 0; text-align: center; color: #7a4a26; }
   .rr-h { font-size: 19px; margin: 0 0 8px; display: flex; gap: 8px; align-items: baseline; }
   .rr-h small { color: var(--ink-soft); font-size: 13px; }
   .dice { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
@@ -250,7 +300,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 35;
+const VERSION = 36;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1579,6 +1629,7 @@ function startBuilder(ed) {
     method: "array", pick: {}, rolls: [], buy: { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 },
     typed: { str: "", dex: "", con: "", int: "", wis: "", cha: "" }, plan: "21", plus2: "", plus1: "",
     toLevel: "1", hiRoll: "", magic: {}, magicT: {}, skills: [], extra: "", vfeat: "", eqC: "A", eqB: "A", kit: {}, eqT: "", cantrips: [], spells: [], name: "", align: "", langs: "Common", lineage: "" };
+  SHOP = null;
   if (ovKind === "builder") showBuilder(); else openOv(builderHtml(), "builder");
 }
 function showBuilder() { const b = $("#ov .box"); const top = b.scrollTop; b.innerHTML = builderHtml(); b.scrollTop = top; }
@@ -1756,12 +1807,16 @@ function builderHtml() {
     ${anyN && cls && !cls.skills.any ? `<p class="note">The ${esc(cls.name)} list: ${esc(listAnd(cls.skills.from.map(k => SKILL[k].name)))}.</p>` : ""}
     <div class="row" style="margin-bottom:8px">${from.map(k => `<button class="chip ${b.skills.includes(k) ? "on" : ""}" data-act="bldskill" data-k="${k}" ${have.has(k) ? "disabled style='opacity:.45'" : ""}>${SKILL[k].name}</button>`).join("")}</div>`;
   h += `<h3>6. Equipment</h3>`;
-  if (e14(cls)) h += `<div class="lab">${esc(cls.name)}${tag(cls)}</div>${cls.kit.map((line, i) => line["-"] ? `<p class="note" style="margin:2px 0 6px">${esc(line["-"])}</p>` : `<div style="margin-bottom:6px">${Object.entries(line).map(([k, t]) => `<label class="check"><input type="radio" name="bldk${i}" data-act="bldkit" data-i="${i}" data-v="${k}" ${(b.kit[i] || "a") === k ? "checked" : ""}> (${k}) ${esc(t)}</label>`).join("")}</div>`).join("")}`;
-  else if (cls) h += `<div class="lab">${esc(cls.name)}${tag(cls)}</div>${Object.entries(cls.equipment).map(([k, t]) => `<label class="check"><input type="radio" name="bldeqc" data-act="bldset" data-f="eqC" data-v="${k}" ${b.eqC === k ? "checked" : ""}> (${k}) ${esc(t)}</label>`).join("")}`;
+  if (e14(cls)) h += `<div class="lab">${esc(cls.name)}${tag(cls)}</div><label class="check"><input type="checkbox" data-act="bldkitgold" ${b.kitGold ? "checked" : ""}> Take gold instead of the ${esc(cls.name)}'s equipment</label>`;
+  if (e14(cls) && b.kitGold) h += `<label class="fld n"><span>Gold instead (GP)</span><input data-bld="kitGoldT" type="number" inputmode="numeric" min="0" value="${esc(b.kitGoldT || "")}"></label>`
+    + lookup("the 2014 starting gold by class", `Look up the ${esc(cls.name)}'s starting wealth in the 2014 Player's Handbook (or ask your DM), roll it, and type the GP here.`);
+  else if (e14(cls)) h += `${cls.kit.map((line, i) => line["-"] ? `<p class="note" style="margin:2px 0 6px">${esc(line["-"])}</p>` : `<div style="margin-bottom:6px">${Object.entries(line).map(([k, t]) => `<label class="check"><input type="radio" name="bldk${i}" data-act="bldkit" data-i="${i}" data-v="${k}" ${(b.kit[i] || "a") === k ? "checked" : ""}> (${k}) ${esc(t)}</label>`).join("")}</div>`).join("")}`;
+  else if (cls) h += `<div class="lab">${esc(cls.name)}${tag(cls)}</div>${Object.entries(cls.equipment).map(([k, t]) => `<label class="check"><input type="radio" name="bldeqc" data-act="bldset" data-f="eqC" data-v="${k}" ${b.eqC === k ? "checked" : ""}> (${k}) ${esc(t)}${goldOnly(t) ? " (gold instead)" : ""}</label>`).join("")}`;
   if (bg && typeof bg.equipment === "string") h += bg.equipment.trim() ? `<div class="lab">${esc(bg.name)}${tag(bg)}</div><p class="note" style="margin:2px 0 6px">${esc(bg.equipment)}</p>` : "";
-  else if (bg) h += `<div class="lab">${esc(bg.name)}${tag(bg)}</div>${Object.entries(bg.equipment).map(([k, t]) => `<label class="check"><input type="radio" name="bldeqb" data-act="bldset" data-f="eqB" data-v="${k}" ${b.eqB === k ? "checked" : ""}> (${k}) ${esc(t)}</label>`).join("")}`;
+  else if (bg) h += `<div class="lab">${esc(bg.name)}${tag(bg)}</div>${Object.entries(bg.equipment).map(([k, t]) => `<label class="check"><input type="radio" name="bldeqb" data-act="bldset" data-f="eqB" data-v="${k}" ${b.eqB === k ? "checked" : ""}> (${k}) ${esc(t)}${goldOnly(t) ? " (gold instead)" : ""}</label>`).join("")}`;
   h += txt("eqT", cls || bg ? "Anything else they carry" : "What they carry", "e.g. Longsword, Shield, 2 Daggers, and 10 GP") + `<p class="note">Commas between things. What the SRD has comes with its stats; GP goes in the purse.${e14(cls) ? " Choices like “any simple weapon” come in to be named." : ""}</p>`;
   if (hiStart(+b.toLevel)) h += hiStartHtml();
+  h += shopSumHtml();
   if (cls) {
     const nc = parseInt((cls.table.Cantrips || {})["1"]) || 0, np = bldSpellCount(cls, cls.ed, bldScores());
     if (nc || np.n) {
@@ -1783,7 +1838,7 @@ function bldSkillCap() { const { cls, sp } = bldPicked(); return cls ? cls.skill
 // what's still to choose; the character is made anyway and carries this list (c.todo) until it's done
 function bldLeft() {
   const b = BLD, { cls, bg, sp, subs } = bldPicked(), sc = bldScores(), src = bldAsi(), short = cls ? bldSkillCap() - b.skills.length : 0;
-  const picks = e14(cls) ? cls.kit.flatMap((line, i) => bldItems(line["-"] || line[b.kit[i] || "a"]).pick) : [];
+  const picks = e14(cls) && !b.kitGold ? cls.kit.flatMap((line, i) => bldItems(line["-"] || line[b.kit[i] || "a"]).pick) : [];
   const set21 = b.plus2 && b.plus1 && b.plus2 !== b.plus1;
   return [!b.name.trim() && "a name", !bldName(b.cls, b.clsT) && "a class", !bldName(b.bg, b.bgT) && "a background", !bldName(b.sp, b.spT) && `a ${b.ed === "2014" ? "race" : b.ed === "mix" ? "species or race" : "species"}`,
     subs.length && sp.ed !== "2024" && !bldName(b.sub, b.subT) && "a subrace", subAt1(cls) && !bldName(b.subcls, b.subclsT) && "a subclass",
@@ -1793,7 +1848,9 @@ function bldLeft() {
     src === "free" && b.ed === "mix" && !set21 && "the +2 and +1",
     short > 0 && `${short} more skill${short === 1 ? "" : "s"}`,
     sp && sp.ed === "2024" && sp.traits.some(t => t.name === "Skillful") && !b.extra && "the Skillful skill", sp && sp.ed === "2024" && sp.traits.some(t => t.name === "Versatile") && !b.vfeat && "the Versatile feat",
-    picks.length && `which ${listAnd(picks)}`, ...hiMagicLeft()].filter(Boolean);
+    picks.length && `which ${listAnd(picks)}`, ...hiMagicLeft(),
+    e14(cls) && b.kitGold && !(+b.kitGoldT > 0) && `the ${cls.name}'s starting gold`,
+    (b.bought || b.sold) && bldGear().cp < 0 && `paying for the shopping (${fmtCp(-bldGear().cp)} short)`].filter(Boolean);
 }
 /* Starting above level 1 (Joseph, 2026-11-03, from a photo of the 2024 Player's Handbook's "Starting Equipment at
    Higher Levels" table): the normal starting equipment, plus gold and magic items by starting level. The gold is a
@@ -1828,6 +1885,145 @@ function hiStartHtml() {
   if (thin.length) s += lookup(`many ${listAnd(thin)} magic items`, `The SRD has ${listAnd(thin.map(rar => `${hiPool(rar).length} ${rar}`))}. For others, choose Other and type the name, looking it up in the Dungeon Master's Guide (or ask your DM); its details go in on the Items tab.`);
   return s;
 }
+/* ══ Shop for Gear (Joseph, 2026-11-03): from the builder, a market stall drawn in pixels, kept by Vorsk, a gruff blue
+   dragonborn. Everything in the item list with a price is for sale (the SRD's, and the library's that have one), and
+   what the build starts with sells back at full price. The gold is everything the build starts with: the kit's and
+   background's GP, gold taken instead, GP typed under Anything else, and the higher-level gold. What's bought and sold
+   is kept in the build (BLD.bought {id: n}, BLD.sold {name: n}) and worked out again by bldGear each time, so changing
+   a choice afterwards never loses track; going over budget is marked as not finished. ══ */
+const SHOPKEEP = "Vorsk";
+const COIN_CP = { cp: 1, sp: 10, ep: 50, gp: 100, pp: 1000 };
+const priceCp = v => { const m = /([\d,]+(?:\.\d+)?)\s*(cp|sp|ep|gp|pp)\b/i.exec(String(v || "")); return m ? Math.round(parseFloat(m[1].replace(/,/g, "")) * COIN_CP[m[2].toLowerCase()]) : null; };
+const fmtCp = cp => { const g = Math.floor(cp / 100), s = Math.floor(cp % 100 / 10), c = cp % 10; return [g && `${g.toLocaleString()} GP`, s && `${s} SP`, c && `${c} CP`].filter(Boolean).join(" ") || "0 GP"; };
+const cpPurse = cp => ({ cp: cp % 10, sp: Math.floor(cp % 100 / 10), ep: 0, gp: Math.floor(cp / 100), pp: 0 });
+const goldOnly = t => /^\s*[\d,]+\s*GP\.?\s*$/i.test(String(t || ""));
+const kitPrice = it => priceCp(it.value);
+let SHOP = null, SHOP_POOL = null;
+const shopPool = () => SHOP_POOL || (SHOP_POOL = [...SRD_LOOT, ...libLoot().map(x => ({ ...x, hb: true }))]
+  .map(x => ({ ...x, cp: priceCp(x.value || x.cost || x.price) })).filter(x => x.cp > 0));
+function bldGear() {
+  const b = BLD, { cls, bg } = bldPicked(), hi = hiStart(+b.toLevel), d = +b.hiRoll, gold14 = e14(cls) && b.kitGold;
+  const kitText = cls && !gold14 ? (e14(cls) ? cls.kit.map((line, i) => line["-"] || line[b.kit[i] || "a"]) : [cls.equipment[b.eqC]]) : [];
+  const kit = [...kitText.map(bldItems), bg && bldItems(typeof bg.equipment === "string" ? bg.equipment : bg.equipment[b.eqB]), bldItems(b.eqT)].filter(Boolean);
+  const items = kit.flatMap(k => k.items), sold = [], bought = [];
+  let cp = 100 * (kit.reduce((a, k) => a + k.gp, 0) + (gold14 ? Math.max(0, +b.kitGoldT || 0) : 0) + (hi && hi.gp && d >= 1 && d <= 10 ? hi.gp + d * hi.per : 0));
+  const start = cp;
+  for (const [name, n] of Object.entries(b.sold || {})) { const it = items.find(x => x.name === name), p = it && kitPrice(it), k = it ? Math.min(n, it.qty) : 0;
+    if (!k || !p) continue; it.qty -= k; cp += k * p; sold.push({ name, n: k, p }); }
+  const own = items.map(it => ({ ...it }));
+  for (const [id, n] of Object.entries(b.bought || {})) { const x = n > 0 && shopPool().find(y => y.id === id); if (!x) continue; cp -= n * x.cp; bought.push({ x, n });
+    const have = items.find(it => it.from === id && it.qty > 0); if (have) have.qty += n; else items.push({ ...itemFromData(x, n), where: "On me" }); }
+  return { items: items.filter(it => it.qty > 0), own, cp, start, sold, bought };
+}
+// the pixel art: each picture is rows of letters, one letter a colour (PX_PAL), a dot see-through
+const PX_PAL = { K: "#14182e", D: "#1f3f8f", B: "#2f66d0", L: "#6fa3f5", Y: "#ffd23f", H: "#efe3c2", A: "#7a4a26", a: "#4f2f16", G: "#e0b03a", O: "#b07d1a",
+  W: "#f4f1e8", S: "#9aa3b5", T: "#c9a46a", R: "#c8323c", V: "#4caf50", N: "#8a5a2b" };
+function pxSvg(rows, scale) {
+  const w = Math.max(...rows.map(r => r.length)); let r = "";
+  rows.forEach((row, y) => { for (let x = 0; x < row.length;) { let e = x; while (e < row.length && row[e] === row[x]) e++; if (PX_PAL[row[x]]) r += `<rect x="${x}" y="${y}" width="${e - x}" height="1" fill="${PX_PAL[row[x]]}"/>`; x = e; } });
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${rows.length}" width="${w * scale}" height="${rows.length * scale}" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
+}
+const PX_DRAGON = [
+  "......................K...K.....",
+  ".....................KLK.KLK....",
+  "....KK..............KLLK.KLDK...",
+  "...KHHK.....KKKKKKKKLLDKKLDDK...",
+  "...KHHK...KKBBBBBBBBBBDDKBDDK...",
+  "....KHHK.KBBBBBBBBBBBBBBDDBDK...",
+  "....KHHKKBBBBBBKKKKBBBBBBDDDK...",
+  ".....KHBBBBBBBBBKYYKBBBBBBDDK...",
+  "....KBBBBBBBBBBBBKKBBBBBBBDDK...",
+  "...KBKBBBBBBBBBBBBBBBBBBBDDK....",
+  "...KBBBBBBBBBBBBBBBBBBBBDDK.....",
+  "...KKKKKKKKKKKKKBBBBBBBBDDK.....",
+  "....KHLHLLLLLLLKBBBBBBBDDK......",
+  ".....KKKKKKKKKKLLBBBBBDDK.......",
+  "..............KLLBBBBBDK........",
+  "..........KKKKKLLBBBBDDKKKKK....",
+  "........KKBBBBKLLLBBBDKBBBBBKK..",
+  ".......KBBBBBBBKLLLBDKBBBBBBBBK.",
+  "......KBBBBBBBBBKAAAAAABBBBBBBK.",
+  "......KBBBBBBBBBAAAGAAAABBBBBBK.",
+  "......KBBBKKKKKKKKKKKKKKKKBBBBK.",
+  "......KBBKLLLLLLLLLLLLLLLKBBBBK.",
+  "......KBBKBBBBBBBBBBBBBBBKBBBBK.",
+  "......KBBBKKKKKKKKKKKKKKKKBBBBK.",
+  "......KAAAAAAAAAAAAAAAAAAAAAAAK.",
+  "......KAAAAaAAAAAAAAAAAAAaAAAAK."];
+const PX_ICONS = {
+  weapon: ["......KK", ".....KWK", "....KWSK", "K..KWSK.", "KK.WSK..", ".KGSK...", ".KNKK...", "KNK....."],
+  armor: [".KKKKKK.", "KBBGGBBK", "KBBGGBBK", "KGGGGGGK", "KBBGGBBK", ".KBGGBK.", "..KBBK..", "...KK..."],
+  gear: ["...KK...", "..KNNK..", "...KK...", "..KTTK..", ".KTTTTK.", "KTTTTTTK", "KTTTTTTK", ".KKKKKK."],
+  tool: [".KKKK...", "KSSSSK..", "KSSSSKK.", ".KKNKK..", "...KNK..", "....KNK.", ".....KNK", "......K."],
+  potion: ["..KKK...", "..KNK...", "..KWK...", ".KWWWK..", "KRRRRRK.", "KRRWRRK.", "KRRRRRK.", ".KKKKK.."],
+  poison: ["..KKK...", "..KNK...", "..KWK...", ".KWWWK..", "KVVVVVK.", "KVVWVVK.", "KVVVVVK.", ".KKKKK.."],
+  "trade good": ["........", "........", "..KKKK..", ".KGGWGK.", "KGGGGGGK", "KOOOOOOK", ".KKKKKK.", "........"],
+  mount: ["KK....KK", "KSK..KSK", "KSK..KSK", "KSK..KSK", "KSSKKSSK", ".KSSSSK.", "..KKKK..", "........"],
+  vehicle: ["..KKKK..", ".KNNNNK.", "KNKNNKNK", "KNNKKNNK", "KNNKKNNK", "KNKNNKNK", ".KNNNNK.", "..KKKK.."],
+  scroll: ["........", ".KKKKKK.", "KWTTTTWK", ".KTTTTK.", ".KTKKTK.", ".KTTTTK.", "KWTTTTWK", ".KKKKKK."],
+  "magic item": ["...K....", "..KGK...", ".KGWGK..", "KGWWWGK.", ".KGWGK..", "..KGK...", "...K....", "........"],
+  coin: ["..KKKK..", ".KGGGGK.", "KGGWGGOK", "KGWGGGOK", "KGGGGGOK", "KGGGGOOK", ".KOOOOK.", "..KKKK.."] };
+const PX_AWNING = ["BBBBBBWWWWWW", "BBBBBBWWWWWW", "BBBBBBWWWWWW", "BBBBBBWWWWWW", "BBBBBBWWWWWW", "DDDDDDSSSSSS", ".DBBD..SWWS.", "..DD....SS.."];
+const SHOP_KINDS = [["weapon", "Weapons"], ["armor", "Armor"], ["gear", "Adventuring gear"], ["tool", "Tools"], ["potion", "Potions"], ["poison", "Poisons"],
+  ["trade good", "Trade goods"], ["mount", "Mounts"], ["vehicle", "Vehicles"], ["scroll", "Scrolls"], ["magic item", "Magic items"]];
+const shopKind = x => PX_ICONS[x.kind] && x.kind !== "coin" ? x.kind : "gear";
+const pxIcon = k => `<i class="px-ic">${pxSvg(PX_ICONS[k] || PX_ICONS.gear, 3)}</i>`;
+const SHOP_SAY = {
+  hello: ["Hrrmph. Buy something or stop breathing on my wares.", "Another adventurer. Wonderful. Coin first, questions never.", "Look all you like. Touch it, you bought it."],
+  buy: ["Sold. Don't come crying when it breaks.", "Fine choice. For an amateur.", "Coin's good. Next.", "Take it before I change my mind."],
+  broke: ["You can't afford that. Come back when you've robbed someone.", "Short on coin, short on goods. That's how a market works.", "Hah! With that purse? No."],
+  sell: ["Full price. Tell the other merchants I'm soft and I'll fry you.", "I'll take it. Barely used, I hope.", "Hmph. Fair trade. Full coin, like the sign says."],
+  back: ["Changed your mind? Typical.", "Back it goes. Make up your mind.", "Put it back where you found it. Exactly where."],
+  nosell: ["I don't know what that's worth, and neither do you. No."],
+  afford: ["There. Everything your sad little purse can manage."] };
+function shopSay(k) { const a = SHOP_SAY[k]; let s; do s = a[Math.floor(Math.random() * a.length)]; while (a.length > 1 && s === SHOP.say); SHOP.say = s; SHOP.mad = k === "broke" || k === "nosell"; }
+function shopListHtml(g) {
+  const q = SHOP.q.trim().toLowerCase(), have = BLD.bought || {};
+  const list = shopPool().filter(x => (!SHOP.kind || shopKind(x) === SHOP.kind) && (!q || x.name.toLowerCase().includes(q)) && (!SHOP.afford || x.cp <= g.cp))
+    .sort((a, b) => SHOP_KINDS.findIndex(k => k[0] === shopKind(a)) - SHOP_KINDS.findIndex(k => k[0] === shopKind(b)) || a.name.localeCompare(b.name));
+  if (!list.length) return `<p class="px-none">${SHOP.afford ? "Nothing here your purse can cover." : "Nothing like that on the stall."}</p>`;
+  let last = "";
+  return list.slice(0, 400).map(x => { const k = shopKind(x), head = k !== last ? `<div class="px-kind">${esc((SHOP_KINDS.find(s => s[0] === k) || [, "Other"])[1])}</div>` : ""; last = k;
+    return head + `<div class="px-row${x.cp > g.cp ? " dim" : ""}">${pxIcon(k)}<span class="px-nm">${esc(x.name)}${x.hb ? ` <small>yours</small>` : ""}</span><span class="px-pr">${esc(fmtCp(x.cp))}</span>
+      ${have[x.id] ? `<button class="px-btn small" data-act="shopless" data-id="${esc(x.id)}" aria-label="Put one back">−</button><b class="px-n">${have[x.id]}</b>` : ""}<button class="px-btn" data-act="shopbuy" data-id="${esc(x.id)}">Buy</button></div>`; }).join("");
+}
+function shopHtml() {
+  const g = bldGear(), nb = g.bought.reduce((a, o) => a + o.n, 0), ns = g.sold.reduce((a, s) => a + s.n, 0), t = SHOP.tab;
+  let body = "";
+  if (t === "buy") {
+    const unpriced = SRD_LOOT.length + libLoot().length - shopPool().length;
+    body = `<div class="px-filters"><input id="shopQ" placeholder="Search the stall" value="${esc(SHOP.q)}" autocomplete="off">
+      <select id="shopKind"><option value="">Everything</option>${SHOP_KINDS.filter(([k]) => shopPool().some(x => shopKind(x) === k)).map(([k, l]) => `<option value="${k}" ${SHOP.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <label class="px-check"><input type="checkbox" data-act="shopafford" ${SHOP.afford ? "checked" : ""}> Only what I can afford</label></div>
+      <div id="shopList">${shopListHtml(g)}</div>
+      <p class="px-note">Not on the stall: ${unpriced} things in the item list with no price, magic items among them (the SRD gives them none). Ask your DM what they cost; add them on the Items tab once made, or give a library item a worth (like “25 gp”) and it's sold here.</p>`;
+  } else if (t === "sell") {
+    const mine = g.own.filter(it => it.qty > 0);
+    body = (mine.length ? mine.map(it => { const p = kitPrice(it);
+      return `<div class="px-row${p ? "" : " dim"}">${pxIcon(shopKind(SRD_LOOT.find(x => x.id === it.from) || {}))}<span class="px-nm">${esc(it.name)}${it.qty > 1 ? ` <small>× ${it.qty}</small>` : ""}</span><span class="px-pr">${p ? esc(fmtCp(p)) : "no price"}</span><button class="px-btn" data-act="shopsell" data-name="${esc(it.name)}">Sell${it.qty > 1 ? " 1" : ""}</button></div>`; }).join("")
+      : `<p class="px-none">Nothing to sell. The class and background's equipment shows up here once they're chosen.</p>`)
+      + (g.sold.length ? `<div class="px-kind">Sold</div>` + g.sold.map(s => `<div class="px-row"><span class="px-nm">${esc(s.name)}${s.n > 1 ? ` <small>× ${s.n}</small>` : ""}</span><span class="px-pr">+${esc(fmtCp(s.n * s.p))}</span><button class="px-btn" data-act="shopunsell" data-name="${esc(s.name)}">Buy back</button></div>`).join("") : "");
+  } else {
+    body = `<div class="px-row"><span class="px-nm">Starting gold</span><span class="px-pr">${esc(fmtCp(g.start))}</span></div>`
+      + g.sold.map(s => `<div class="px-row"><span class="px-nm">Sold ${esc(s.name)}${s.n > 1 ? ` × ${s.n}` : ""}</span><span class="px-pr">+${esc(fmtCp(s.n * s.p))}</span><button class="px-btn small" data-act="shopunsell" data-name="${esc(s.name)}">Undo</button></div>`).join("")
+      + g.bought.map(({ x, n }) => `<div class="px-row">${pxIcon(shopKind(x))}<span class="px-nm">${esc(x.name)}${n > 1 ? ` × ${n}` : ""}</span><span class="px-pr">−${esc(fmtCp(n * x.cp))}</span><button class="px-btn small" data-act="shopless" data-id="${esc(x.id)}" aria-label="Put one back">−</button><button class="px-btn small" data-act="shopbuy" data-id="${esc(x.id)}" aria-label="One more">+</button></div>`).join("")
+      + `<div class="px-row px-total"><span class="px-nm">Left to carry out</span><span class="px-pr">${g.cp < 0 ? `${esc(fmtCp(-g.cp))} short` : esc(fmtCp(g.cp))}</span></div>`;
+  }
+  const tab = (v, l) => `<button class="px-tab${t === v ? " on" : ""}" data-act="shoptab" data-v="${v}">${l}</button>`;
+  return `<div class="px-shop"><div class="px-top"><div class="px-awning"></div>
+    <div class="px-scene"><div class="px-keep${SHOP.mad ? " mad" : ""}">${pxSvg(PX_DRAGON, 4)}</div><div class="px-say"><b>${SHOPKEEP}</b>${esc(SHOP.say)}</div></div>
+    <div class="px-counter">${pxSvg(PX_ICONS.coin, 3)}<span class="px-gold">${g.cp < 0 ? `${esc(fmtCp(-g.cp))} short` : esc(fmtCp(g.cp))}</span><small>${g.cp < 0 ? "sell or put back" : "to spend"}</small></div>
+    <div class="px-tabs">${tab("buy", "Buy")}${tab("sell", "Sell")}${tab("basket", `Basket${nb + ns ? ` (${nb + ns})` : ""}`)}</div></div>
+    ${SHOP.note ? `<p class="px-note">${esc(SHOP.note)}</p>` : ""}<div class="px-body">${body}</div>
+    <button class="px-btn wide" data-act="shopback">Done shopping</button></div>`;
+}
+function reShop() { const b = $("#ov .box"), top = b.scrollTop; b.innerHTML = shopHtml(); b.scrollTop = top; }
+function shopSumHtml() {
+  const g = bldGear(), nb = g.bought.reduce((a, o) => a + o.n, 0), ns = g.sold.reduce((a, s) => a + s.n, 0), hi = hiStart(+BLD.toLevel), unrolled = hi && hi.gp && !(+BLD.hiRoll >= 1 && +BLD.hiRoll <= 10);
+  return `<div id="bldShop"><div class="row" style="align-items:center;margin:8px 0 4px"><button class="btn main" data-act="shopopen">Shop for Gear</button>
+    <span class="note" style="margin:0">${g.cp < 0 ? `<b>${esc(fmtCp(-g.cp))} over budget</b>` : `${esc(fmtCp(g.cp))} to spend${unrolled ? " (the level gold's 1d10 is rolled when you go in)" : ""}`}${nb || ns ? `; ${[nb && `${nb} bought`, ns && `${ns} sold`].filter(Boolean).join(", ")}` : ""}</span></div>
+    <p class="note">${SHOPKEEP}'s stall sells everything in the item list that has a price, and buys back the equipment above at full price.</p></div>`;
+}
 const hiGpNote = () => { const r = hiStart(+BLD.toLevel), d = +BLD.hiRoll; return d >= 1 && d <= 10 ? `${r.gp.toLocaleString()} + ${d} × ${r.per} = <b>${(r.gp + d * r.per).toLocaleString()} GP</b>, into the purse.` : `Roll or type the 1d10. Left blank, it's rolled when they're made.`; };
 function bldGoHtml() {
   const left = bldLeft();
@@ -1835,20 +2031,21 @@ function bldGoHtml() {
     <button class="btn wide main" data-act="bldmake">${left.length ? "Make them (not finished yet)" : "Make the character"}</button><button class="btn wide" data-act="ovclose">Not now</button>`;
 }
 function bldMake() {
-  const b = BLD, { cls, bg, sp, sub, subcls } = bldPicked(), sc = bldScores(), todo = bldLeft();
+  const b = BLD, { cls, bg, sp, sub, subcls } = bldPicked(), sc = bldScores(), hi = hiStart(+b.toLevel);
+  if (hi && hi.gp && !(+b.hiRoll >= 1 && +b.hiRoll <= 10)) b.hiRoll = String(rnd(10));   // left blank: rolled now
+  const todo = bldLeft(), gear = bldGear();
   const clsName = cls ? cls.name : bldName(b.cls, b.clsT), bgName = bg ? bg.name : bldName(b.bg, b.bgT), spName = sp ? sp.name : bldName(b.sp, b.spT), subName = sub ? sub.name : bldName(b.sub, b.subT);
   const subclsName = subAt1(cls) ? (subcls ? subcls.name : bldName(b.subcls, b.subclsT)) : "";
   for (const [k] of ABS) if (sc[k] == null) sc[k] = 10;
   const ch = blankChar(b.name.trim() || UNNAMED), races = [sp, sub].filter(Boolean);
-  const kitText = cls ? (e14(cls) ? cls.kit.map((line, i) => line["-"] || line[b.kit[i] || "a"]) : [cls.equipment[b.eqC]]) : [];
-  const kit = [...kitText.map(bldItems), bg && bldItems(typeof bg.equipment === "string" ? bg.equipment : bg.equipment[b.eqB]), bldItems(b.eqT)].filter(Boolean), items = kit.flatMap(k => k.items), acx = bldAC(items, sc, cls);
+  const items = gear.items, acx = bldAC(items, sc, cls);
   const hd = cls ? cls.hd : +b.hd || 8, tough = races.some(r => r.traits.some(t => t.name === "Dwarven Toughness")) ? 1 : 0, hp = Math.max(1, hd + abMod(sc.con) + tough);
   const useSub = e14(sp) || (!sp && b.ed === "2014") || !!sub, speciesName = (useSub ? subName || spName : spName) + (b.lineage.trim() && (useSub || sp) ? ` (${b.lineage.trim()})` : "");
   const rules = cls && cls.ed !== "yours" ? cls.ed : b.ed === "2014" ? "2014" : "2024";
   Object.assign(ch, { rules, species: speciesName, cls: clsName, subcls: subclsName, level: 1, bg: bgName, align: b.align,
     ab: sc, saveProf: cls ? cls.saves.slice() : [], skills: Object.fromEntries([...bldGivenSkills(), ...b.skills].map(k => [k, 1])),
     castAb: (cls && cls.mine && cls.caster && cls.castAb) || CAST_OF[clsName] || "wis", ac: acx.ac, acNote: acx.note, speed: (sub && sub.speed) || (sp && sp.speed) || +b.speed || 30, hpMax: hp, hp, hpPerLevel: tough, hd: { die: hd, max: 1, used: 0 },
-    pact: clsName === "Warlock" || !!(cls && cls.caster === "pact"), slots: cls ? bldSlots(cls, 1) : {}, purse: { cp: 0, sp: 0, ep: 0, gp: kit.reduce((a, k) => a + k.gp, 0), pp: 0 }, items });
+    pact: clsName === "Warlock" || !!(cls && cls.caster === "pact"), slots: cls ? bldSlots(cls, 1) : {}, purse: cpPurse(Math.max(0, gear.cp)), items });
   if (b.ed === "mix") ch.mixed = true;
   if (todo.length) ch.todo = todo;
   const seen = new Set(); ch.attacks = items.map(it => { const s = SRD_LOOT.find(x => x.id === it.from); return s && s.kind === "weapon" ? attackFromData(s) : null; }).filter(a => a && !seen.has(a.name) && seen.add(a.name));
@@ -1862,16 +2059,16 @@ function bldMake() {
   const tools = [cls && cls.tools, bg && bg.tool].filter(Boolean).join("; ");
   ch.story.profs = [cls && `Armor: ${cls.armor || "none"}`, cls && `Weapons: ${cls.weapons}`, tools && `Tools: ${tools}`, `Languages: ${b.langs}`].filter(Boolean).join("\n");
   for (const t of ch.traits) if (t.fx && t.fx.length) applyFx(ch, t.fx, { cls: clsName });
-  const hi = hiStart(+b.toLevel);
   if (hi) {
     const got = hiSlots(hi).map(k => { const v = (b.magic || {})[k], rar = k.split(".")[0];
       if (v === OTHER) { const name = ((b.magicT || {})[k] || "").trim(); return name && { id: uid("it"), name, qty: 1, where: "On me", note: "", value: rar }; }
       const x = v && itemPool().find(y => y.id === v); return x && itemFromData(x); }).filter(Boolean);
     ch.items.push(...got);
-    let d = +b.hiRoll; if (hi.gp && !(d >= 1 && d <= 10)) d = rnd(10);
-    if (hi.gp) ch.purse.gp += hi.gp + d * hi.per;
+    const d = +b.hiRoll;
     logIt(ch, `Starting at level ${+b.toLevel}: ${hi.gp ? `${(hi.gp + d * hi.per).toLocaleString()} GP (${hi.gp.toLocaleString()} + 1d10 [${d}] × ${hi.per})` : "no extra gold"}${got.length ? `; ${listAnd(got.map(it => it.name))}` : ""}`);
   }
+  if (gear.bought.length || gear.sold.length) logIt(ch, `Shopped at ${SHOPKEEP}'s stall: ${[gear.bought.length && `bought ${listAnd(gear.bought.map(({ x, n }) => `${n > 1 ? n + " × " : ""}${x.name}`))}`,
+    gear.sold.length && `sold ${listAnd(gear.sold.map(s => `${s.n > 1 ? s.n + " × " : ""}${s.name}`))}`].filter(Boolean).join("; ")}; ${fmtCp(Math.max(0, gear.cp))} left`);
   logIt(ch, `Built at level 1 (${b.ed === "mix" ? `mixed rules: ${[cls, bg, sp].filter(Boolean).map(x => `${x.name} ${x.ed}`).join(", ")}` : `${rules} rules`}): ${[speciesName, clsName, bgName].filter(Boolean).join(", ") || "freestyle"}${todo.length ? " (not finished)" : ""}`);
   if (+b.toLevel > 1) ch.buildTo = Math.min(20, +b.toLevel);
   db.chars.push(ch); db.cur = ch.id; save(true); BLD = null; closeOv(); ui.tab = "play"; render();
@@ -2716,8 +2913,9 @@ document.addEventListener("input", e => {
   // the builder's typing: only the scores line and the make button change under the fingers
   if (el.dataset.bld && BLD && el.tagName === "INPUT") {
     const f = el.dataset.bld; if (f.startsWith("typed.")) BLD.typed[f.slice(6)] = el.value; else if (f.startsWith("magicT.")) (BLD.magicT = BLD.magicT || {})[f.slice(7)] = el.value; else BLD[f] = el.value;
-    const sc = $("#bldSc"), go = $("#bldGo"), gp = $("#bldHiGp"); if (sc) sc.innerHTML = bldScNote(); if (go) go.innerHTML = bldGoHtml(); if (gp) gp.innerHTML = hiGpNote(); return;
+    const sc = $("#bldSc"), go = $("#bldGo"), gp = $("#bldHiGp"), sh = $("#bldShop"); if (sc) sc.innerHTML = bldScNote(); if (go) go.innerHTML = bldGoHtml(); if (gp) gp.innerHTML = hiGpNote(); if (sh) sh.outerHTML = shopSumHtml(); return;
   }
+  if (el.id === "shopQ" && SHOP) { SHOP.q = el.value; $("#shopList").innerHTML = shopListHtml(bldGear()); }
   if (el.id === "pkQ") { ui_pk.q = el.value; const o = $("#pkOut"); if (o) o.innerHTML = pickerResults(String(ovKind).slice(5)); }
   if (el.id === "newItem") { const o = $("#itemSug"); if (o) o.innerHTML = itemSuggestHtml(el.value); }
   if (el.id === "pFilter") { ui.filter = el.value; clearTimeout(ui.ft); ui.ft = setTimeout(() => { render(); const f = $("#pFilter"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }, 300); }
@@ -2771,6 +2969,7 @@ document.addEventListener("change", e => {
     if (f === "plus2" && BLD.plus1 === v) BLD.plus1 = "";
     showBuilder(); return;
   }
+  if (el.id === "shopKind" && SHOP) { SHOP.kind = el.value; reShop(); return; }
   if (el.id === "pkKind") { ui_pk.kind = el.value; $("#pkOut").innerHTML = pickerResults("item"); return; }
   if (el.id === "pkFor") { ui_pk.for = el.value; $("#ov .box").innerHTML = pickerHtml("spell"); return; }
   if (el.id === "pkCls" || el.id === "pkLv") { ui_pk.cls = $("#pkCls").checked; ui_pk.lv = $("#pkLv").value; $("#pkOut").innerHTML = pickerResults("spell"); return; }
@@ -2941,6 +3140,21 @@ document.addEventListener("click", e => {
     case "blded": startBuilder(el.dataset.v); break;
     case "bldkit": BLD.kit[el.dataset.i] = el.dataset.v; showBuilder(); break;
     case "bldhiroll": BLD.hiRoll = String(rnd(10)); showBuilder(); break;
+    case "bldkitgold": BLD.kitGold = el.checked; showBuilder(); break;
+    case "shopopen": { const hi = hiStart(+BLD.toLevel); SHOP_POOL = null; BLD.top = $("#ov .box").scrollTop;
+      SHOP = SHOP || { tab: "buy", q: "", kind: "", afford: false }; SHOP.note = "";
+      if (hi && hi.gp && !(+BLD.hiRoll >= 1 && +BLD.hiRoll <= 10)) { BLD.hiRoll = String(rnd(10)); SHOP.note = `Rolled the level ${+BLD.toLevel} gold's 1d10: ${BLD.hiRoll}, for ${fmtCp(100 * (hi.gp + +BLD.hiRoll * hi.per))}.`; }
+      shopSay("hello"); openOv(shopHtml(), "shop", "shop"); break; }
+    case "shopback": openOv(builderHtml(), "builder"); $("#ov .box").scrollTop = BLD.top || 0; break;
+    case "shoptab": SHOP.tab = el.dataset.v; SHOP.note = ""; reShop(); break;
+    case "shopafford": SHOP.afford = el.checked; if (SHOP.afford) shopSay("afford"); reShop(); break;
+    case "shopbuy": { const x = shopPool().find(y => y.id === el.dataset.id); if (!x) break;
+      if (x.cp > bldGear().cp) shopSay("broke"); else { BLD.bought = BLD.bought || {}; BLD.bought[x.id] = (BLD.bought[x.id] || 0) + 1; shopSay("buy"); } reShop(); break; }
+    case "shopless": { const k = el.dataset.id, o = BLD.bought || {}; if (o[k] > 0) { o[k]--; if (!o[k]) delete o[k]; } shopSay("back"); reShop(); break; }
+    case "shopsell": { const it = bldGear().own.find(i => i.name === el.dataset.name && i.qty > 0);
+      if (!it || !kitPrice(it)) shopSay("nosell"); else { BLD.sold = BLD.sold || {}; BLD.sold[it.name] = (BLD.sold[it.name] || 0) + 1; shopSay("sell"); } reShop(); break; }
+    case "shopunsell": { const g = bldGear(), s = g.sold.find(q => q.name === el.dataset.name); if (!s) break;
+      if (s.p > g.cp) shopSay("broke"); else { BLD.sold[s.name]--; if (!BLD.sold[s.name]) delete BLD.sold[s.name]; shopSay("back"); } reShop(); break; }
     case "bldset": { const f = el.dataset.f, v = el.dataset.v; BLD[f] = v; if (f === "method") { BLD.pick = {}; } showBuilder(); break; }
     case "bldbuy": { const k = el.dataset.k, v = BLD.buy[k] + +el.dataset.d; if (v < 8 || v > 15) break; const spent = ABS.reduce((a, [x]) => a + BUY_COST[x === k ? v : BLD.buy[x]], 0); if (spent > 27) { toast("No points left."); break; } BLD.buy[k] = v; showBuilder(); break; }
     case "bldroll": BLD.rolls = Array.from({ length: 6 }, () => { const d = [rnd(6), rnd(6), rnd(6), rnd(6)].sort((a, b) => a - b); return d[1] + d[2] + d[3]; }); BLD.pick = {}; showBuilder(); break;
