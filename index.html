@@ -326,7 +326,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 50;
+const VERSION = 51;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1095,7 +1095,7 @@ function spellsHtml(c) {
         <button class="btn small" data-act="spelledit" data-id="${s.id}">Edit</button></div>
       ${ui.edit === "spell:" + s.id ? spellForm(c, s) : ""}</div>`;
   };
-  let h = head;
+  let h = head + mirrorHtml(c) + blinkHtml(c);   // a running Mirror Image or Blink, where the spell was cast
   for (const lv of Object.keys(byLvl).map(Number).sort((a, b) => a - b)) h += sec("sp" + lv, lv === 0 ? "Cantrips" : `${ord(lv)} level`, `${byLvl[lv].length}`, byLvl[lv].map(card).join(""), true);
   if (cart) {
     const list = cart.cartSpells.map(s => `<div class="card"><span class="nm">${esc(s.name)}<span class="tag g">${ord(s.lvl || 1)} · ${s.lvl || 1} point${(s.lvl || 1) === 1 ? "" : "s"}</span></span><div class="txt">${fmt(s.text)}</div>

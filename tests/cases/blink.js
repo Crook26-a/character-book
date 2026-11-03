@@ -18,3 +18,8 @@ step("after ten turns it ends", () => {
   withRoll(0.9, () => q('[data-act="blinkroll"]').click());
   return `${last} || then: ${box()} | effects: ${c.effects.map(e => e.name).join(", ") || "none"} | log: ${c.rolls[0].label}`;
 });
+step("the Blink box shows on the Spells tab too, where it's cast", () => {
+  const c = C(); ui.tab = "spells"; render(); cast(c, c.spells.find(s => s.name === "Blink"), 3, "slot"); render();
+  const on = [...document.querySelectorAll("#view .panel")].some(p => /^Blink/.test(p.textContent.trim())); c.effects = c.effects.filter(e => !e.blink); ui.tab = "play"; render();
+  return `on the Spells tab: ${on}`;
+});
