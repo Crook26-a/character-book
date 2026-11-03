@@ -315,7 +315,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 40;
+const VERSION = 41;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1989,11 +1989,16 @@ const SHOP_SAY = {
   magic: ["Magic, eh? Your DM had better have said yes.", "The good stuff's under the counter. Prices are what they are."],
   free: ["Owed you one, did I? Fine. Take it. Free. Don't tell anyone.", "No charge. It hurts me to say that.", "Yours by right. Get it out of my sight before I change my mind."] };
 function shopSay(k) { const a = SHOP_SAY[k]; let s; do s = a[Math.floor(Math.random() * a.length)]; while (a.length > 1 && s === SHOP.say); SHOP.say = s; SHOP.mad = k === "broke" || k === "nosell"; }
+// the Buy tab's price and rarity filters (Joseph, 2026-11-03): "up to" a price, and a rarity ("none" is the plain gear)
+const SHOP_MAX = [1, 10, 50, 100, 200, 500, 1000, 5000, 10000, 50000];
+const SHOP_RAR = [["none", "Not magic"], ["common", "Common"], ["uncommon", "Uncommon"], ["rare", "Rare"], ["very rare", "Very Rare"], ["legendary", "Legendary"]];
+const shopRarOk = x => !SHOP.rar || (SHOP.rar === "none" ? !rarities(x).length : rarities(x).includes(SHOP.rar));
 function shopListHtml(g) {
   const q = SHOP.q.trim().toLowerCase(), have = BLD.bought || {}, open = hiOpen().length > 0;
   // magic items owed for the starting level come first, free, whether or not the stall's selling magic
   const free = x => open && !!freeSlot(x), order = x => free(x) ? -1 : SHOP_KINDS.findIndex(k => k[0] === shopKind(x));
-  const list = shopPool().filter(x => (SHOP.magic || !x.est || free(x)) && (!SHOP.kind || shopKind(x) === SHOP.kind) && (!q || x.name.toLowerCase().includes(q)) && (!SHOP.afford || x.cp <= g.cp || free(x)))
+  const list = shopPool().filter(x => (SHOP.magic || !x.est || free(x)) && (!SHOP.kind || shopKind(x) === SHOP.kind) && (!q || x.name.toLowerCase().includes(q)) && (!SHOP.afford || x.cp <= g.cp || free(x))
+      && (!SHOP.max || x.cp <= SHOP.max * 100 || free(x)) && shopRarOk(x))
     .sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name));
   if (!list.length) return `<p class="px-none">${SHOP.afford ? "Nothing here your purse can cover." : "Nothing like that on the stall."}</p>`;
   let last = "";
@@ -2012,6 +2017,8 @@ function shopHtml() {
     const arts = none.filter(x => /artifact/i.test(x.rarity || "")).length;
     body = `<div class="px-filters"><input id="shopQ" placeholder="Search the stall" value="${esc(SHOP.q)}" autocomplete="off">
       <select id="shopKind"><option value="">Everything</option>${SHOP_KINDS.filter(([k]) => shopPool().some(x => (SHOP.magic || !x.est) && shopKind(x) === k)).map(([k, l]) => `<option value="${k}" ${SHOP.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <select id="shopMax" aria-label="Price"><option value="">Any price</option>${SHOP_MAX.map(v => `<option value="${v}" ${+SHOP.max === v ? "selected" : ""}>Up to ${v.toLocaleString()} GP</option>`).join("")}</select>
+      <select id="shopRar" aria-label="Rarity"><option value="">Any rarity</option>${SHOP_RAR.map(([v, l]) => `<option value="${v}" ${SHOP.rar === v ? "selected" : ""}>${l}</option>`).join("")}</select>
       <label class="px-check"><input type="checkbox" data-act="shopafford" ${SHOP.afford ? "checked" : ""}> Only what I can afford</label>
       <label class="px-check"><input type="checkbox" data-act="shopmagic" ${SHOP.magic ? "checked" : ""}> Magic items, at estimated value (if your DM allows)</label></div>
       ${hiOpen().length ? `<p class="px-note px-owed"><b>Owed to you, free:</b> ${esc(listAnd(hiMagicLeft()))}, for starting at level ${+BLD.toLevel}. They're at the top of the list: tap Take.${hiOpen().some(k => hiPool(k.split(".")[0]).length < 5) ? " There aren't many of some rarities to choose from; for others, type one in with Other in step 6." : ""}</p>` : ""}
@@ -3010,6 +3017,9 @@ document.addEventListener("change", e => {
     showBuilder(); return;
   }
   if (el.id === "shopKind" && SHOP) { SHOP.kind = el.value; reShop(); return; }
+  if (el.id === "shopMax" && SHOP) { SHOP.max = +el.value || 0; reShop(); return; }
+  // a magic rarity turns on the magic items, since that's what's being asked for
+  if (el.id === "shopRar" && SHOP) { SHOP.rar = el.value; if (SHOP.rar && SHOP.rar !== "none" && !SHOP.magic) { SHOP.magic = true; shopSay("magic"); } reShop(); return; }
   if (el.id === "pkKind") { ui_pk.kind = el.value; $("#pkOut").innerHTML = pickerResults("item"); return; }
   if (el.id === "pkFor") { ui_pk.for = el.value; $("#ov .box").innerHTML = pickerHtml("spell"); return; }
   if (el.id === "pkCls" || el.id === "pkLv") { ui_pk.cls = $("#pkCls").checked; ui_pk.lv = $("#pkLv").value; $("#pkOut").innerHTML = pickerResults("spell"); return; }

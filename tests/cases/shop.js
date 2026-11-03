@@ -73,6 +73,15 @@ step("magic items owed for the starting level are taken free, with the magic swi
   typ('[data-bld="name"]', "Test Owed"); click('[data-act="bldmake"]'); const c = C(), it = c.items.find(i => /Longsword, \+1/.test(i.name));
   return `gold ${g0} | ${owed} | first group: ${freeHead}, ${takes} to take | took a Longsword, +1: ${after} | took ${commonName}: ${banner} | basket: ${basket} | step 6 shows: ${step6} | made: ${it ? `${it.name}, ${worthText(it)}, from ${it.from}` : "(missing)"}, purse ${c.purse.gp} gp, not finished: ${todoOf(c).filter(t => /magic/.test(t)).join(", ") || "no magic items"}`;
 });
+step("price and rarity filters: up to a price, and a rarity (which turns the magic on)", () => {
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; SHOP = null; click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]'); click('[data-act="shopopen"]');
+  const cps = () => [...document.querySelectorAll('#shopList [data-act="shopbuy"]')].map(b => shopPool().find(x => x.id === b.dataset.id).cp);
+  const all = cps().length; sel("#shopMax", "10"); const ten = cps(); sel("#shopMax", "10000"); const big = cps();
+  sel("#shopMax", ""); sel("#shopRar", "uncommon"); const unc = [...document.querySelectorAll('#shopList [data-act="shopbuy"]')].map(b => shopPool().find(x => x.id === b.dataset.id));
+  const magicOn = SHOP.magic; sel("#shopMax", "500"); const both = cps(); sel("#shopRar", "none"); const plain = shopPool().filter(x => [...document.querySelectorAll('#shopList [data-act="shopbuy"]')].some(b => b.dataset.id === x.id) && x.rarity).length;
+  sel("#shopMax", ""); sel("#shopRar", ""); closeOv(); BLD = null; SHOP = null;
+  return `all ${all} | up to 10 GP: ${ten.length}, dearest ${Math.max(...ten) / 100} GP | up to 10,000 GP: ${big.length}, dearest ${Math.max(...big) / 100} GP | Uncommon: ${unc.length}, all uncommon ${unc.every(x => rarities(x).includes("uncommon"))}, magic switched on ${magicOn} | Uncommon up to 500 GP: ${both.length}, dearest ${Math.max(...both) / 100} GP | Not magic, with a rarity: ${plain}`;
+});
 step("Done shopping closes it all; the build is kept, and Start over begins afresh", () => {
   closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
   click('[data-act="shopopen"]'); const full = (() => { const r = q("#ov .box").getBoundingClientRect(); return r.width >= innerWidth - 1 && r.height >= innerHeight - 1; })();
