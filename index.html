@@ -321,7 +321,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 45;
+const VERSION = 46;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1404,6 +1404,10 @@ function setClasses(c, list) {
 // what it takes to take up a class: groups that must all be met, any score in a group will do ("Str 13 or Dex 13")
 const MC_NEED_2014 = { Barbarian: [["str"]], Bard: [["cha"]], Cleric: [["wis"]], Druid: [["wis"]], Fighter: [["str", "dex"]], Monk: [["dex"], ["wis"]],
   Paladin: [["str"], ["cha"]], Ranger: [["dex"], ["wis"]], Rogue: [["dex"]], Sorcerer: [["cha"]], Warlock: [["cha"]], Wizard: [["int"]] };
+// the usual dump stat (Joseph, 2026-11-03): the ability players commonly leave lowest for each SRD class. Not in the
+// rules (the SRD names no dump stats), so the builder says it's a habit; your own classes get none
+const DUMP = { Barbarian: "Intelligence", Bard: "Strength", Cleric: "Intelligence", Druid: "Strength", Fighter: "Intelligence (Strength, if you fight with Dexterity)",
+  Monk: "Charisma", Paladin: "Intelligence", Ranger: "Charisma", Rogue: "Strength", Sorcerer: "Strength", Warlock: "Strength", Wizard: "Strength" };
 function mcNeed(cls, ed) {
   const oc = ownClassShape(cls); if (oc) return oc.primary ? oc.primary.split(/\s+and\s+/i).map(g => g.split(/\s*,\s*|\s+or\s+/i).map(w => AB_OF[w.trim()]).filter(Boolean)).filter(g => g.length) : null;
   if (ed === "2014") return MC_NEED_2014[cls] || null;
@@ -1808,7 +1812,8 @@ function builderHtml() {
   // the class's most important ability (Joseph, 2026-11-03): its primary ability (2024, or your own class's), or for a
   // 2014 class what the SRD 5.1 asks to multiclass into it, which names the same
   const key = cls && mcNeed(cls.name, cls.ed), keyText = key && listAnd(key.map(g => g.map(k => AB_NAME[k]).join(" or ")));
-  h += `<h3>4. Ability scores</h3>${cls ? `<p class="note" id="bldKey">${key ? `<b>Most important for ${/^[aeiou]/i.test(cls.name) ? "an" : "a"} ${esc(cls.name)}: ${esc(keyText)}.</b> Give ${key.length > 1 ? "them your highest scores" : "it your highest score"}.` : `This class doesn't say which ability matters most. Its spellcasting ability, if it has one, is a good guess; or ask your DM.`}</p>` : ""}${seg("method", [["array", "Standard array"], ["buy", "Point buy"], ["roll", "Roll"], ["type", "Type them"]], b.method)}`;
+  const dump = cls && cls.ed !== "yours" && DUMP[cls.name];
+  h += `<h3>4. Ability scores</h3>${cls ? `<p class="note" id="bldKey">${key ? `<b>Most important for ${/^[aeiou]/i.test(cls.name) ? "an" : "a"} ${esc(cls.name)}: ${esc(keyText)}.</b> Give ${key.length > 1 ? "them your highest scores" : "it your highest score"}.${dump ? ` The usual dump stat (the one left lowest): <b>${esc(dump)}</b>. That's players' habit, not a rule.` : ""}` : `This class doesn't say which ability matters most. Its spellcasting ability, if it has one, is a good guess; or ask your DM.`}</p>` : ""}${seg("method", [["array", "Standard array"], ["buy", "Point buy"], ["roll", "Roll"], ["type", "Type them"]], b.method)}`;
   if (b.method === "buy") {
     const spent = ABS.reduce((a, [k]) => a + BUY_COST[b.buy[k]], 0);
     h += `<p class="note">27 points: ${27 - spent} left. Scores from 8 to 15.</p>` + ABS.map(([k, n]) => `<div class="res"><span class="nm">${n}</span><button class="btn tiny" data-act="bldbuy" data-k="${k}" data-d="-1">−</button><span class="big">${b.buy[k]}</span><button class="btn tiny" data-act="bldbuy" data-k="${k}" data-d="1">+</button></div>`).join("");
