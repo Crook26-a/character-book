@@ -98,3 +98,12 @@ step("A blank sheet opens a fresh builder, asking before it throws away an unfin
   window.confirm = () => true; click('[data-act="newchar"]'); window.confirm = was; const fresh = `${ovKind}, class "${BLD.cls}"`; closeOv(); BLD = null;
   return `opens: ${opened} | with a Fighter started it asks "${asked}"; said no: ${kept} | said yes: ${fresh}`;
 });
+step("tapping an item's name shows its description; tapping again hides it", () => {
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; SHOP = null; click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="A"]'); click('[data-act="shopopen"]');
+  click('#shopList .px-nm[data-id="srd:longsword"]'); const d1 = q(".px-desc").textContent.replace(/\s+/g, " ").trim();
+  click('#shopList .px-nm[data-id="srd:longsword"]'); const gone = !q(".px-desc");
+  click('[data-act="shopmagic"]'); click('#shopList .px-nm[data-id="srd:bag-of-holding"]'); const d2 = q(".px-desc").textContent.replace(/\s+/g, " ").trim().slice(0, 90);
+  click('[data-act="shoptab"][data-v="sell"]'); const own = q('.px-nm[data-id^="own:"]'); own.click(); const d3 = `${own.dataset.id.slice(4)}: ${q(".px-desc").textContent.replace(/\s+/g, " ").trim().slice(0, 80)}`;
+  closeOv(); BLD = null; SHOP = null;
+  return `Longsword: ${d1} | tapped again: ${gone ? "hidden" : "still shown"} | Bag of Holding: ${d2}… | selling ${d3}`;
+});

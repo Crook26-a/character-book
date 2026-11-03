@@ -252,6 +252,12 @@
   .px-body .px-dm, .px-body .px-owed { margin: 6px 0 8px; padding: 6px 8px; background: #1a2240; border-left: 4px solid #6fa3f5; color: #d9d3c0; }
   .px-body .px-owed { background: #1d2b1c; border-left-color: #93d07f; }
   .px-none { padding: 14px 0; text-align: center; color: #b9b3a0; }
+  .px-nm[data-act] { cursor: pointer; }
+  .px-nm[aria-expanded="true"] { color: #8fb4ff; }
+  .px-desc { margin: 0 0 6px 30px; padding: 6px 8px; background: #161a30; border-left: 3px solid #3a4270; font-size: 13.5px; line-height: 1.35; color: #d9d3c0; }
+  .px-desc small { display: block; color: #b9a888; font-size: 12px; margin-bottom: 3px; }
+  .px-desc .txt, .px-desc p { color: inherit; margin: 0; }
+  .px-desc .txt p { margin: 0 0 6px; }
   /* Vorsk talks from beside his head; when cross, the bubble shakes and the stall crackles blue */
   .px-say { position: absolute; left: 60%; top: 5%; width: 200px; box-sizing: border-box; background: #fbf3dc; color: #14182e;
     padding: 5px 7px; line-height: 1.2; font-size: 13px; image-rendering: auto; box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000; }
@@ -315,7 +321,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 43;
+const VERSION = 44;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1994,6 +2000,13 @@ function shopSay(k) { const a = SHOP_SAY[k]; let s; do s = a[Math.floor(Math.ran
 const SHOP_MAX = [1, 10, 50, 100, 200, 500, 1000, 5000, 10000, 50000];
 const SHOP_RAR = [["none", "Not magic"], ["common", "Common"], ["uncommon", "Uncommon"], ["rare", "Rare"], ["very rare", "Very Rare"], ["legendary", "Legendary"]];
 const shopRarOk = x => !SHOP.rar || (SHOP.rar === "none" ? !rarities(x).length : rarities(x).includes(SHOP.rar));
+// tap a name for what it is (Joseph, 2026-11-03): the item list's description, under the row
+function shopDescHtml(x, note) {
+  const att = String(x.att || "").replace(/^requires attunement\s+requires attunement/i, "requires attunement");
+  const meta = [x.cat || (x.kind && x.kind !== "magic item" ? x.kind[0].toUpperCase() + x.kind.slice(1) : ""), x.rarity, att, x.wt ? `${x.wt} lb.` : ""].filter(Boolean).join(" · ");
+  const d = x.desc || x.text || note || "";
+  return `<div class="px-desc">${meta ? `<small>${esc(meta)}</small>` : ""}${d ? `<div class="txt">${fmt(d)}</div>` : `<p>The item list has no description for this one. Ask your DM, or look it up in the rulebook it's from.</p>`}</div>`;
+}
 function shopListHtml(g) {
   const q = SHOP.q.trim().toLowerCase(), have = BLD.bought || {}, open = hiOpen().length > 0;
   // magic items owed for the starting level come first, free, whether or not the stall's selling magic
@@ -2006,9 +2019,10 @@ function shopListHtml(g) {
   return list.map(x => { const k = shopKind(x), f = free(x), grp = f ? "free" : k;
     const head = grp !== last ? `<div class="px-kind${f ? " px-free" : ""}">${f ? "Owed to you: free" : esc((SHOP_KINDS.find(s => s[0] === k) || [, "Other"])[1])}</div>` : ""; last = grp;
     // the price goes under the name, so a long name keeps the width on a phone
-    return head + `<div class="px-row${!f && x.cp > g.cp ? " dim" : ""}">${pxIcon(k)}<span class="px-nm">${esc(x.name)}
+    return head + `<div class="px-row${!f && x.cp > g.cp ? " dim" : ""}">${pxIcon(k)}<span class="px-nm" data-act="shopinfo" data-id="${esc(x.id)}" aria-expanded="${SHOP.info === x.id}">${esc(x.name)}
       <span class="px-pr">${f ? `<b class="px-ok">Free</b> <s>${x.est ? "~" : ""}${esc(fmtCp(x.cp))}</s>` : `${x.est ? "~" : ""}${esc(fmtCp(x.cp))}`}${x.est || f ? ` <small>${esc(f ? freeSlot(x).split(".")[0] : x.rarity)}</small>` : ""}${x.hb ? ` <small>yours</small>` : ""}</span></span>
-      ${have[x.id] ? `<button class="px-btn small" data-act="shopless" data-id="${esc(x.id)}" aria-label="Put one back">−</button><b class="px-n">${have[x.id]}</b>` : ""}${f ? `<button class="px-btn px-take" data-act="shoptake" data-id="${esc(x.id)}">Take</button>` : `<button class="px-btn" data-act="shopbuy" data-id="${esc(x.id)}">Buy</button>`}</div>`; }).join("");
+      ${have[x.id] ? `<button class="px-btn small" data-act="shopless" data-id="${esc(x.id)}" aria-label="Put one back">−</button><b class="px-n">${have[x.id]}</b>` : ""}${f ? `<button class="px-btn px-take" data-act="shoptake" data-id="${esc(x.id)}">Take</button>` : `<button class="px-btn" data-act="shopbuy" data-id="${esc(x.id)}">Buy</button>`}</div>`
+      + (SHOP.info === x.id ? shopDescHtml(x) : ""); }).join("");
 }
 function shopHtml() {
   const g = bldGear(), nb = g.bought.reduce((a, o) => a + o.n, 0), ns = g.sold.reduce((a, s) => a + s.n, 0), t = SHOP.tab;
@@ -2029,7 +2043,8 @@ function shopHtml() {
   } else if (t === "sell") {
     const mine = g.own.filter(it => it.qty > 0);
     body = (mine.length ? mine.map(it => { const p = kitPrice(it);
-      return `<div class="px-row${p ? "" : " dim"}">${pxIcon(shopKind(SRD_LOOT.find(x => x.id === it.from) || {}))}<span class="px-nm">${esc(it.name)}${it.qty > 1 ? ` <small>× ${it.qty}</small>` : ""}</span><span class="px-pr">${p ? esc(fmtCp(p)) : "no price"}</span><button class="px-btn" data-act="shopsell" data-name="${esc(it.name)}">Sell${it.qty > 1 ? " 1" : ""}</button></div>`; }).join("")
+      return `<div class="px-row${p ? "" : " dim"}">${pxIcon(shopKind(SRD_LOOT.find(x => x.id === it.from) || {}))}<span class="px-nm" data-act="shopinfo" data-id="own:${esc(it.name)}" aria-expanded="${SHOP.info === "own:" + it.name}">${esc(it.name)}${it.qty > 1 ? ` <small>× ${it.qty}</small>` : ""}</span><span class="px-pr">${p ? esc(fmtCp(p)) : "no price"}</span><button class="px-btn" data-act="shopsell" data-name="${esc(it.name)}">Sell${it.qty > 1 ? " 1" : ""}</button></div>`
+        + (SHOP.info === "own:" + it.name ? shopDescHtml(srcItem(it) || it, it.note) : ""); }).join("")
       : `<p class="px-none">Nothing to sell. The class and background's equipment shows up here once they're chosen.</p>`)
       + (g.sold.length ? `<div class="px-kind">Sold</div>` + g.sold.map(s => `<div class="px-row"><span class="px-nm">${esc(s.name)}${s.n > 1 ? ` <small>× ${s.n}</small>` : ""}</span><span class="px-pr">+${esc(fmtCp(s.n * s.p))}</span><button class="px-btn" data-act="shopunsell" data-name="${esc(s.name)}">Buy back</button></div>`).join("") : "");
   } else {
@@ -3206,6 +3221,7 @@ document.addEventListener("click", e => {
     // and its shopping are kept for "Carry on building"
     case "shopback": { const left = bldGear().cp; closeOv(); toast(`${left < 0 ? `${fmtCp(-left)} short` : `${fmtCp(left)} left`}. The build is kept: Carry on building (PCs tab) to finish it.`, 3500); break; }
     case "shoptab": SHOP.tab = el.dataset.v; SHOP.note = ""; reShop(); break;
+    case "shopinfo": SHOP.info = SHOP.info === el.dataset.id ? "" : el.dataset.id; reShop(); break;
     case "shopafford": SHOP.afford = el.checked; if (SHOP.afford) shopSay("afford"); reShop(); break;
     case "shopmagic": SHOP.magic = el.checked; if (SHOP.magic) shopSay("magic"); reShop(); break;
     case "shoptake": { const x = shopPool().find(y => y.id === el.dataset.id), k = freeSlot(x); if (!k) break;
