@@ -49,3 +49,16 @@ step("starting at level 5 brings gold and magic items by the table (Joseph's pho
   expect(got.length === 2, "both magic items", got);
   return `left before: ${left} | ${gp} | made: ${got.join(", ")}; gp ${c.purse.gp}; level ${c.level}, building to ${c.buildTo}`;
 });
+step("the spell list after a level-up: only what they can cast, only as many as they have room for, an X to take one off, and tap for what it does", () => {
+  BLD = null; build("2024", "Paladin", "Test Paladin", 3, ["str", "cha", "con", "wis", "dex", "int"]);
+  click('[data-act="luavg"]'); click('[data-act="luapply"]'); const c = C(), cap = spellCap(c, c.cls);
+  const capText = `cantrips ${cap.cantrips}, spells ${cap.hasS} of ${cap.spells}, up to ${ord(cap.top)} level`;
+  const hidden = (q("#pkOut .note") || {}).textContent, high = !!q('#pkOut [data-id="spell:aura-of-life"]');
+  let added = 0; for (let i = 0; i < 12; i++) { const b = q('#pkOut [data-act="pkspell"]'); if (!b) break; b.click(); added++; }
+  const full = `${spellCap(c, c.cls).hasS} of ${cap.spells}, Add buttons left ${document.querySelectorAll('#pkOut [data-act="pkspell"]').length}, says: ${(q("#pkOut p.note b") || {}).textContent}`;
+  const off = q('#pkMine [data-act="pkunspell"]'); const offName = c.spells.find(s => s.id === off.dataset.id).name; off.click();
+  const after = `${spellCap(c, c.cls).hasS} of ${cap.spells}, Add buttons back ${document.querySelectorAll('#pkOut [data-act="pkspell"]').length > 0}`;
+  click('#pkOut [data-act="pkinfo"][data-id="spell:bless"]'); const desc = q(".pk-desc").textContent.replace(/\s+/g, " ").trim().slice(0, 110);
+  click('#ov [data-act="bldnext"]'); click('#ov [data-act="bldlater"]');
+  return `${capText} | ${hidden}; Aura of Life listed ${high} | added ${added}: ${full} | took off ${offName}: ${after} | Bless: ${desc}…`;
+});

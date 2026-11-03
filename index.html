@@ -251,6 +251,7 @@
   .px-body .px-note { margin: 12px 0 0; }
   .px-body .px-dm, .px-body .px-owed { margin: 6px 0 8px; padding: 6px 8px; background: #1a2240; border-left: 4px solid #6fa3f5; color: #d9d3c0; }
   .px-body .px-owed { background: #1d2b1c; border-left-color: #93d07f; }
+  .pk-desc { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule-soft); font-size: 15px; }
   .px-none { padding: 14px 0; text-align: center; color: #b9b3a0; }
   .px-nm[data-act] { cursor: pointer; }
   .px-nm[aria-expanded="true"] { color: #8fb4ff; }
@@ -321,7 +322,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 46;
+const VERSION = 47;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1318,6 +1319,36 @@ function srcSeg(n) {
 const emptyLib = what => lookup(`any ${what} in your library yet`, "Write them in the Field Book (they show up here by themselves), or bring in the survey's library: PCs tab → Homebrew.");
 const creditHtml = () => HAS_SRD ? `<p class="note" style="font-size:11.5px">${esc(SRD_CREDIT)}</p>` : `<p class="warn">The SRD list didn't load: open the app once with signal.</p>`;
 const ui_pk = { q: "", cls: true, lv: "" };
+/* How many spells a class has room for, and the highest level it can cast (Joseph, 2026-11-03: the picker after a
+   level-up let him add any spell, as many as he liked). From the class's table (Cantrips, Prepared Spells or Spells
+   Known), or the SRD 5.1's sum for a 2014 Cleric, Druid, Wizard (ability modifier + level) or Paladin (+ half the
+   level); a number the app doesn't have is null, and the picker says so. Domain and always-prepared spells don't count. */
+function spellCap(c, cls) {
+  const list = classesOf(c), k = list.find(x => x.cls === cls) || list[0]; if (!k) return null;
+  const ed = edOf(c), R = ownClassShape(k.cls) || rClass(k.cls, ed) || (c.mixed ? rClass(k.cls, otherEd(ed)) : null), K = +k.level || 1;
+  const col = n => R && R.table && R.table[n] ? parseInt(R.table[n][K]) || 0 : 0, S = luSlots(c, list);
+  const top = Math.max(0, ...Object.keys(S.slots || {}).map(Number).filter(n => S.slots[n] > 0), S.pact ? +S.pact.lvl || 0 : 0);
+  const p14 = c.rules === "2014" && (PREPARE_2014[k.cls] ? Math.max(1, mod(c, PREPARE_2014[k.cls]) + K) : k.cls === "Paladin" && K >= 2 ? Math.max(1, mod(c, "cha") + Math.floor(K / 2)) : 0);
+  const mine = c.spells.filter(s => s.tag !== "D" && (!isMulti(c) || !s.cls || s.cls === k.cls));
+  // an SRD class with no Cantrips column has none (a Paladin); for one of your own it's not known
+  return { cls: k.cls, top, cantrips: col("Cantrips") || col("Cantrips Known") || (R && !R.mine ? 0 : null), spells: col("Prepared Spells") || col("Spells Known") || p14 || null,
+    hasC: mine.filter(s => !s.lvl).length, hasS: mine.filter(s => s.lvl > 0).length };
+}
+// the spell's own words, under its row in the picker
+function spellDescHtml(s) {
+  const meta = [s.time, s.range, s.comp, s.dur, s.conc ? "concentration" : "", s.rit ? "ritual" : "", s.cls].filter(Boolean).join(" · ");
+  return `<div class="pk-desc">${meta ? `<p class="note" style="margin:0 0 6px">${esc(meta)}</p>` : ""}${s.desc ? `<div class="txt">${fmt(s.desc + (s.hi ? "\n\n**Higher levels.** " + s.hi : ""))}</div>` : `<p class="note">No description in the list for this one: look it up in its book.</p>`}</div>`;
+}
+// your spells, each with ✕ to take it off again
+function pkMineHtml() {
+  const c = C(), cap = spellCap(c, (isMulti(c) && ui_pk.for) || c.cls), mine = c.spells.filter(s => !isMulti(c) || !ui_pk.for || !s.cls || s.cls === ui_pk.for);
+  const n = (have, max, what) => `${what} ${have}${max ? ` of ${max}` : ""}`;
+  const counts = cap ? [(cap.cantrips !== 0 || cap.hasC) && n(cap.hasC, cap.cantrips, "cantrips"), n(cap.hasS, cap.spells, "spells")].filter(Boolean).join(" · ") : "";
+  return `<details class="sec" ${ui_pk.mineOpen ? "open" : ""} id="pkMineD"><summary>Your spells${counts ? ` <small>${esc(counts)}</small>` : ""}</summary>
+    ${mine.length ? mine.map(s => `<div class="row" style="align-items:center;margin:2px 0"><span style="flex:1">${esc(s.name)} <small class="note">${s.lvl ? ord(s.lvl) + " level" : "cantrip"}${s.tag === "D" ? " · always prepared" : ""}</small></span>${s.tag === "D" ? "" : `<button class="chip" data-act="pkunspell" data-id="${esc(s.id)}" aria-label="Take ${esc(s.name)} off">✕</button>`}</div>`).join("") : `<p class="note">None yet.</p>`}
+    ${cap && (cap.cantrips === null || cap.spells === null) && ui_pk.lim ? lookup(`how many ${[cap.cantrips === null && "cantrips", cap.spells === null && "spells"].filter(Boolean).join(" and ")} a ${esc(cap.cls)} has at this level`, `Look at the ${esc(cap.cls)} table in ${bookFor(c)}.`) : ""}</details>`;
+}
+const pkRefresh = () => { const d = $("#pkMineD"); if (d) ui_pk.mineOpen = d.open; const o = $("#pkOut"), m = $("#pkMine"); if (o) o.innerHTML = pickerResults("spell"); if (m) m.innerHTML = pkMineHtml(); };
 function pickerHtml(kind) {
   const c = C();
   const kinds = kind === "item" ? [...new Set(itemPool().map(x => x.kind).filter(Boolean))].sort() : [];
@@ -1330,7 +1361,7 @@ function pickerHtml(kind) {
       ${isMulti(c) && classesOf(c).filter(k => classCast(c, k)).length ? `<select id="pkFor" style="width:auto" aria-label="For which class">${classesOf(c).filter(k => classCast(c, k)).map(k => `<option ${ui_pk.for === k.cls ? "selected" : ""}>${esc(k.cls)}</option>`).join("")}</select>` : ""}
       <select id="pkLv" style="width:auto"><option value="">Any level</option>${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => `<option value="${l}" ${ui_pk.lv === String(l) ? "selected" : ""}>${l ? ord(l) + " level" : "Cantrips"}</option>`).join("")}</select></div>` : ""}
     ${kind === "spell" && c.rules === "2014" ? lookup("2014 spell text", "These are the SRD 5.2's 2024 wordings, and some 2014 spells read differently. Check a new one against your 2014 Player's Handbook and change its text under Edit if it differs.") : ""}
-    ${ui_pk.note && kind === "spell" ? `<p class="verdict ok">${esc(ui_pk.note)}</p>` : ""}${kind === "spell" && c.buildTo > (+c.level || 1) ? `<button class="btn wide main" data-act="bldnext">Spells done: on to level ${(+c.level || 1) + 1} of ${c.buildTo}</button>` : ""}<div id="pkOut">${pickerResults(kind)}</div>
+    ${ui_pk.note && kind === "spell" ? `<p class="verdict ok">${esc(ui_pk.note)}</p>` : ""}${kind === "spell" && c.buildTo > (+c.level || 1) ? `<button class="btn wide main" data-act="bldnext">Spells done: on to level ${(+c.level || 1) + 1} of ${c.buildTo}</button>` : ""}${kind === "spell" ? `<div id="pkMine">${pkMineHtml()}</div>` : ""}<div id="pkOut">${pickerResults(kind)}</div>
     ${kind === "item" ? "" : `<button class="btn wide" data-act="${kind === "spell" ? "pkownspell" : "pkownatk"}">${kind === "spell" ? "A spell of your own…" : "An attack of your own"}</button>`}
     ${creditHtml()}<button class="btn wide" data-act="ovclose">Close</button>`;
 }
@@ -1346,9 +1377,18 @@ function pickerResults(kind) {
     const fR = ownClassShape((isMulti(c) && ui_pk.for) || c.cls); if (ui_pk.cls && (fc || fR)) pool = pool.filter(s => s.hb || inClassList(fR, s, fc));
     if (ui_pk.lv !== "") pool = pool.filter(s => String(+s.lv || 0) === ui_pk.lv);
     const got = new Set(c.spells.map(s => s.name));
-    const rows = search(pool, ui_pk.q, 2000);
-    return rows.length ? rows.map(s => `<button class="card tap" data-act="pkspell" data-id="${esc(s.id)}" ${got.has(s.name) ? "disabled style='opacity:.5'" : ""}><span class="nm">${esc(s.name)}${s.hb ? `<span class="tag g">${s.fb ? "Field Book" : "Homebrew"}</span>` : ""}${got.has(s.name) ? `<span class="tag">have it</span>` : ""}</span>
-      <span class="sub">${+s.lv ? ord(+s.lv) + " level" : "Cantrip"} · ${esc(s.school || "")}${s.conc ? " · concentration" : ""}${s.dmg && !NO_ROLL.includes(s.name) ? ` · ${esc(s.dmg)} ${esc(s.dtype || "")}` : ""}${s.campaign ? " · " + esc(s.campaign) : ""}</span></button>`).join("") : `<p class="empty">No spells match${ui_pk.cls && c.cls ? ` among ${esc(c.cls)} spells (untick the box to see every class)` : ""}${ui_pk.lv !== "" ? " at that level" : ""}.</p>${(fromLib() ? lookup("that spell in your library", "Try From the SRD, or write it in the Field Book.") : lookup("every spell", `It has the SRD's ${SRD_SPELLS.length} spells; spells from other books (Xanathar's, Tasha's…) aren't in it. Try From the library, or look yours up in its book, then use “A spell of your own…” and copy its text in.`))}`;
+    // after a level-up (ui_pk.lim): only what the class can cast, and no more than it has room for
+    const cap = ui_pk.lim ? spellCap(c, (isMulti(c) && ui_pk.for) || c.cls) : null, hid = cap && cap.top ? pool.filter(s => +s.lv > cap.top).length : 0;
+    if (cap && cap.top) pool = pool.filter(s => !(+s.lv > cap.top));
+    const noC = cap && cap.cantrips === 0 && ui_pk.lv !== "0" ? pool.filter(s => !+s.lv).length : 0; if (noC) pool = pool.filter(s => +s.lv);
+    const full = s => cap && (+s.lv ? cap.spells !== null && cap.hasS >= cap.spells : cap.cantrips !== null && cap.hasC >= cap.cantrips);
+    const rows = search(pool, ui_pk.q, 2000), fullOf = cap ? [cap.cantrips && cap.hasC >= cap.cantrips && "cantrips", cap.spells !== null && cap.hasS >= cap.spells && "spells"].filter(Boolean) : [];
+    const head = (hid ? `<p class="note">${hid} spell${hid === 1 ? "" : "s"} above ${ord(cap.top)} level hidden: you can't cast them yet.${noC ? ` Cantrips hidden too: a ${esc(cap.cls)} has none.` : ""}</p>` : noC ? `<p class="note">Cantrips hidden: a ${esc(cap.cls)} has none.</p>` : "")
+      + (fullOf.length ? `<p class="note"><b>No room for more ${listAnd(fullOf)}.</b> To choose another, take one off under Your spells (✕).</p>` : "");
+    return rows.length ? head + rows.map(s => { const have = got.has(s.name), no = !have && full(s), open = ui_pk.open === s.id;
+      return `<div class="card" style="${have || no ? "opacity:.6" : ""}"><div class="row" style="align-items:center;margin:0;flex-wrap:nowrap"><span class="tap" data-act="pkinfo" data-id="${esc(s.id)}" aria-expanded="${open}" style="flex:1;cursor:pointer;min-width:0"><span class="nm">${open ? "▾" : "▸"} ${esc(s.name)}${s.hb ? `<span class="tag g">${s.fb ? "Field Book" : "Homebrew"}</span>` : ""}${have ? `<span class="tag">have it</span>` : ""}</span>
+      <span class="sub">${+s.lv ? ord(+s.lv) + " level" : "Cantrip"} · ${esc(s.school || "")}${s.conc ? " · concentration" : ""}${s.dmg && !NO_ROLL.includes(s.name) ? ` · ${esc(s.dmg)} ${esc(s.dtype || "")}` : ""}${s.campaign ? " · " + esc(s.campaign) : ""}</span></span>
+      ${have || no ? "" : `<button class="btn small main" data-act="pkspell" data-id="${esc(s.id)}">Add</button>`}</div>${open ? spellDescHtml(s) : ""}</div>`; }).join("") : head + `<p class="empty">No spells match${ui_pk.cls && c.cls ? ` among ${esc(c.cls)} spells (untick the box to see every class)` : ""}${ui_pk.lv !== "" ? " at that level" : ""}.</p>${(fromLib() ? lookup("that spell in your library", "Try From the SRD, or write it in the Field Book.") : lookup("every spell", `It has the SRD's ${SRD_SPELLS.length} spells; spells from other books (Xanathar's, Tasha's…) aren't in it. Try From the library, or look yours up in its book, then use “A spell of your own…” and copy its text in.`))}`;
   }
   const rows = search(weaponPool(), ui_pk.q, 2000);
   return rows.length ? rows.map(x => { const w = baseWeapon(x); const ws = w && weaponStats(w);
@@ -1603,7 +1643,7 @@ function applyLevelUp(c) {
   const more = c.buildTo > N; if (c.buildTo && !more) { delete c.buildTo; save(); }
   toast(more ? `Level ${N} of ${c.buildTo}.` : `Level ${N}!`, 3000);
   if (more && !caster) { startLevelUp(c); return; }
-  if (caster) { ui.tab = "spells"; render(); ui_pk.q = ""; ui_pk.lv = ""; ui_pk.for = isMulti(c) ? cls : ""; ui_pk.note = `Level ${N}${at}: add your new ${isMulti(c) ? cls + " " : ""}spells.`; openOv(pickerHtml("spell"), "pick:spell"); }
+  if (caster) { ui.tab = "spells"; render(); ui_pk.q = ""; ui_pk.lv = ""; ui_pk.for = isMulti(c) ? cls : ""; ui_pk.note = `Level ${N}${at}: add your new ${isMulti(c) ? cls + " " : ""}spells.`; ui_pk.lim = true; ui_pk.open = ""; ui_pk.mineOpen = true; openOv(pickerHtml("spell"), "pick:spell"); }
 }
 
 /* ══ Build a character from the SRD (rules.js) (Joseph, 2026-11-01: "add the free use player's handbook to the
@@ -3191,12 +3231,17 @@ document.addEventListener("click", e => {
     case "cartcast": { const it = c.items.find(i => i.cartSpells && !i.gone); const s = it.cartSpells.find(x => x.name === el.dataset.n); cast(c, Object.assign({ lvl: 1 }, s), s.lvl || 1, "cart"); break; }
     case "spelledit": ui.edit = ui.edit === "spell:" + el.dataset.id ? null : "spell:" + el.dataset.id; render(); break;
     case "spelldone": ui.edit = null; render(); break;
-    case "addspell": ui_pk.q = ""; ui_pk.note = ""; openOv(pickerHtml("spell"), "pick:spell"); setTimeout(() => { const q = $("#pkQ"); if (q) q.focus(); }, 30); break;
-    case "pkspell": { const s = spellPool().find(x => x.id === el.dataset.id); if (!s) break; const sp = spellFromData(s);
+    case "addspell": ui_pk.q = ""; ui_pk.note = ""; ui_pk.lim = false; ui_pk.open = ""; openOv(pickerHtml("spell"), "pick:spell"); setTimeout(() => { const q = $("#pkQ"); if (q) q.focus(); }, 30); break;
+    case "pkspell": { const s = spellPool().find(x => x.id === el.dataset.id); if (!s) break;
+      const cap = ui_pk.lim && spellCap(c, (isMulti(c) && ui_pk.for) || c.cls);
+      if (cap && (+s.lv ? cap.spells !== null && cap.hasS >= cap.spells : cap.cantrips !== null && cap.hasC >= cap.cantrips)) { toast(`No room for more ${+s.lv ? "spells" : "cantrips"}: take one off first.`); break; }
+      const sp = spellFromData(s);
       if (isMulti(c)) { const fc = ui_pk.for || (classesOf(c).find(k => CAST_OF[k.cls]) || {}).cls; if (fc) sp.cls = fc; }   // a multiclass caster's spell belongs to a class
       // keep the list in level order, so the Spells tab reads the same as before
       const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp);
-      save(); $("#pkOut").innerHTML = pickerResults("spell"); toast(`${sp.name} added${sp.lvl ? ` (${ord(sp.lvl)} level)` : ""}.`); break; }
+      save(); pkRefresh(); toast(`${sp.name} added${sp.lvl ? ` (${ord(sp.lvl)} level)` : ""}.`); break; }
+    case "pkunspell": { const i = c.spells.findIndex(x => x.id === el.dataset.id); if (i < 0) break; const [sp] = c.spells.splice(i, 1); ui_pk.mineOpen = true; save(); pkRefresh(); toast(`${sp.name} taken off.`); break; }
+    case "pkinfo": ui_pk.open = ui_pk.open === el.dataset.id ? "" : el.dataset.id; pkRefresh(); break;
     case "pkatk": { const x = weaponPool().find(y => y.id === el.dataset.id); const a = x && attackFromData(x); if (!a) break; c.attacks.push(a); save(); closeOv(); toast(`${a.name} added to the attacks.`); break; }
     case "pkownatk": c.attacks.push({ id: uid("at"), name: "New attack", ab: "str", prof: true, dice: "1d6", dtype: "bludgeoning", bonus: 0 }); ui.editMode = true; ui.tab = "play"; save(); closeOv(); toast("Fill it in under Attacks, then tap Done (top right)."); break;
     case "pkitem": { const x = itemPool().find(y => y.id === el.dataset.id); if (!x) break; const m = ($("#newItem").value || "").match(/^(\d+)\s*(?:x|×)?\s+/); const it = itemFromData(x, m ? +m[1] : 1);
