@@ -110,3 +110,39 @@ step("step 4 says the class's most important ability", () => {
   closeOv(); BLD = null;
   return `no class yet: ${none} | ${out.join(" | ")}`;
 });
+step("level 1 spells, class features, and subclasses can be read before choosing", () => {
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Wizard");
+  const feats = [...document.querySelectorAll("#ov details summary")].map(s => s.textContent).filter(t => /1st-level features/.test(t)).join(", ");
+  const info = q('[data-act="bldinfo"]'), name = info.previousElementSibling.textContent; info.click();
+  const desc = q("#ov .pk-desc").textContent.replace(/\s+/g, " ").trim().slice(0, 70);
+  q(`[data-act="bldinfo"][data-id="${info.dataset.id}"]`).click(); const shut = !q("#ov .pk-desc");
+  click('[data-act="blded"][data-v="2014"]'); sel('[data-bld="cls"]', "Cleric"); const sub = [...document.querySelectorAll("#ov details summary")].map(s => s.textContent).filter(t => /subclass/.test(t)).join(", ");
+  closeOv(); BLD = null;
+  return `${feats} | ? on ${name}: ${desc}… | tapped again: ${shut ? "closed" : "open"} | 2014 Cleric: ${sub}`;
+});
+step("Magic Initiate's spells are chosen (the background's list, and Versatile's must differ); Versatile can't repeat the background's feat", () => {
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter"); sel('[data-bld="bg"]', "Criminal"); sel('[data-bld="sp"]', "Human");
+  const crim = [...q('[data-bld="vfeat"]').options].map(o => o.textContent).filter(t => t !== "—").join(", ");
+  sel('[data-bld="bg"]', "Acolyte"); const aco = [...q('[data-bld="vfeat"]').options].map(o => o.textContent).filter(t => t !== "—").join(", ");
+  const left0 = /Magic Initiate/.test(q("#bldGo").textContent);
+  click('[data-act="bldmiset"][data-k="bg"][data-f="ab"][data-v="wis"]');
+  const cl = [...document.querySelectorAll('[data-act="bldmi"][data-k="bg"][data-f="c"]')]; cl[0].click(); q(`[data-act="bldmi"][data-k="bg"][data-f="c"][data-id="${cl[1].dataset.id}"]`).click();
+  const third = q(`[data-act="bldmi"][data-k="bg"][data-f="c"][data-id="${cl[2].dataset.id}"]`).disabled;
+  q('[data-act="bldmi"][data-k="bg"][data-f="s"]').click();
+  sel('[data-bld="vfeat"]', "Magic Initiate"); const lists = [...document.querySelectorAll('[data-act="bldmiset"][data-k="v"][data-f="list"]')].map(b => b.textContent).join(", ");
+  sel('[data-bld="vfeat"]', "Alert"); const left1 = /Magic Initiate/.test(q("#bldGo").textContent);
+  typ('[data-bld="name"]', "Test Initiate"); click('[data-act="bldmake"]'); const c = C(), mi = c.spells.filter(s => s.feat);
+  return `Criminal, Versatile offers: ${crim} | Acolyte: ${aco} | asks for the spells: ${left0} | a third cantrip ${third ? "blocked" : "allowed"} | Versatile's lists: ${lists} | after choosing: still asks ${left1} | made: ${mi.map(s => `${s.name} (${s.tag}, ${s.ab})`).join(", ")}; free cast ${c.res.filter(r => /Magic Initiate/.test(r.name)).map(r => r.name).join(", ")}; DC with Wis ${dcOf(c, mi[0])}`;
+});
+step("level-up feats: only those they qualify for and don't have; the +1s go to two different abilities", () => {
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter"); sel('[data-bld="bg"]', "Soldier"); sel('[data-bld="sp"]', "Human");
+  ["con", "wis", "str", "dex", "cha", "int"].forEach((k, i) => sel(`[data-bld="pick.${k}"]`, String(i))); typ('[data-bld="name"]', "Test Feats"); click('[data-act="bldmake"]');
+  const c = C(); c.level = 3; c.classes = [{ cls: "Fighter", sub: "", level: 3, die: 10 }]; c.ab.str = 12; c.ab.dex = 12; save(); startLevelUp(c); click('[data-act="luavg"]');
+  const bOpts = () => [...q('[data-lu="b"]').options].map(o => o.value).filter(Boolean);
+  sel('[data-lu="a"]', "con"); const notCon = !bOpts().includes("con");
+  click('[data-act="luasi"][data-k="feat"]'); const list = [...document.querySelectorAll("#rfeats option")].map(o => o.value).join(", ");
+  typ('[data-lu="feat"]', "Grappler"); const chk = q("#luFeatChk").textContent.replace(/\s+/g, " ").trim(), go = q("#luGo .note").textContent;
+  click('[data-lu="featAllow"]'); const go2 = (q("#luGo .note") || {}).textContent || "(no reason: can go)";
+  closeOv(); LV = null;
+  return `+1s: the second box leaves out the first ${notCon} | feats offered (Str and Dex 12): ${list} | Grappler typed: ${chk} | ${go} | DM allows: ${go2}`;
+});
