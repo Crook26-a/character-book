@@ -50,8 +50,8 @@ step("a 2014 build can take gold instead of the class's equipment", () => {
   return `${left1}; typed 120: ${sum}; ${left2}; a lookup note: ${!!q(".lookup")}`;
 });
 step("magic items at estimated value, only when switched on (SRD 5.2 values by rarity)", () => {
-  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); sel('[data-bld="toLevel"]', "17"); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
-  BLD.hiRoll = "1"; showBuilder(); click('[data-act="shopopen"]');
+  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
+  typ('[data-bld="eqT"]', "1000 GP"); click('[data-act="shopopen"]');
   const off = shopPool().filter(x => x.est).length, shown0 = document.querySelectorAll('#shopList [data-id^="srd:bag-of-holding"]').length;
   click('[data-act="shopmagic"]'); expect(sayIn("magic"), "a magic line", said()); expect(q(".px-dm"), "the DM note");
   const price = id => { const r = q(`#shopList [data-id="${id}"]`); return r ? r.closest(".px-row").textContent.replace(/\s+/g, " ").trim() : "(not listed)"; };
@@ -59,4 +59,17 @@ step("magic items at estimated value, only when switched on (SRD 5.2 values by r
   click('[data-act="shopbuy"][data-id="srd:longsword-plus-1#+1"]'); const g = gold(); click('[data-act="shopback"]');
   typ('[data-bld="name"]', "Test Magic"); click('[data-act="bldmake"]'); const c = C(), it = c.items.find(i => /Longsword, \+1/.test(i.name));
   return `estimated items ${off}, shown before switching on ${shown0} | ${rows} | after a Longsword, +1: ${g} | on the sheet: ${it ? `${it.name}, ${worthText(it)}, from ${it.from}` : "(missing)"}`;
+});
+step("magic items owed for the starting level are taken free, with the magic switch off", () => {
+  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); sel('[data-bld="toLevel"]', "5"); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
+  BLD.hiRoll = "2"; showBuilder(); click('[data-act="shopopen"]'); const g0 = gold(), owed = q(".px-owed").textContent.replace(/\s+/g, " ");
+  const freeHead = (q("#shopList .px-kind") || {}).textContent, takes = document.querySelectorAll('#shopList [data-act="shoptake"]').length;
+  click('[data-act="shoptake"][data-id="srd:longsword-plus-1#+1"]'); expect(sayIn("free"), "a free line", said());
+  const after = `${gold()}, Uncommon still free: ${!!q('#shopList [data-act="shoptake"][data-id="srd:bag-of-holding"]')}, Bag of Holding listed: ${!!q('#shopList [data-id="srd:bag-of-holding"]')}`;
+  const common = q('#shopList [data-act="shoptake"]'); const commonName = common && common.closest(".px-row").querySelector(".px-nm").firstChild.textContent.trim(); common.click();
+  const banner = q(".px-owed") ? "still owed" : "nothing owed";
+  click('[data-act="shoptab"][data-v="basket"]'); const basket = [...document.querySelectorAll(".px-body .px-row")].map(r => r.textContent.replace(/\s+/g, " ").trim()).join(" / ");
+  click('[data-act="shopback"]'); const step6 = q('[data-bld="magic.Uncommon.0"]').selectedOptions[0].textContent;
+  typ('[data-bld="name"]', "Test Owed"); click('[data-act="bldmake"]'); const c = C(), it = c.items.find(i => /Longsword, \+1/.test(i.name));
+  return `gold ${g0} | ${owed} | first group: ${freeHead}, ${takes} to take | took a Longsword, +1: ${after} | took ${commonName}: ${banner} | basket: ${basket} | step 6 shows: ${step6} | made: ${it ? `${it.name}, ${worthText(it)}, from ${it.from}` : "(missing)"}, purse ${c.purse.gp} gp, not finished: ${todoOf(c).filter(t => /magic/.test(t)).join(", ") || "no magic items"}`;
 });

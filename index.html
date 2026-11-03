@@ -199,55 +199,69 @@
     padding: 14px 14px calc(16px + env(safe-area-inset-bottom)); }
   #ov .box.pic { background: #000; padding: 8px; text-align: center; }
   #ov .box.pic img { max-width: 100%; max-height: 80vh; }
-  /* the gear shop: a pixel market stall with colours of its own, the same in light and dark */
-  #ov .box.shop { background: #f3e2b8; padding: 0 0 calc(12px + env(safe-area-inset-bottom)); border-top: 0; color: #14182e; }
-  .px-shop { font-family: 'Pixelify Sans', ui-monospace, Menlo, Consolas, monospace; font-size: 16px; }
+  /* the gear shop: a pixel market stall with colours of its own, the same in light and dark. Laid out like a Skyrim
+     shop (Joseph, 2026-11-03): the wares in a dark box on the left, the keeper standing on the right, talking */
+  #ov .box.shop { padding: 0 0 calc(12px + env(safe-area-inset-bottom)); border-top: 0; color: #e9e2cf;
+    background: repeating-linear-gradient(90deg, #6e4420 0 22px, #5a3519 22px 24px); }
+  .px-shop { font-family: 'Pixelify Sans', ui-monospace, Menlo, Consolas, monospace; font-size: 15px; }
   .px-shop svg { display: block; }
-  .px-top { position: sticky; top: 0; z-index: 2; background: #f3e2b8; }
   .px-awning { height: 32px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' shape-rendering='crispEdges'%3E%3Crect width='6' height='5' fill='%232f66d0'/%3E%3Crect x='6' width='6' height='5' fill='%23f4f1e8'/%3E%3Crect y='5' width='6' height='1' fill='%231f3f8f'/%3E%3Crect x='6' y='5' width='6' height='1' fill='%239aa3b5'/%3E%3Crect x='1' y='6' width='4' height='1' fill='%231f3f8f'/%3E%3Crect x='7' y='6' width='4' height='1' fill='%239aa3b5'/%3E%3Crect x='2' y='7' width='2' height='1' fill='%231f3f8f'/%3E%3Crect x='8' y='7' width='2' height='1' fill='%239aa3b5'/%3E%3C/svg%3E") repeat-x; background-size: 48px 32px; image-rendering: pixelated; }
-  .px-scene { display: flex; align-items: flex-end; gap: 10px; padding: 6px 12px 0; min-height: 84px;
-    background: linear-gradient(#ffcf8a 0 34%, #f6b26b 34% 62%, #e89a52 62% 100%); }
-  .px-keep { flex: none; transform-origin: bottom center; }
+  .px-hall { display: grid; grid-template-columns: minmax(0, 1fr) 104px; gap: 10px; padding: 10px 8px 0; align-items: start; }
+  @media (min-width: 560px) { .px-hall { grid-template-columns: minmax(0, 1fr) 168px; gap: 16px; padding: 12px 14px 0; } .px-keep svg { width: 160px; height: auto; } .px-say { font-size: 14px; } }
+  /* the box of wares */
+  .px-box { background: rgba(12, 14, 26, .94); min-width: 0; box-shadow: -3px 0 0 0 #0a0b14, 3px 0 0 0 #0a0b14, 0 -3px 0 0 #0a0b14, 0 3px 0 0 #0a0b14, inset 0 0 0 1px #3a4270; }
+  .px-boxhead { position: sticky; top: 0; z-index: 2; background: #10121f; border-bottom: 2px solid #3a4270; }
+  .px-counter { display: flex; align-items: center; gap: 6px; padding: 7px 8px 2px; }
+  .px-gold { font-size: 18px; color: #ffd23f; text-shadow: 2px 2px 0 #000; }
+  .px-counter small { color: #b9b3a0; }
+  .px-tabs { display: flex; gap: 6px; padding: 6px 8px 8px; }
+  .px-tab { flex: 1; font: inherit; font-size: 14px; padding: 4px 0; border: 0; background: #1c2038; color: #c9c3b0; cursor: pointer;
+    box-shadow: -2px 0 0 0 #3a4270, 2px 0 0 0 #3a4270, 0 -2px 0 0 #3a4270, 0 2px 0 0 #3a4270; }
+  .px-tab.on { background: #2f66d0; color: #fbf3dc; box-shadow: -2px 0 0 0 #6fa3f5, 2px 0 0 0 #6fa3f5, 0 -2px 0 0 #6fa3f5, 0 2px 0 0 #6fa3f5; }
+  .px-body { padding: 2px 8px 10px; }
+  .px-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 4px; }
+  .px-filters input#shopQ, .px-filters select { font: inherit; flex: 1 1 120px; min-width: 0; background: #1c2038; color: #e9e2cf; border: 0; padding: 5px 7px; border-radius: 0;
+    box-shadow: -2px 0 0 0 #3a4270, 2px 0 0 0 #3a4270, 0 -2px 0 0 #3a4270, 0 2px 0 0 #3a4270; }
+  .px-filters input#shopQ::placeholder { color: #8a8574; }
+  .px-check { display: flex; gap: 6px; align-items: flex-start; font-size: 14px; line-height: 1.2; }
+  .px-kind { margin: 12px 0 2px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8fb4ff; border-bottom: 1px solid #3a4270; padding-bottom: 2px; }
+  .px-kind.px-free { color: #93d07f; }
+  .px-row { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+  .px-row.dim .px-nm, .px-row.dim .px-pr { opacity: .45; }
+  .px-row.px-total { border-top: 2px solid #3a4270; border-bottom: 0; font-size: 17px; }
+  .px-ic { flex: none; font-style: normal; }
+  .px-nm { flex: 1; min-width: 0; line-height: 1.2; overflow-wrap: anywhere; }
+  .px-nm small { color: #b9a888; display: block; font-size: 12px; }
+  .px-pr { flex: none; color: #ffd23f; text-align: right; font-size: 14px; }
+  .px-pr s { color: #8a8574; }
+  .px-nm .px-pr { display: block; text-align: left; font-size: 13px; margin-top: 1px; }
+  .px-nm .px-pr small { display: inline; color: #b9a888; }
+  .px-ok { color: #93d07f; }
+  .px-n { min-width: 14px; text-align: center; }
+  .px-btn { font: inherit; flex: none; border: 0; cursor: pointer; padding: 3px 8px; margin: 3px; background: #ffd23f; color: #14182e;
+    box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset -3px -3px 0 0 #b07d1a; }
+  .px-btn:active { transform: translateY(2px); box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset 3px 3px 0 0 #b07d1a; }
+  .px-btn.px-take { background: #93d07f; box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset -3px -3px 0 0 #4c8a3c; }
+  .px-btn.small { padding: 1px 7px; }
+  .px-btn.wide { display: block; width: calc(100% - 24px); margin: 14px auto 0; padding: 9px; font-size: 18px; background: #2f66d0; color: #fbf3dc;
+    box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset -3px -3px 0 0 #1f3f8f; }
+  .px-note { font-size: 13.5px; color: #b9b3a0; margin: 8px 8px 0; line-height: 1.3; }
+  .px-body .px-note { margin: 12px 0 0; }
+  .px-body .px-dm, .px-body .px-owed { margin: 6px 0 8px; padding: 6px 8px; background: #1a2240; border-left: 4px solid #6fa3f5; color: #d9d3c0; }
+  .px-body .px-owed { background: #1d2b1c; border-left-color: #93d07f; }
+  .px-none { padding: 14px 0; text-align: center; color: #b9b3a0; }
+  /* the keeper, standing */
+  .px-side { position: sticky; top: 10px; display: flex; flex-direction: column; align-items: center; }
+  .px-say { position: relative; width: 100%; box-sizing: border-box; background: #fbf3dc; color: #14182e; padding: 5px 7px; margin-bottom: 14px; line-height: 1.2; font-size: 13px;
+    box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000; }
+  .px-say::after { content: ""; position: absolute; left: 30%; bottom: -12px; width: 9px; height: 9px; background: #000; }
+  .px-say b { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #1f3f8f; }
+  .px-keep { transform-origin: bottom center; }
   .px-keep.mad { animation: px-shake .35s steps(2) 2; }
   .px-keep.mad svg { filter: drop-shadow(0 0 3px #fff6a0) drop-shadow(0 0 6px #6fa3f5); }
   @keyframes px-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
   @media (prefers-reduced-motion: reduce) { .px-keep.mad { animation: none; } }
-  .px-say { flex: 1; align-self: center; position: relative; background: #fbf3dc; margin: 0 4px 10px 6px; padding: 6px 9px; line-height: 1.25; font-size: 15px;
-    box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e; }
-  .px-say::before { content: ""; position: absolute; left: -12px; bottom: 6px; width: 9px; height: 6px; background: #14182e; }
-  .px-say b { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #1f3f8f; }
-  .px-counter { display: flex; align-items: center; gap: 8px; padding: 6px 12px; color: #fbf3dc; border-top: 4px solid #4f2f16;
-    background: repeating-linear-gradient(0deg, #8a5a2b 0 7px, #6e4420 7px 9px); }
-  .px-gold { font-size: 20px; color: #ffd23f; text-shadow: 2px 2px 0 #14182e; }
-  .px-counter small { opacity: .85; }
-  .px-tabs { display: flex; gap: 6px; padding: 8px 12px 6px; border-bottom: 3px solid #14182e; }
-  .px-tab { flex: 1; font: inherit; padding: 5px 0; border: 0; background: #e2cb93; color: #14182e; cursor: pointer;
-    box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e; }
-  .px-tab.on { background: #2f66d0; color: #fbf3dc; }
-  .px-body { padding: 4px 12px 10px; }
-  .px-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 4px; }
-  .px-filters input#shopQ, .px-filters select { font: inherit; flex: 1 1 140px; min-width: 0; background: #fbf3dc; color: #14182e; border: 0; padding: 5px 7px; border-radius: 0;
-    box-shadow: -2px 0 0 0 #14182e, 2px 0 0 0 #14182e, 0 -2px 0 0 #14182e, 0 2px 0 0 #14182e; }
-  .px-check { display: flex; gap: 6px; align-items: center; font-size: 15px; }
-  .px-kind { margin: 12px 0 4px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #1f3f8f; border-bottom: 2px dashed #b9a06a; }
-  .px-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #e2cb93; }
-  .px-row.dim .px-nm, .px-row.dim .px-pr { opacity: .5; }
-  .px-row.px-total { border-top: 3px solid #14182e; border-bottom: 0; font-size: 18px; }
-  .px-ic { flex: none; font-style: normal; }
-  .px-nm { flex: 1; min-width: 0; line-height: 1.2; }
-  .px-nm small { color: #7a4a26; }
-  .px-pr { flex: none; color: #7a4a26; text-align: right; }
-  .px-n { min-width: 14px; text-align: center; }
-  .px-btn { font: inherit; flex: none; border: 0; cursor: pointer; padding: 4px 10px; margin: 3px; background: #ffd23f; color: #14182e;
-    box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e, inset -3px -3px 0 0 #b07d1a; }
-  .px-btn:active { transform: translateY(2px); box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e, inset 3px 3px 0 0 #b07d1a; }
-  .px-btn.small { padding: 2px 8px; }
-  .px-btn.wide { display: block; width: calc(100% - 30px); margin: 12px auto 0; padding: 9px; font-size: 18px; background: #2f66d0; color: #fbf3dc;
-    box-shadow: -3px 0 0 0 #14182e, 3px 0 0 0 #14182e, 0 -3px 0 0 #14182e, 0 3px 0 0 #14182e, inset -3px -3px 0 0 #1f3f8f; }
-  .px-note { font-size: 14px; color: #5a4a2e; margin: 10px 12px 0; line-height: 1.3; }
-  .px-body .px-note { margin: 12px 0 0; }
-  .px-body .px-dm { margin: 4px 0 8px; padding: 6px 8px; background: #fbf3dc; border-left: 4px solid #2f66d0; }
-  .px-none { padding: 14px 0; text-align: center; color: #7a4a26; }
+  .px-floor { width: 90%; height: 6px; margin-top: -3px; background: rgba(0, 0, 0, .45); }
   .rr-h { font-size: 19px; margin: 0 0 8px; display: flex; gap: 8px; align-items: baseline; }
   .rr-h small { color: var(--ink-soft); font-size: 13px; }
   .dice { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
@@ -301,7 +315,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 37;
+const VERSION = 38;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -1868,7 +1882,12 @@ const hiStartText = L => { const r = hiStart(L); return r ? `${r.gp ? `${r.gp.to
 // an item's rarity can be several ("Uncommon (+1), Rare (+2), Very Rare (+3)"); any of them fits that slot
 const rarities = x => String(x.rarity || "").split(/,|\bor\b/).map(s => s.replace(/\(.*?\)/g, "").trim().toLowerCase()).filter(Boolean);
 const hiPool = rar => itemPool().filter(x => rarities(x).includes(rar.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name));
-const hiItemName = k => { const v = (BLD.magic || {})[k]; return v === OTHER ? ((BLD.magicT || {})[k] || "").trim() : v ? (itemPool().find(x => x.id === v) || {}).name || "" : ""; };
+// a magic item picked for a slot: from the item list, or one of the shop's (a rarity of a +1/+2/+3 item: "srd:…#+1")
+const magicById = v => v && v !== OTHER ? itemPool().find(x => x.id === v) || shopPool().find(x => x.id === v) || null : null;
+const hiItemName = k => { const v = (BLD.magic || {})[k]; return v === OTHER ? ((BLD.magicT || {})[k] || "").trim() : (magicById(v) || {}).name || ""; };
+// the magic items still owed for starting above level 1 ("Uncommon.0"), and the first one an item can fill for free
+const hiOpen = () => { const r = hiStart(+BLD.toLevel); return r ? hiSlots(r).filter(k => !hiItemName(k)) : []; };
+const freeSlot = x => x && x.rarity ? hiOpen().find(k => rarities(x).includes(k.split(".")[0].toLowerCase())) : undefined;
 function hiMagicLeft() {
   const r = hiStart(+BLD.toLevel); if (!r) return [];
   return Object.keys(r.magic).map(rar => { const n = hiSlots(r).filter(k => k.startsWith(rar + ".") && !hiItemName(k)).length; return n && `${n} ${rar} magic item${n === 1 ? "" : "s"}`; }).filter(Boolean);
@@ -1879,7 +1898,7 @@ function hiStartHtml() {
   if (r.gp) s += `<div class="row" style="align-items:flex-end;margin-bottom:8px"><label class="fld n"><span>1d10</span><input data-bld="hiRoll" type="number" inputmode="numeric" min="1" max="10" value="${esc(b.hiRoll || "")}" placeholder="—"></label>
     <button class="btn small" data-act="bldhiroll">${b.hiRoll ? "Roll again" : "Roll 1d10"}</button></div>
     <p class="note" id="bldHiGp">${hiGpNote()}</p>`;
-  s += hiSlots(r).map(k => { const rar = k.split(".")[0], pool = hiPool(rar);
+  s += hiSlots(r).map(k => { const rar = k.split(".")[0], got = magicById(b.magic[k]), pool = got && !hiPool(rar).some(x => x.id === got.id) ? [got, ...hiPool(rar)] : hiPool(rar);
     return `<label class="fld"><span>${esc(rar)} magic item</span><select data-bld="magic.${k}"><option value="">—</option>${pool.map(x => `<option value="${esc(x.id)}" ${b.magic[k] === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}<option value="${OTHER}" ${b.magic[k] === OTHER ? "selected" : ""}>Other (type your own)</option></select></label>`
       + (b.magic[k] === OTHER ? `<label class="fld"><span>Its name</span><input data-bld="magicT.${k}" value="${esc(b.magicT[k] || "")}" placeholder="e.g. Cloak of Many Fashions"></label>` : ""); }).join("");
   const thin = Object.keys(r.magic).filter(rar => hiPool(rar).length < 5);
@@ -1969,6 +1988,26 @@ const PX_DRAGON = [
   "......KBBBKKKKKKKKKKKKKKKKBBBBK.",
   "......KAAAAAAAAAAAAAAAAAAAAAAAK.",
   "......KAAAAaAAAAAAAAAAAAAaAAAAK."];
+// standing at full height beside the wares (Joseph, 2026-11-03: "like a Skyrim shop"): the bust above, then apron, legs, tail
+const PX_KEEPER = [...PX_DRAGON,
+  "......KaaaaaaaaaaaGGaaaaaaaaaaK.",
+  ".......KAAAAAAAAAAAAAAAAAAAAAK..",
+  ".......KAAAAAAAAAAAAAAAAAAAAAK..",
+  ".......KAAAAaAAAAAAAAAAAaAAAAK..",
+  ".......KAAAAAAAAAAAAAAAAAAAAAK..",
+  "........KAAAAAAAAAAAAAAAAAAAK...",
+  "........KAAAAAAAAAAAAAAAAAAAK...",
+  "........KKKKKKKKKKKKKKKKKKKKK...",
+  ".........KDBBDK.....KDBBDK......",
+  ".........KDBBDK.....KDBBDK......",
+  ".........KDBBDK.....KDBBDKK.....",
+  ".........KDBBDK.....KDBBDKDK....",
+  ".........KDBBDK.....KDBBDKBDK...",
+  "........KDBBBDK.....KDBBBDKBDK..",
+  "........KDBBBDK.....KDBBBDK.KBK.",
+  ".......KDBBBBDK....KDBBBBDK.KBK.",
+  "......KHBHBBBDK...KHBHBBBDK.KK..",
+  "......KKKKKKKKK...KKKKKKKKK....."];
 const PX_ICONS = {
   weapon: ["......KK", ".....KWK", "....KWSK", "K..KWSK.", "KK.WSK..", ".KGSK...", ".KNKK...", "KNK....."],
   armor: [".KKKKKK.", "KBBGGBBK", "KBBGGBBK", "KGGGGGGK", "KBBGGBBK", ".KBGGBK.", "..KBBK..", "...KK..."],
@@ -1995,17 +2034,23 @@ const SHOP_SAY = {
   back: ["Changed your mind? Typical.", "Back it goes. Make up your mind.", "Put it back where you found it. Exactly where."],
   nosell: ["I don't know what that's worth, and neither do you. No."],
   afford: ["There. Everything your sad little purse can manage."],
-  magic: ["Magic, eh? Your DM had better have said yes.", "The good stuff's under the counter. Prices are what they are."] };
+  magic: ["Magic, eh? Your DM had better have said yes.", "The good stuff's under the counter. Prices are what they are."],
+  free: ["Owed you one, did I? Fine. Take it. Free. Don't tell anyone.", "No charge. It hurts me to say that.", "Yours by right. Get it out of my sight before I change my mind."] };
 function shopSay(k) { const a = SHOP_SAY[k]; let s; do s = a[Math.floor(Math.random() * a.length)]; while (a.length > 1 && s === SHOP.say); SHOP.say = s; SHOP.mad = k === "broke" || k === "nosell"; }
 function shopListHtml(g) {
-  const q = SHOP.q.trim().toLowerCase(), have = BLD.bought || {};
-  const list = shopPool().filter(x => (SHOP.magic || !x.est) && (!SHOP.kind || shopKind(x) === SHOP.kind) && (!q || x.name.toLowerCase().includes(q)) && (!SHOP.afford || x.cp <= g.cp))
-    .sort((a, b) => SHOP_KINDS.findIndex(k => k[0] === shopKind(a)) - SHOP_KINDS.findIndex(k => k[0] === shopKind(b)) || a.name.localeCompare(b.name));
+  const q = SHOP.q.trim().toLowerCase(), have = BLD.bought || {}, open = hiOpen().length > 0;
+  // magic items owed for the starting level come first, free, whether or not the stall's selling magic
+  const free = x => open && !!freeSlot(x), order = x => free(x) ? -1 : SHOP_KINDS.findIndex(k => k[0] === shopKind(x));
+  const list = shopPool().filter(x => (SHOP.magic || !x.est || free(x)) && (!SHOP.kind || shopKind(x) === SHOP.kind) && (!q || x.name.toLowerCase().includes(q)) && (!SHOP.afford || x.cp <= g.cp || free(x)))
+    .sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name));
   if (!list.length) return `<p class="px-none">${SHOP.afford ? "Nothing here your purse can cover." : "Nothing like that on the stall."}</p>`;
   let last = "";
-  return list.map(x => { const k = shopKind(x), head = k !== last ? `<div class="px-kind">${esc((SHOP_KINDS.find(s => s[0] === k) || [, "Other"])[1])}</div>` : ""; last = k;
-    return head + `<div class="px-row${x.cp > g.cp ? " dim" : ""}">${pxIcon(k)}<span class="px-nm">${esc(x.name)}${x.hb ? ` <small>yours</small>` : ""}${x.est ? ` <small>${esc(x.rarity)}</small>` : ""}</span><span class="px-pr">${x.est ? "~" : ""}${esc(fmtCp(x.cp))}</span>
-      ${have[x.id] ? `<button class="px-btn small" data-act="shopless" data-id="${esc(x.id)}" aria-label="Put one back">−</button><b class="px-n">${have[x.id]}</b>` : ""}<button class="px-btn" data-act="shopbuy" data-id="${esc(x.id)}">Buy</button></div>`; }).join("");
+  return list.map(x => { const k = shopKind(x), f = free(x), grp = f ? "free" : k;
+    const head = grp !== last ? `<div class="px-kind${f ? " px-free" : ""}">${f ? "Owed to you: free" : esc((SHOP_KINDS.find(s => s[0] === k) || [, "Other"])[1])}</div>` : ""; last = grp;
+    // the price goes under the name, so a long name keeps the width on a phone
+    return head + `<div class="px-row${!f && x.cp > g.cp ? " dim" : ""}">${pxIcon(k)}<span class="px-nm">${esc(x.name)}
+      <span class="px-pr">${f ? `<b class="px-ok">Free</b> <s>${x.est ? "~" : ""}${esc(fmtCp(x.cp))}</s>` : `${x.est ? "~" : ""}${esc(fmtCp(x.cp))}`}${x.est || f ? ` <small>${esc(f ? freeSlot(x).split(".")[0] : x.rarity)}</small>` : ""}${x.hb ? ` <small>yours</small>` : ""}</span></span>
+      ${have[x.id] ? `<button class="px-btn small" data-act="shopless" data-id="${esc(x.id)}" aria-label="Put one back">−</button><b class="px-n">${have[x.id]}</b>` : ""}${f ? `<button class="px-btn px-take" data-act="shoptake" data-id="${esc(x.id)}">Take</button>` : `<button class="px-btn" data-act="shopbuy" data-id="${esc(x.id)}">Buy</button>`}</div>`; }).join("");
 }
 function shopHtml() {
   const g = bldGear(), nb = g.bought.reduce((a, o) => a + o.n, 0), ns = g.sold.reduce((a, s) => a + s.n, 0), t = SHOP.tab;
@@ -2017,6 +2062,7 @@ function shopHtml() {
       <select id="shopKind"><option value="">Everything</option>${SHOP_KINDS.filter(([k]) => shopPool().some(x => (SHOP.magic || !x.est) && shopKind(x) === k)).map(([k, l]) => `<option value="${k}" ${SHOP.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select>
       <label class="px-check"><input type="checkbox" data-act="shopafford" ${SHOP.afford ? "checked" : ""}> Only what I can afford</label>
       <label class="px-check"><input type="checkbox" data-act="shopmagic" ${SHOP.magic ? "checked" : ""}> Magic items, at estimated value (if your DM allows)</label></div>
+      ${hiOpen().length ? `<p class="px-note px-owed"><b>Owed to you, free:</b> ${esc(listAnd(hiMagicLeft()))}, for starting at level ${+BLD.toLevel}. They're at the top of the list: tap Take.${hiOpen().some(k => hiPool(k.split(".")[0]).length < 5) ? " There aren't many of some rarities to choose from; for others, type one in with Other in step 6." : ""}</p>` : ""}
       ${SHOP.magic ? `<p class="px-note px-dm"><b>For the DM to say:</b> ${esc(MAGIC_DM)}</p>` : ""}
       <div id="shopList">${shopListHtml(g)}</div>
       ${none.length ? `<p class="px-note">Not on the stall: ${none.length} thing${none.length === 1 ? "" : "s"} in the item list with no price or rarity to go by${arts ? ` (${arts} of them Artifacts, which are priceless)` : ""}. Ask your DM what they cost and add them on the Items tab once made, or give a library item a worth (like “25 gp”) and it's sold here.</p>` : ""}`;
@@ -2029,17 +2075,21 @@ function shopHtml() {
   } else {
     body = `<div class="px-row"><span class="px-nm">Starting gold</span><span class="px-pr">${esc(fmtCp(g.start))}</span></div>`
       + g.sold.map(s => `<div class="px-row"><span class="px-nm">Sold ${esc(s.name)}${s.n > 1 ? ` × ${s.n}` : ""}</span><span class="px-pr">+${esc(fmtCp(s.n * s.p))}</span><button class="px-btn small" data-act="shopunsell" data-name="${esc(s.name)}">Undo</button></div>`).join("")
+      + shopTaken().map(({ k, x }) => `<div class="px-row">${pxIcon(shopKind(x))}<span class="px-nm">${esc(x.name)} <small>${esc(k.split(".")[0])}, owed</small></span><span class="px-pr px-ok">Free</span><button class="px-btn small" data-act="shopuntake" data-k="${esc(k)}">Undo</button></div>`).join("")
       + g.bought.map(({ x, n }) => `<div class="px-row">${pxIcon(shopKind(x))}<span class="px-nm">${esc(x.name)}${n > 1 ? ` × ${n}` : ""}</span><span class="px-pr">−${esc(fmtCp(n * x.cp))}</span><button class="px-btn small" data-act="shopless" data-id="${esc(x.id)}" aria-label="Put one back">−</button><button class="px-btn small" data-act="shopbuy" data-id="${esc(x.id)}" aria-label="One more">+</button></div>`).join("")
       + `<div class="px-row px-total"><span class="px-nm">Left to carry out</span><span class="px-pr">${g.cp < 0 ? `${esc(fmtCp(-g.cp))} short` : esc(fmtCp(g.cp))}</span></div>`;
   }
-  const tab = (v, l) => `<button class="px-tab${t === v ? " on" : ""}" data-act="shoptab" data-v="${v}">${l}</button>`;
-  return `<div class="px-shop"><div class="px-top"><div class="px-awning"></div>
-    <div class="px-scene"><div class="px-keep${SHOP.mad ? " mad" : ""}">${pxSvg(PX_DRAGON, 4)}</div><div class="px-say"><b>${SHOPKEEP}</b>${esc(SHOP.say)}</div></div>
-    <div class="px-counter">${pxSvg(PX_ICONS.coin, 3)}<span class="px-gold">${g.cp < 0 ? `${esc(fmtCp(-g.cp))} short` : esc(fmtCp(g.cp))}</span><small>${g.cp < 0 ? "sell or put back" : "to spend"}</small></div>
-    <div class="px-tabs">${tab("buy", "Buy")}${tab("sell", "Sell")}${tab("basket", `Basket${nb + ns ? ` (${nb + ns})` : ""}`)}</div></div>
-    ${SHOP.note ? `<p class="px-note">${esc(SHOP.note)}</p>` : ""}<div class="px-body">${body}</div>
+  const tab = (v, l) => `<button class="px-tab${t === v ? " on" : ""}" data-act="shoptab" data-v="${v}">${l}</button>`, nt = shopTaken().length;
+  // the wares in a box on the left, the keeper standing on the right, talking
+  return `<div class="px-shop"><div class="px-awning"></div><div class="px-hall">
+    <div class="px-box"><div class="px-boxhead"><div class="px-counter">${pxSvg(PX_ICONS.coin, 2)}<span class="px-gold">${g.cp < 0 ? `${esc(fmtCp(-g.cp))} short` : esc(fmtCp(g.cp))}</span><small>${g.cp < 0 ? "sell or put back" : "to spend"}</small></div>
+      <div class="px-tabs">${tab("buy", "Buy")}${tab("sell", "Sell")}${tab("basket", `Basket${nb + ns + nt ? ` (${nb + ns + nt})` : ""}`)}</div></div>
+      ${SHOP.note ? `<p class="px-note">${esc(SHOP.note)}</p>` : ""}<div class="px-body">${body}</div></div>
+    <div class="px-side"><div class="px-say"><b>${SHOPKEEP}</b>${esc(SHOP.say)}</div><div class="px-keep${SHOP.mad ? " mad" : ""}">${pxSvg(PX_KEEPER, 3)}</div><div class="px-floor"></div></div></div>
     <button class="px-btn wide" data-act="shopback">Done shopping</button></div>`;
 }
+// the owed magic items taken in the shop (or picked in step 6 from the list), for the basket
+const shopTaken = () => { const r = hiStart(+BLD.toLevel); return r ? hiSlots(r).map(k => ({ k, x: magicById((BLD.magic || {})[k]) })).filter(o => o.x) : []; };
 function reShop() { const b = $("#ov .box"), top = b.scrollTop; b.innerHTML = shopHtml(); b.scrollTop = top; }
 function shopSumHtml() {
   const g = bldGear(), nb = g.bought.reduce((a, o) => a + o.n, 0), ns = g.sold.reduce((a, s) => a + s.n, 0), hi = hiStart(+BLD.toLevel), unrolled = hi && hi.gp && !(+BLD.hiRoll >= 1 && +BLD.hiRoll <= 10);
@@ -2085,7 +2135,7 @@ function bldMake() {
   if (hi) {
     const got = hiSlots(hi).map(k => { const v = (b.magic || {})[k], rar = k.split(".")[0];
       if (v === OTHER) { const name = ((b.magicT || {})[k] || "").trim(); return name && { id: uid("it"), name, qty: 1, where: "On me", note: "", value: rar }; }
-      const x = v && itemPool().find(y => y.id === v); return x && itemFromData(x); }).filter(Boolean);
+      const x = magicById(v); return x && { ...itemFromData(x), ...(x.base ? { from: x.base } : {}) }; }).filter(Boolean);
     ch.items.push(...got);
     const d = +b.hiRoll;
     logIt(ch, `Starting at level ${+b.toLevel}: ${hi.gp ? `${(hi.gp + d * hi.per).toLocaleString()} GP (${hi.gp.toLocaleString()} + 1d10 [${d}] × ${hi.per})` : "no extra gold"}${got.length ? `; ${listAnd(got.map(it => it.name))}` : ""}`);
@@ -3172,6 +3222,9 @@ document.addEventListener("click", e => {
     case "shoptab": SHOP.tab = el.dataset.v; SHOP.note = ""; reShop(); break;
     case "shopafford": SHOP.afford = el.checked; if (SHOP.afford) shopSay("afford"); reShop(); break;
     case "shopmagic": SHOP.magic = el.checked; if (SHOP.magic) shopSay("magic"); reShop(); break;
+    case "shoptake": { const x = shopPool().find(y => y.id === el.dataset.id), k = freeSlot(x); if (!k) break;
+      BLD.magic = BLD.magic || {}; BLD.magic[k] = x.id; shopSay("free"); reShop(); break; }
+    case "shopuntake": if (BLD.magic) delete BLD.magic[el.dataset.k]; shopSay("back"); reShop(); break;
     case "shopbuy": { const x = shopPool().find(y => y.id === el.dataset.id); if (!x) break;
       if (x.cp > bldGear().cp) shopSay("broke"); else { BLD.bought = BLD.bought || {}; BLD.bought[x.id] = (BLD.bought[x.id] || 0) + 1; shopSay("buy"); } reShop(); break; }
     case "shopless": { const k = el.dataset.id, o = BLD.bought || {}; if (o[k] > 0) { o[k]--; if (!o[k]) delete o[k]; } shopSay("back"); reShop(); break; }
