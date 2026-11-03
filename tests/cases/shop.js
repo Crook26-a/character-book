@@ -22,7 +22,7 @@ step("buying takes the gold; what's too dear is refused", () => {
 });
 step("only what I can afford, search, and kinds", () => {
   click('[data-act="shopafford"]'); const rows = document.querySelectorAll("#shopList .px-row"), dear = document.querySelectorAll("#shopList .px-row.dim").length;
-  typ("#shopQ", "rope"); const rope = [...document.querySelectorAll("#shopList .px-nm")].map(e => e.textContent).join(", ");
+  typ("#shopQ", "rope"); const rope = [...document.querySelectorAll("#shopList .px-nm")].map(e => e.firstChild.textContent.trim()).join(", ");
   typ("#shopQ", ""); sel("#shopKind", "armor"); const kinds = [...document.querySelectorAll("#shopList .px-kind")].map(e => e.textContent).join(", ");
   click('[data-act="shopafford"]'); sel("#shopKind", "");
   return `affordable rows ${rows.length}, too dear among them ${dear} | rope: ${rope} | armor filter shows: ${kinds}`;
