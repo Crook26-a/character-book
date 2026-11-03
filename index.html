@@ -202,17 +202,18 @@
   /* the gear shop, with colours of its own, the same in light and dark. Joseph's picture of Vorsk at the stall fills
      it (2026-11-03: "this is what I want, and then the box of items would be on the left"), framed so Vorsk stands on
      the right; the box of wares floats on the left, like a Skyrim shop, and scrolls on its own */
-  #ov .box.shop { padding: 0; border-top: 0; color: #e9e2cf; height: 92vh; overflow: hidden; background: #2a2418; }
+  html.shopping { overflow: hidden; }   /* the shop has the whole screen, no page scrollbar beside it */
+  #ov .box.shop { padding: 0; border: 0; border-radius: 0; color: #e9e2cf; width: 100%; max-width: none; height: 100vh; height: 100dvh; max-height: none; overflow: hidden; background: #2a2418; }
   .px-shop { position: relative; height: 100%; font-family: 'Pixelify Sans', ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
     background: #2a2418 url("pictures/vorsk-stall.jpg") 37% 50% / cover no-repeat; image-rendering: pixelated; }
-  @media (min-width: 560px) { .px-shop { background-position: 30% 50%; } .px-say { font-size: 14px; } }
+  @media (min-width: 560px) { .px-say { font-size: 14px; } }
   .px-shop svg { display: block; }
   /* the box of wares */
-  .px-box { position: absolute; left: 8px; top: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); width: min(58%, 420px); display: flex; flex-direction: column;
+  .px-box { position: absolute; left: 8px; top: calc(8px + env(safe-area-inset-top)); bottom: calc(8px + env(safe-area-inset-bottom)); width: min(58%, 420px); display: flex; flex-direction: column;
     background: rgba(12, 14, 26, .93); box-shadow: -3px 0 0 0 #0a0b14, 3px 0 0 0 #0a0b14, 0 -3px 0 0 #0a0b14, 0 3px 0 0 #0a0b14, inset 0 0 0 1px #3a4270; image-rendering: auto; }
   .px-boxhead { flex: none; background: #10121f; border-bottom: 2px solid #3a4270; }
   .px-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  .px-counter { display: flex; align-items: center; gap: 6px; padding: 7px 8px 2px; }
+  .px-counter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 7px 8px 2px; }
   .px-gold { font-size: 18px; color: #ffd23f; text-shadow: 2px 2px 0 #000; }
   .px-counter small { color: #b9b3a0; }
   .px-tabs { display: flex; gap: 6px; padding: 6px 8px 8px; }
@@ -244,7 +245,7 @@
   .px-btn:active { transform: translateY(2px); box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset 3px 3px 0 0 #b07d1a; }
   .px-btn.px-take { background: #93d07f; box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset -3px -3px 0 0 #4c8a3c; }
   .px-btn.small { padding: 1px 7px; }
-  .px-btn.wide { flex: none; display: block; width: calc(100% - 22px); margin: 8px auto 9px; padding: 9px; font-size: 18px; background: #2f66d0; color: #fbf3dc;
+  .px-btn.px-done { margin: 0 3px 0 auto; padding: 2px 8px; font-size: 13px; background: #2f66d0; color: #fbf3dc;
     box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset -3px -3px 0 0 #1f3f8f; }
   .px-note { font-size: 13.5px; color: #b9b3a0; margin: 8px 8px 0; line-height: 1.3; }
   .px-body .px-note { margin: 12px 0 0; }
@@ -252,12 +253,12 @@
   .px-body .px-owed { background: #1d2b1c; border-left-color: #93d07f; }
   .px-none { padding: 14px 0; text-align: center; color: #b9b3a0; }
   /* Vorsk talks from beside his head; when cross, the bubble shakes and the stall crackles blue */
-  .px-say { position: absolute; right: 10px; top: 5%; width: calc(42% - 30px); max-width: 230px; box-sizing: border-box; background: #fbf3dc; color: #14182e;
+  .px-say { position: absolute; left: 60%; top: 5%; width: 200px; box-sizing: border-box; background: #fbf3dc; color: #14182e;
     padding: 5px 7px; line-height: 1.2; font-size: 13px; image-rendering: auto; box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000; }
-  .px-say::after { content: ""; position: absolute; left: 22%; bottom: -12px; width: 9px; height: 9px; background: #000; }
+  .px-say::after { content: ""; position: absolute; left: var(--tail, 22%); bottom: -12px; width: 9px; height: 9px; background: #000; }
   .px-say b { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #1f3f8f; }
   .px-shop.mad .px-say { animation: px-shake .35s steps(2) 2; }
-  .px-shop.mad::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 75% 35%, rgba(111, 163, 245, .45), transparent 45%); animation: px-zap .6s steps(3) 1 forwards; }
+  .px-shop.mad::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at var(--hx, 75%) var(--hy, 35%), rgba(111, 163, 245, .45), transparent 45%); animation: px-zap .6s steps(3) 1 forwards; }
   @keyframes px-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
   @keyframes px-zap { 0% { opacity: 1; } 50% { opacity: .2; } 70% { opacity: .9; } 100% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .px-shop.mad .px-say, .px-shop.mad::after { animation: none; } .px-shop.mad::after { display: none; } }
@@ -314,7 +315,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 39;
+const VERSION = 40;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -649,8 +650,8 @@ function rollHtml() {
 
 /* ── overlay ── */
 let ovKind = null;
-function openOv(html, kind, cls) { const b = $("#ov .box"); b.className = "box " + (cls || ""); b.innerHTML = html; $("#ov").hidden = false; ovKind = kind; hydratePics(); }
-function closeOv() { $("#ov").hidden = true; ovKind = null; R = null; SURGE = null; render(); }
+function openOv(html, kind, cls) { document.documentElement.classList.toggle("shopping", kind === "shop"); const b = $("#ov .box"); b.className = "box " + (cls || ""); b.innerHTML = html; $("#ov").hidden = false; ovKind = kind; hydratePics(); }
+function closeOv() { if (ovKind === "builder" && BLD) BLD.top = $("#ov .box").scrollTop; document.documentElement.classList.remove("shopping"); $("#ov").hidden = true; ovKind = null; R = null; SURGE = null; render(); }
 
 /* ══ actions on the character ══ */
 function damage(c, n) {
@@ -1751,7 +1752,7 @@ function builderHtml() {
   const allAbs = ABS.map(([k]) => k), bonusText = r => Object.entries(r.bonus || {}).map(([k, v]) => `${AB_SHORT[k]} +${v}`).join(", ");
   const raceWord = only14 ? "race" : mix ? "species or race" : "species", tag = x => mix && x ? ` (${x.ed})` : "";
   const nBase = L.species.filter(x => !x.of).length, nSub = L.species.filter(x => x.of).length;
-  let h = `<div class="rr-h">Build a character <small>level 1 · the ${srdOf(b.ed)}, or your own</small></div>
+  let h = `<div class="rr-h">Build a character <small>level 1 · the ${srdOf(b.ed)}, or your own</small><button class="btn small" style="margin-left:auto" data-act="bldover">Start over</button></div>
     ${seg("ed", [["2024", "2024 rules"], ["2014", "2014 rules"], ["mix", "Mix both"]], b.ed, "blded")}
     <label class="fld"><span>Starting level</span>${sel("toLevel", Array.from({ length: 20 }, (_, i) => [String(i + 1), `Level ${i + 1}`]), b.toLevel || "1")}</label>
     ${+b.toLevel > 1 ? `<p class="note">This page makes level 1. Then each level up to ${+b.toLevel} comes in turn, with the level-up's choices: hit points, a class for that level (so they can start multiclassed), a subclass, ability scores or a feat, and spells. “Finish later” stops at any level. Starting at level ${+b.toLevel} also brings ${esc(hiStartText(+b.toLevel))} (step 6).</p>` : ""}
@@ -2034,15 +2035,29 @@ function shopHtml() {
   // Vorsk at the stall is the whole picture (Joseph's, pictures/vorsk-stall.jpg); the box of wares floats on the left
   // and scrolls on its own, and Vorsk talks from beside his head
   return `<div class="px-shop${SHOP.mad ? " mad" : ""}" role="img" aria-label="${SHOPKEEP}, a blue dragonborn, at a market stall">
-    <div class="px-box"><div class="px-boxhead"><div class="px-counter">${pxSvg(PX_ICONS.coin, 2)}<span class="px-gold">${g.cp < 0 ? `${esc(fmtCp(-g.cp))} short` : esc(fmtCp(g.cp))}</span><small>${g.cp < 0 ? "sell or put back" : "to spend"}</small></div>
+    <div class="px-box"><div class="px-boxhead"><div class="px-counter">${pxSvg(PX_ICONS.coin, 2)}<span class="px-gold">${g.cp < 0 ? `${esc(fmtCp(-g.cp))} short` : esc(fmtCp(g.cp))}</span><small>${g.cp < 0 ? "sell or put back" : "to spend"}</small><button class="px-btn px-done" data-act="shopback">Done shopping</button></div>
       <div class="px-tabs">${tab("buy", "Buy")}${tab("sell", "Sell")}${tab("basket", `Basket${nb + ns + nt ? ` (${nb + ns + nt})` : ""}`)}</div></div>
-      <div class="px-scroll">${SHOP.note ? `<p class="px-note">${esc(SHOP.note)}</p>` : ""}<div class="px-body">${body}</div></div>
-      <button class="px-btn wide" data-act="shopback">Done shopping</button></div>
+      <div class="px-scroll">${SHOP.note ? `<p class="px-note">${esc(SHOP.note)}</p>` : ""}<div class="px-body">${body}</div></div></div>
     <div class="px-say"><b>${SHOPKEEP}</b>${esc(SHOP.say)}</div></div>`;
 }
 // the owed magic items taken in the shop (or picked in step 6 from the list), for the basket
 const shopTaken = () => { const r = hiStart(+BLD.toLevel); return r ? hiSlots(r).map(k => ({ k, x: magicById((BLD.magic || {})[k]) })).filter(o => o.x) : []; };
-function reShop() { const s = $("#ov .px-scroll"), top = s ? s.scrollTop : 0; $("#ov .box").innerHTML = shopHtml(); const n = $("#ov .px-scroll"); if (n) n.scrollTop = top; }
+function reShop() { const s = $("#ov .px-scroll"), top = s ? s.scrollTop : 0; $("#ov .box").innerHTML = shopHtml(); const n = $("#ov .px-scroll"); if (n) n.scrollTop = top; shopLayout(); }
+// the picture is framed so Vorsk stands in the middle of what the box leaves open, and the bubble sits just above his
+// head, whatever the screen's shape. Where he is in the picture: his middle at 52% across, the top of his horns 27% down.
+const STALL = { w: 1600, h: 893, x: .52, head: .27 };
+function shopLayout() {
+  const shop = $("#ov .px-shop"), box = shop && shop.querySelector(".px-box"), say = shop && shop.querySelector(".px-say"); if (!shop || !box || !say) return;
+  const w = shop.clientWidth, h = shop.clientHeight, open = box.offsetLeft + box.offsetWidth, k = Math.max(w / STALL.w, h / STALL.h), rw = STALL.w * k, rh = STALL.h * k;
+  const ox = Math.min(0, Math.max(w - rw, open + (w - open) / 2 - STALL.x * rw)), oy = (h - rh) / 2;
+  shop.style.backgroundPosition = `${ox}px ${oy}px`; shop.style.backgroundSize = `${rw}px ${rh}px`;
+  const hx = ox + STALL.x * rw, hy = oy + STALL.head * rh, bw = Math.min(260, w - open - 20);
+  say.style.width = bw + "px"; say.style.left = Math.min(w - bw - 10, Math.max(open + 10, hx - bw * .3)) + "px";
+  say.style.top = Math.max(10, hy - say.offsetHeight - 22) + "px"; say.style.setProperty("--tail", Math.min(bw - 20, Math.max(8, hx - say.offsetLeft - 4)) + "px");
+  shop.style.setProperty("--hx", hx + "px"); shop.style.setProperty("--hy", hy + "px");
+}
+addEventListener("resize", () => { if (ovKind === "shop") shopLayout(); });
+if (document.fonts) document.fonts.ready.then(() => { if (ovKind === "shop") shopLayout(); });
 function shopSumHtml() {
   const g = bldGear(), nb = g.bought.reduce((a, o) => a + o.n, 0), ns = g.sold.reduce((a, s) => a + s.n, 0), hi = hiStart(+BLD.toLevel), unrolled = hi && hi.gp && !(+BLD.hiRoll >= 1 && +BLD.hiRoll <= 10);
   return `<div id="bldShop"><div class="row" style="align-items:center;margin:8px 0 4px"><button class="btn main" data-act="shopopen">Shop for Gear</button>
@@ -2708,7 +2723,7 @@ function pcsHtml() {
         ${db.chars.length > 1 ? `<button class="btn small danger" data-act="delpc" data-id="${ch.id}">Delete…</button>` : ""}</div></div>`;
   }).join("");
   return `<p class="note">Every character you play. Tap one to play them; the other tabs follow whoever is playing now.</p>${cards}
-    <button class="btn wide main" data-act="newbuild">+ Build a character (the SRD, or your own)</button>
+    <button class="btn wide main" data-act="newbuild">${BLD ? `Carry on building${bldName(BLD.cls, BLD.clsT) || BLD.name ? ` (${esc([BLD.name.trim(), bldName(BLD.cls, BLD.clsT).replace(/@.*/, "")].filter(Boolean).join(", "))})` : ""}` : "+ Build a character (the SRD, or your own)"}</button>
     <button class="btn wide" data-act="newchar">+ A blank sheet</button>
     ${syncPanelHtml()}
     ${libraryHtml()}
@@ -3161,7 +3176,9 @@ document.addEventListener("click", e => {
     case "libdel": { const list = db.lib[el.dataset.kind]; const x = list[+el.dataset.j]; if (confirm(`Take ${x.name} out of the homebrew? (A sheet that has it keeps its copy.)`)) { list.splice(+el.dataset.j, 1); save(); render(); } break; }
     case "levelup": startLevelUp(c); break;
     // the builder
-    case "newbuild": startBuilder(); break;
+    // a build that was put down (Not now, Done shopping) is picked up again where it was; "Start over" begins afresh
+    case "newbuild": if (BLD) { openOv(builderHtml(), "builder"); $("#ov .box").scrollTop = BLD.top || 0; } else startBuilder(); break;
+    case "bldover": BLD = null; startBuilder(); $("#ov .box").scrollTop = 0; break;
     case "blded": startBuilder(el.dataset.v); break;
     case "bldkit": BLD.kit[el.dataset.i] = el.dataset.v; showBuilder(); break;
     case "bldhiroll": BLD.hiRoll = String(rnd(10)); showBuilder(); break;
@@ -3169,8 +3186,10 @@ document.addEventListener("click", e => {
     case "shopopen": { const hi = hiStart(+BLD.toLevel); SHOP_POOL = null; BLD.top = $("#ov .box").scrollTop;
       SHOP = SHOP || { tab: "buy", q: "", kind: "", afford: false }; SHOP.note = "";
       if (hi && hi.gp && !(+BLD.hiRoll >= 1 && +BLD.hiRoll <= 10)) { BLD.hiRoll = String(rnd(10)); SHOP.note = `Rolled the level ${+BLD.toLevel} gold's 1d10: ${BLD.hiRoll}, for ${fmtCp(100 * (hi.gp + +BLD.hiRoll * hi.per))}.`; }
-      shopSay("hello"); openOv(shopHtml(), "shop", "shop"); break; }
-    case "shopback": openOv(builderHtml(), "builder"); $("#ov .box").scrollTop = BLD.top || 0; break;
+      shopSay("hello"); openOv(shopHtml(), "shop", "shop"); shopLayout(); break; }
+    // Done shopping closes the shop and the builder both (Joseph, 2026-11-03), back to the page underneath; the build
+    // and its shopping are kept for "Carry on building"
+    case "shopback": { const left = bldGear().cp; closeOv(); toast(`${left < 0 ? `${fmtCp(-left)} short` : `${fmtCp(left)} left`}. The build is kept: Carry on building (PCs tab) to finish it.`, 3500); break; }
     case "shoptab": SHOP.tab = el.dataset.v; SHOP.note = ""; reShop(); break;
     case "shopafford": SHOP.afford = el.checked; if (SHOP.afford) shopSay("afford"); reShop(); break;
     case "shopmagic": SHOP.magic = el.checked; if (SHOP.magic) shopSay("magic"); reShop(); break;

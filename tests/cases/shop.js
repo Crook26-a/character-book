@@ -9,7 +9,7 @@ const said = () => q(".px-say").textContent.replace(SHOPKEEP, "").trim();
 const sayIn = k => SHOP_SAY[k].includes(said());
 
 step("a 2024 fighter takes the gold instead and goes shopping", () => {
-  ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter");
+  ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter");
   const opt = [...document.querySelectorAll('[name="bldeqc"]')].map(r => r.parentElement.textContent.trim()).find(t => /gold instead/.test(t));
   click('[name="bldeqc"][data-v="C"]'); const sum = q("#bldShop .note").textContent;
   click('[data-act="shopopen"]'); expect(ovKind === "shop", "the shop is open", ovKind); expect(sayIn("hello"), "a greeting", said());
@@ -28,7 +28,7 @@ step("only what I can afford, search, and kinds", () => {
   return `affordable rows ${rows.length}, too dear among them ${dear} | rope: ${rope} | armor filter shows: ${kinds}`;
 });
 step("selling the kit back at full price, and buying it back", () => {
-  click('[data-act="shopback"]'); click('[name="bldeqc"][data-v="A"]'); click('[data-act="shopopen"]'); const before = gold();
+  click('[data-act="shopback"]'); click('[data-act="newbuild"]'); click('[name="bldeqc"][data-v="A"]'); click('[data-act="shopopen"]'); const before = gold();
   click('[data-act="shoptab"][data-v="sell"]'); const first = [...document.querySelectorAll('[data-act="shopsell"]')].map(b => b.dataset.name);
   const cm = first.find(n => /chain/i.test(n)); expect(cm, "chain mail to sell", first.join(", ")); click(`[data-act="shopsell"][data-name="${cm}"]`); expect(sayIn("sell"), "a buying line", said()); const sold = gold();
   click(`[data-act="shopunsell"][data-name="${cm}"]`); const spent = `${sayIn("broke") ? "refused" : "allowed"}, ${gold()}`;
@@ -39,29 +39,29 @@ step("selling the kit back at full price, and buying it back", () => {
 });
 step("the basket, then the character is made with it", () => {
   click('[data-act="shoptab"][data-v="basket"]'); const lines = [...document.querySelectorAll(".px-body .px-row")].map(r => r.textContent.replace(/\s+/g, " ").trim()).join(" / ");
-  click('[data-act="shopback"]'); const sum = q("#bldShop .note").textContent;
+  click('[data-act="shopback"]'); click('[data-act="newbuild"]'); const sum = q("#bldShop .note").textContent;
   typ('[data-bld="name"]', "Test Shopper"); click('[data-act="bldmake"]'); const c = C();
   return `basket: ${lines} | builder: ${sum} | made: ${c.items.map(it => `${it.qty > 1 ? it.qty + " " : ""}${it.name}`).join(", ")}; purse ${JSON.stringify(c.purse)}; AC ${c.ac}; log: ${(c.log || []).map(l => l.text).find(t => /Shopped/.test(t))}`;
 });
 step("a 2014 build can take gold instead of the class's equipment", () => {
-  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); click('[data-act="blded"][data-v="2014"]'); sel('[data-bld="cls"]', "Fighter");
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); click('[data-act="blded"][data-v="2014"]'); sel('[data-bld="cls"]', "Fighter");
   click('[data-act="bldkitgold"]'); const left1 = q("#bldGo").textContent.match(/the Fighter's starting gold/) ? "asks for the gold" : "doesn't ask";
   typ('[data-bld="kitGoldT"]', "120"); const sum = q("#bldShop .note").textContent, left2 = /starting gold/.test(q("#bldGo").textContent) ? "still asks" : "satisfied";
   return `${left1}; typed 120: ${sum}; ${left2}; a lookup note: ${!!q(".lookup")}`;
 });
 step("magic items at estimated value, only when switched on (SRD 5.2 values by rarity)", () => {
-  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
   typ('[data-bld="eqT"]', "1000 GP"); click('[data-act="shopopen"]');
   const off = shopPool().filter(x => x.est).length, shown0 = document.querySelectorAll('#shopList [data-id^="srd:bag-of-holding"]').length;
   click('[data-act="shopmagic"]'); expect(sayIn("magic"), "a magic line", said()); expect(q(".px-dm"), "the DM note");
   const price = id => { const r = q(`#shopList [data-id="${id}"]`); return r ? r.closest(".px-row").textContent.replace(/\s+/g, " ").trim() : "(not listed)"; };
   const rows = ["srd:bag-of-holding", "srd:potion-of-healing", "srd:longsword-plus-1#+2", "srd:feather-token-anchor#Uncommon", "srd:oil-of-slipperiness"].map(price).join(" / ");
-  click('[data-act="shopbuy"][data-id="srd:longsword-plus-1#+1"]'); const g = gold(); click('[data-act="shopback"]');
+  click('[data-act="shopbuy"][data-id="srd:longsword-plus-1#+1"]'); const g = gold(); click('[data-act="shopback"]'); click('[data-act="newbuild"]');
   typ('[data-bld="name"]', "Test Magic"); click('[data-act="bldmake"]'); const c = C(), it = c.items.find(i => /Longsword, \+1/.test(i.name));
   return `estimated items ${off}, shown before switching on ${shown0} | ${rows} | after a Longsword, +1: ${g} | on the sheet: ${it ? `${it.name}, ${worthText(it)}, from ${it.from}` : "(missing)"}`;
 });
 step("magic items owed for the starting level are taken free, with the magic switch off", () => {
-  closeOv(); ui.tab = "pcs"; render(); click('[data-act="newbuild"]'); sel('[data-bld="toLevel"]', "5"); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); sel('[data-bld="toLevel"]', "5"); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
   BLD.hiRoll = "2"; showBuilder(); click('[data-act="shopopen"]'); const g0 = gold(), owed = q(".px-owed").textContent.replace(/\s+/g, " ");
   const freeHead = (q("#shopList .px-kind") || {}).textContent, takes = document.querySelectorAll('#shopList [data-act="shoptake"]').length;
   click('[data-act="shoptake"][data-id="srd:longsword-plus-1#+1"]'); expect(sayIn("free"), "a free line", said());
@@ -69,7 +69,16 @@ step("magic items owed for the starting level are taken free, with the magic swi
   const common = q('#shopList [data-act="shoptake"]'); const commonName = common && common.closest(".px-row").querySelector(".px-nm").firstChild.textContent.trim(); common.click();
   const banner = q(".px-owed") ? "still owed" : "nothing owed";
   click('[data-act="shoptab"][data-v="basket"]'); const basket = [...document.querySelectorAll(".px-body .px-row")].map(r => r.textContent.replace(/\s+/g, " ").trim()).join(" / ");
-  click('[data-act="shopback"]'); const step6 = q('[data-bld="magic.Uncommon.0"]').selectedOptions[0].textContent;
+  click('[data-act="shopback"]'); click('[data-act="newbuild"]'); const step6 = q('[data-bld="magic.Uncommon.0"]').selectedOptions[0].textContent;
   typ('[data-bld="name"]', "Test Owed"); click('[data-act="bldmake"]'); const c = C(), it = c.items.find(i => /Longsword, \+1/.test(i.name));
   return `gold ${g0} | ${owed} | first group: ${freeHead}, ${takes} to take | took a Longsword, +1: ${after} | took ${commonName}: ${banner} | basket: ${basket} | step 6 shows: ${step6} | made: ${it ? `${it.name}, ${worthText(it)}, from ${it.from}` : "(missing)"}, purse ${c.purse.gp} gp, not finished: ${todoOf(c).filter(t => /magic/.test(t)).join(", ") || "no magic items"}`;
+});
+step("Done shopping closes it all; the build is kept, and Start over begins afresh", () => {
+  closeOv(); ui.tab = "pcs"; render(); BLD = null; click('[data-act="newbuild"]'); sel('[data-bld="cls"]', "Fighter"); click('[name="bldeqc"][data-v="C"]');
+  click('[data-act="shopopen"]'); const full = (() => { const r = q("#ov .box").getBoundingClientRect(); return r.width >= innerWidth - 1 && r.height >= innerHeight - 1; })();
+  const doneAtTop = !!q(".px-boxhead .px-done"); click('[data-act="shopbuy"][data-id="srd:longsword"]'); click(".px-done");
+  const closed = q("#ov").hidden, btn = q('[data-act="newbuild"]').textContent.trim();
+  click('[data-act="newbuild"]'); const kept = `${ovKind}, class ${BLD.cls}, bought ${JSON.stringify(BLD.bought)}`;
+  click('[data-act="bldover"]'); const fresh = `class "${BLD.cls}", bought ${JSON.stringify(BLD.bought || null)}`; closeOv(); BLD = null;
+  return `full screen ${full}, Done at the top ${doneAtTop} | after Done: overlay ${closed ? "closed" : "still open"}, the button says "${btn}" | carried on: ${kept} | Start over: ${fresh}`;
 });
