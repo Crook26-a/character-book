@@ -671,6 +671,8 @@ const primalStr = (c, sk) => raging(c) && barbLv(c) >= 3 && PRIMAL_SK.includes(s
 const bardLv = c => { const k = classesOf(c).find(x => /^bard$/i.test(String(x.cls || "").trim())); return k ? +k.level || 1 : 0; };
 const lore = c => classesOf(c).some(x => /^bard$/i.test(String(x.cls || "").trim()) && /lore/i.test(x.sub || "")) || (/^bard$/i.test(String(c.cls || "").trim()) && /lore/i.test(c.subcls || ""));
 const biDie = lv => lv >= 15 ? 12 : lv >= 10 ? 10 : lv >= 5 ? 8 : 6;
+/* the spell picker for a Bard: Magical Secrets (10) or, for a Lore bard, Magical Discoveries (6) open the Cleric, Druid, and Wizard lists */
+const bardSecrets = (c, cls) => /^bard$/i.test(String(cls || "").trim()) && (bardLv(c) >= 10 || (lore(c) && bardLv(c) >= 6));
 /* Peerless Skill (Lore, 14): a failed ability check or attack roll, a Bardic Inspiration die added; the use isn't spent
    if it still fails (with a DC on the roll the app knows; without, the use comes back from the second button) */
 function peerlessHtml(c, r) {
@@ -1487,7 +1489,7 @@ function pickerHtml(kind) {
     ${srcSeg(kind === "spell" ? libSpells().length : kind === "item" ? libLoot().length : libWeapons().length)}
     <input id="pkQ" placeholder="${{ spell: "Search spells", attack: "Search weapons", item: "Search items" }[kind]}" value="${esc(ui_pk.q)}" style="margin-bottom:8px">
     ${kind === "item" ? `<select id="pkKind" style="width:auto;margin-bottom:8px"><option value="">Every kind</option>${kinds.map(k => `<option ${ui_pk.kind === k ? "selected" : ""}>${esc(k)}</option>`).join("")}</select>` : ""}
-    ${kind === "spell" ? `<div class="row" style="margin-bottom:8px;align-items:center"><label class="check" style="margin:0${fromLib() ? ";display:none" : ""}"><input type="checkbox" id="pkCls" ${ui_pk.cls ? "checked" : ""}> Only ${esc((isMulti(c) && ui_pk.for) || c.cls || "my class")} spells</label>
+    ${kind === "spell" ? `<div class="row" style="margin-bottom:8px;align-items:center"><label class="check" style="margin:0${fromLib() ? ";display:none" : ""}"><input type="checkbox" id="pkCls" ${ui_pk.cls ? "checked" : ""}> Only ${esc((isMulti(c) && ui_pk.for) || c.cls || "my class")} spells${bardSecrets(c, (isMulti(c) && ui_pk.for) || c.cls) ? ` (and the Cleric, Druid, and Wizard lists: ${bardLv(c) >= 10 ? "Magical Secrets" : "Magical Discoveries"})` : ""}</label>
       ${isMulti(c) && classesOf(c).filter(k => classCast(c, k)).length ? `<select id="pkFor" style="width:auto" aria-label="For which class">${classesOf(c).filter(k => classCast(c, k)).map(k => `<option ${ui_pk.for === k.cls ? "selected" : ""}>${esc(k.cls)}</option>`).join("")}</select>` : ""}
       <select id="pkLv" style="width:auto"><option value="">Any level</option>${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => `<option value="${l}" ${ui_pk.lv === String(l) ? "selected" : ""}>${l ? ord(l) + " level" : "Cantrips"}</option>`).join("")}</select></div>` : ""}
     ${kind === "spell" && c.rules === "2014" ? lookup("2014 spell text", "These are the SRD 5.2's 2024 wordings, and some 2014 spells read differently. Check a new one against your 2014 Player's Handbook and change its text under Edit if it differs.") : ""}
@@ -1504,7 +1506,8 @@ function pickerResults(kind) {
   if (kind === "spell") {
     let pool = spellPool();
     const fc = spellListOf(c, (isMulti(c) && ui_pk.for) || c.cls);
-    const fR = ownClassShape((isMulti(c) && ui_pk.for) || c.cls); if (ui_pk.cls && (fc || fR)) pool = pool.filter(s => s.hb || inClassList(fR, s, fc));
+    const fR = ownClassShape((isMulti(c) && ui_pk.for) || c.cls), sec = bardSecrets(c, (isMulti(c) && ui_pk.for) || c.cls);
+    if (ui_pk.cls && (fc || fR)) pool = pool.filter(s => s.hb || inClassList(fR, s, fc) || (sec && /\b(Cleric|Druid|Wizard)\b/.test(s.cls || "")));     // a Bard's Magical Secrets (10) and a Lore bard's Magical Discoveries (6): the Cleric, Druid, and Wizard lists too
     if (ui_pk.lv !== "") pool = pool.filter(s => String(+s.lv || 0) === ui_pk.lv);
     const got = new Set(c.spells.map(s => s.name));
     // after a level-up (ui_pk.lim): only what the class can cast, and no more than it has room for
@@ -1723,6 +1726,13 @@ function levelUpHtml(c) {
   { const T0 = luTarget(c); if (/barbarian/i.test(T0.k.cls || "") && LV.feats.some(f => f.name === "Primal Knowledge")) {     // Primal Knowledge: one more skill from the Barbarian's list
     const free = BARB_SKILLS.filter(k => !skillLv(c, k));
     h += `<label class="fld"><span>Primal Knowledge: a skill from the Barbarian's list</span><select data-lu="pkSkill"><option value="">—</option>${free.map(k => `<option value="${k}" ${LV.pkSkill === k ? "selected" : ""}>${SKILL[k].name}</option>`).join("")}</select></label>${free.length ? "" : `<p class="note">They have every skill on the Barbarian's list already: no skill to add.</p>`}`; } }
+  /* Expertise (a Bard at 2 and 9; a Rogue too): two skills they're proficient in; a Lore bard's Bonus Proficiencies (3): three skills */
+  if (LV.feats.some(f => f.name === "Expertise")) { const pr = Object.keys(SKILL).filter(k => skillLv(c, k) === 1);
+    const sel = i => `<select data-lu="exp${i}"><option value="">—</option>${pr.filter(k => k === LV["exp" + i] || ![LV.exp0, LV.exp1].includes(k)).map(k => `<option value="${k}" ${LV["exp" + i] === k ? "selected" : ""}>${SKILL[k].name}</option>`).join("")}</select>`;
+    h += `<label class="fld"><span>Expertise: two skills they're proficient in</span><div class="row">${sel(0)}${sel(1)}</div></label>${pr.length ? "" : `<p class="note">No proficient skills without Expertise to pick.</p>`}`; }
+  if (LV.feats.some(f => f.name === "Bonus Proficiencies") && (lore(c) || /lore/i.test(LV.subcls || ""))) { const free = Object.keys(SKILL).filter(k => !skillLv(c, k));
+    const sel = i => `<select data-lu="bp${i}"><option value="">—</option>${free.filter(k => k === LV["bp" + i] || ![LV.bp0, LV.bp1, LV.bp2].includes(k)).map(k => `<option value="${k}" ${LV["bp" + i] === k ? "selected" : ""}>${SKILL[k].name}</option>`).join("")}</select>`;
+    h += `<label class="fld"><span>Bonus Proficiencies: three skills</span><div class="row">${sel(0)}${sel(1)}${sel(2)}</div></label>`; }
   h += `<div style="height:8px"></div><div id="luGo">${luGoHtml(c)}</div>${c.buildTo > L ? `<button class="btn wide" data-act="bldlater">Finish later</button>` : `<button class="btn wide" data-act="ovclose">Not now</button>`}`;
   return h;
 }
@@ -1772,6 +1782,9 @@ function applyLevelUp(c) {
     if (f.uses) c.res.push({ id: uid("rs"), name: f.name.trim(), max: +f.max || 1, used: 0, rest: f.rest || "long" });
   });
   for (const [id, v] of Object.entries(LV.atk)) { const a = c.attacks.find(x => x.id === id); if (!a) continue; if (v.hit !== undefined && v.hit !== "") a.hit = +v.hit; if (v.dmgx) a.dmgx = v.dmgx; }
+  /* Bonus Proficiencies, then Expertise, picked in the level-up (2026-11-06) */
+  if (LV.feats.some(f => f.name === "Bonus Proficiencies")) for (const k of [LV.bp0, LV.bp1, LV.bp2]) if (k && SKILL[k] && !skillLv(c, k)) { c.skills[k] = 1; did.push(SKILL[k].name); }
+  if (LV.feats.some(f => f.name === "Expertise")) for (const k of [...new Set([LV.exp0, LV.exp1])]) if (k && SKILL[k] && skillLv(c, k) >= 1) { c.skills[k] = 2; did.push(`${SKILL[k].name} Expertise`); }
   /* the Barbarian's features that change the sheet (2026-11-06) */
   if (/barbarian/i.test(cls || "")) { const got = n => LV.feats.some(f => f.name && f.name.trim() === n);
     if (got("Fast Movement")) { c.speed = (+c.speed || 30) + 10; did.push("Speed +10 ft (Fast Movement)"); }
@@ -3477,8 +3490,10 @@ document.addEventListener("click", e => {
     case "addspell": ui_pk.q = ""; ui_pk.note = ""; ui_pk.lim = false; ui_pk.open = ""; openOv(pickerHtml("spell"), "pick:spell"); setTimeout(() => { const q = $("#pkQ"); if (q) q.focus(); }, 30); break;
     case "pkspell": { const s = spellPool().find(x => x.id === el.dataset.id); if (!s) break;
       const cap = ui_pk.lim && spellCap(c, (isMulti(c) && ui_pk.for) || c.cls);
-      if (cap && (+s.lv ? cap.spells !== null && cap.hasS >= cap.spells : cap.cantrips !== null && cap.hasC >= cap.cantrips)) { toast(`No room for more ${+s.lv ? "spells" : "cantrips"}: take one off first.`); break; }
-      const sp = spellFromData(s);
+      /* a Lore bard's Magical Discoveries (6): their first two spells from the Cleric, Druid, or Wizard list are always prepared, not counted */
+      const disc = lore(c) && bardLv(c) >= 6 && !/\bBard\b/.test(s.cls || "") && /\b(Cleric|Druid|Wizard)\b/.test(s.cls || "") && c.spells.filter(x => x.feat === "Magical Discoveries").length < 2;
+      if (!disc && cap && (+s.lv ? cap.spells !== null && cap.hasS >= cap.spells : cap.cantrips !== null && cap.hasC >= cap.cantrips)) { toast(`No room for more ${+s.lv ? "spells" : "cantrips"}: take one off first.`); break; }
+      const sp = spellFromData(s); if (disc) sp.feat = "Magical Discoveries";
       if (isMulti(c)) { const fc = ui_pk.for || (classesOf(c).find(k => CAST_OF[k.cls]) || {}).cls; if (fc) sp.cls = fc; }   // a multiclass caster's spell belongs to a class
       // keep the list in level order, so the Spells tab reads the same as before
       const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp);
