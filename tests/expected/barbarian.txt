@@ -1,0 +1,2 @@
+1. a Barbarian built at level 1: the Rage card's button spends a use and puts Rage on: Strength checks and saves with Advantage, +2 on a Strength attack: Rage (a Bonus Action; 2 left) | Rage left 1 | Str save adv, Str check adv, Dex save normal | Greataxe: +2 flat (no dice) | End the Rage shown; raging after End: false
+2. Danger Sense at level 2 (not while Incapacitated), Feral Instinct at 7: Advantage on Dexterity saves and Initiative: level 2 Dex save: adv (Danger Sense) | Stunned: normal () | Initiative at 2: normal, at 7: adv (Feral Instinct)

@@ -503,6 +503,9 @@ function autoMode(c, ctx) {
   if (ctx.kind === "check" || ctx.kind === "init") { ["Frightened", "Poisoned"].forEach(k => has(k) && dis.push(k)); if (e >= 1) dis.push("Exhaustion " + e); }
   if (ctx.kind === "save") { if (e >= 3) dis.push("Exhaustion " + e); if (ctx.ab === "dex" && has("Restrained")) dis.push("Restrained"); }
   for (const m of activeMods(c)) { if ((m.adv || []).some(t => hits(t, ctx))) adv.push(m.name); if ((m.dis || []).some(t => hits(t, ctx))) dis.push(m.name); }
+  { const bl = barbLv(c), incap = ["Incapacitated", "Paralyzed", "Petrified", "Stunned", "Unconscious"].some(has);     // the Barbarian (2026-11-06)
+    if (bl >= 2 && ctx.kind === "save" && ctx.ab === "dex" && !incap) adv.push("Danger Sense");
+    if (bl >= 7 && ctx.kind === "init") adv.push("Feral Instinct"); }
   return { mode: adv.length && !dis.length ? "adv" : dis.length && !adv.length ? "dis" : "normal", adv, dis };
 }
 
