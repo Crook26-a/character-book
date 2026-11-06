@@ -72,3 +72,7 @@ Each thing of yours in the library (backgrounds, tables, species and races, clas
 ## Starting above level 1 (v31)
 
 The builder has **Starting level** (1 to 20). It makes level 1, then each level comes in turn as a level-up ("Building Test: level 3 of 7"), with its usual choices: hit points, which class takes the level (so a character can start multiclassed, requirements checked), a subclass, ability scores or a feat, and spells (a caster's spell list opens between levels, with a button on to the next). **Finish later** stops at any level: the Play tab shows how far it got, and "reaching level N" stays on the not-finished list until the character gets there. Starting equipment and gold above level 1 aren't in the SRD, so the app says to ask the DM. A build doesn't add a journal entry for each level.
+
+## Goliaths, Orcs, and the origin feats (v54)
+
+A Goliath's sheet gets **Giant Ancestry** uses (your Proficiency Bonus, back on a Long Rest) and, from level 5, **Large Form** (once a Long Rest). The Giant Ancestry card has **Your giant ancestry** to pick which giant (a "Goliath (Fire)" species picks it too). An Orc gets **Adrenaline Rush** (Proficiency Bonus, back on a Short Rest) and **Relentless Endurance** (once a Long Rest). The uses keep up with the Proficiency Bonus at each level-up. **Alert** (the Criminal's feat) adds the Proficiency Bonus to Initiative (the 2014 feat, +5). The survey gets the giant and the features by name, and plays them out in a fight.

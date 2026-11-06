@@ -1,0 +1,3 @@
+1. a Goliath Fighter built with the Criminal background: Giant Ancestry 2 a Long Rest, no Large Form yet; Alert in Initiative: Goliath | uses: Giant Ancestry 2 (long) | giant "" | Alert true: Initiative 2 (Dex 0 + Alert 2)
+2. the Giant Ancestry card has the pick; picking Fire's Burn keeps it; level 5 brings Large Form and 3 uses; the survey gets both: pick on the card true (shown true) | giant fire | uses: Giant Ancestry 3 (long), Large Form 1 (long) | to the survey: giant fire, feats "Giant Ancestry, Large Form, Powerful Build, Fighting Style, Weapon Mastery, Second Wind, Alert"
+3. an Orc: Adrenaline Rush and Relentless Endurance; page errors: Orc | uses: Adrenaline Rush 2 (short), Relentless Endurance 1 (long) | page errors 0
