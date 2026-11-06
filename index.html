@@ -326,7 +326,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 54;
+const VERSION = 55;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -663,6 +663,35 @@ const raging = c => (c.effects || []).some(e => e.name === "Rage" && e.on !== fa
    Perception, Stealth, or Survival can be a Strength check (the app uses Strength when it's the better) */
 const BARB_SKILLS = ["animal", "athletics", "intimidation", "nature", "perception", "survival"], PRIMAL_SK = ["acrobatics", "intimidation", "perception", "stealth", "survival"];
 const primalStr = (c, sk) => raging(c) && barbLv(c) >= 3 && PRIMAL_SK.includes(sk) && mod(c, "str") > mod(c, SKILL[sk].ab);
+/* Weapon Mastery (Joseph, 2026-11-06): the kinds of weapons whose mastery property they use (c.mastery), picked on the
+   Weapon Mastery card; how many by class and level (Barbarian 2/3 at 4/4 at 10, Fighter 3/4 at 4/5 at 10/6 at 16, Paladin,
+   Ranger, Rogue 2); each kind's property and the properties' words from the SRD 5.2 (Open5e's srd-2024 weapons). The survey
+   plays them out in a fight */
+const WEAPON_MASTERY = {"Battleaxe":"Topple","Blowgun":"Vex","Club":"Slow","Dagger":"Nick","Dart":"Vex","Flail":"Sap","Glaive":"Graze","Greataxe":"Cleave","Greatclub":"Push","Greatsword":"Graze","Halberd":"Cleave","Hand Crossbow":"Vex","Handaxe":"Vex","Heavy Crossbow":"Push","Javelin":"Slow","Lance":"Topple","Light Crossbow":"Slow","Light Hammer":"Nick","Longbow":"Slow","Longsword":"Sap","Mace":"Sap","Maul":"Topple","Morningstar":"Sap","Musket":"Slow","Pike":"Push","Pistol":"Vex","Quarterstaff":"Topple","Rapier":"Vex","Scimitar":"Nick","Shortbow":"Vex","Shortsword":"Vex","Sickle":"Nick","Sling":"Slow","Spear":"Sap","Trident":"Topple","War Pick":"Sap","Warhammer":"Push","Whip":"Slow"};
+const MASTERY_SHOOTS = ["Blowgun", "Hand Crossbow", "Heavy Crossbow", "Light Crossbow", "Longbow", "Musket", "Pistol", "Shortbow", "Sling"];
+const MASTERY_TEXT = {
+  Topple: "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition.",
+  Vex: "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn.",
+  Slow: "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn't exceed 10 feet.",
+  Nick: "When you make the extra attack of the Light property, you can make it as part of the Attack action instead of as a Bonus Action. You can make this extra attack only once per turn.",
+  Sap: "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn.",
+  Graze: "If your attack roll with this weapon misses a creature, you can deal damage to that creature equal to the ability modifier you used to make the attack roll. This damage is the same type dealt by the weapon, and the damage can be increased only by increasing the ability modifier.",
+  Cleave: "If you hit a creature with a melee attack roll using this weapon, you can make a melee attack roll with the weapon against a second creature within 5 feet of the first that is also within your reach. On a hit, the second creature takes the weapon's damage, but don't add your ability modifier to that damage unless that modifier is negative. You can make this extra attack only once per turn.",
+  Push: "If you hit a creature with this weapon, you can push the creature up to 10 feet straight away from yourself if it is Large or smaller." };
+function masteryMax(c) {
+  let n = 0; for (const k of classesOf(c)) { const s = String(k.cls || ""), lv = +k.level || 1;
+    if (/barbarian/i.test(s)) n = Math.max(n, lv >= 10 ? 4 : lv >= 4 ? 3 : 2);
+    else if (/fighter/i.test(s)) n = Math.max(n, lv >= 16 ? 6 : lv >= 10 ? 5 : lv >= 4 ? 4 : 3);
+    else if (/paladin|ranger|rogue/i.test(s)) n = Math.max(n, 2); }
+  return n;
+}
+const masteryKinds = c => Object.keys(WEAPON_MASTERY).filter(k => !(classesOf(c).every(x => /barbarian/i.test(x.cls || "")) && MASTERY_SHOOTS.includes(k)));     // a Barbarian: melee weapons
+function masteryPickHtml(c) {
+  const max = masteryMax(c); if (!max) return "";
+  const on = (c.mastery || []).filter(k => WEAPON_MASTERY[k]);
+  return `<div class="lab" style="margin-top:6px">Your weapons: ${on.length} of ${max}${on.length ? ` (${esc(on.map(k => `${k}: ${WEAPON_MASTERY[k]}`).join(", "))})` : ""}</div>
+    <div class="row" style="flex-wrap:wrap;margin:4px 0">${masteryKinds(c).map(k => `<button class="chip ${on.includes(k) ? "on" : ""}" data-act="mastk" data-k="${esc(k)}" title="${esc(MASTERY_TEXT[WEAPON_MASTERY[k]])}" ${!on.includes(k) && on.length >= max ? "disabled" : ""}>${esc(k)} · ${WEAPON_MASTERY[k]}</button>`).join("")}</div>`;
+}
 /* Alert: the 2024 feat adds their Proficiency Bonus to Initiative, the 2014 one +5 */
 const alertInit = c => { const t = (c.traits || []).find(x => x.name === "Alert"); return !t ? 0 : /Proficiency Bonus/i.test(t.text || "") ? prof(c) : /\+\s*5\b/.test(t.text || "") ? 5 : 0; };
 // the halfling's Luck (2014 "Lucky", 2024 "Luck"): a 1 on the d20 of an attack, check, or save is rerolled, and the new roll stands
@@ -1040,7 +1069,7 @@ function playHtml(c) {
     <div class="lines">${ABS.map(([k, n]) => `<button class="line" data-act="sv" data-ab="${k}"><span class="pf ${c.saveProf.includes(k) ? "on" : ""}"></span><span class="nm">${n}</span><span class="v">${sg(saveOf(c, k))}</span></button>`).join("")}</div>
     <div class="lab" style="margin-bottom:2px">Skills</div>
     <div class="lines">${SKILLS.map(([k, n, ab]) => `<button class="line" data-act="sk" data-k="${k}"><span class="pf ${skillLv(c, k) >= 2 ? "ex" : skillLv(c, k) ? "on" : ""}"></span><span class="nm">${n} <small>${AB_SHORT[ab]}</small></span><span class="v">${sg(skillOf(c, k))}</span></button>`).join("")}</div>`;
-  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
+  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Weapon Mastery" ? masteryPickHtml(c) : ""}${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
     ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return todoHtml(c) + hpPanel + effPanel + stats
@@ -3018,7 +3047,7 @@ function toSurvey(c) {
     skills: [byLv(1) ? `Proficient: ${byLv(1)}.` : "", byLv(2) ? `Expertise: ${byLv(2)}.` : "", others ? `Also ${others}.` : ""].filter(Boolean).join(" "),
     senses: range ? `Darkvision ${range[1]} ft.` : "", langs: langs ? langs[1].trim() : "", looks: c.story.looks || "", persona,
     notes: [c.story.backstory, c.traits.length ? "Features: " + c.traits.map(t => t.name).join(", ") + "." : ""].filter(Boolean).join("\n\n"),
-    feats: c.traits.map(t => t.name).join(", "), giant: c.giant || "",
+    feats: c.traits.map(t => t.name).join(", "), giant: c.giant || "", mastery: (c.mastery || []).slice(),
     purse: { ...c.purse }, death: { s: +c.death.ok || 0, f: +c.death.fail || 0 }, conds: c.conds.slice(), slots, attacks,
     res: c.res.map(r => ({ name: r.name, max: +r.max || 0, used: +r.used || 0, rest: r.rest })).concat(hdPools(c).map(p => ({ name: `Hit Point Dice (d${p.die})`, max: +p.max || 1, used: +p.used || 0, rest: "long" }))),
     spells: c.spells.map(s => ({ name: s.name, lv: s.lvl, time: s.time || "", range: s.range || "", dur: s.dur || "", conc: !!s.conc, save: s.roll && s.roll.kind === "save" ? saveWord[s.roll.save] : s.save ? saveWord[s.save] : "",
@@ -3030,6 +3059,7 @@ function toSurvey(c) {
 function fromSurvey(old, inc) {
   for (const k of ["name", "player", "species", "cls", "subcls", "bg", "align", "level", "ac", "speed", "initBonus", "hpMax", "hp", "temp"]) if (inc[k] !== undefined && inc[k] !== "") old[k] = inc[k];
   old.ab = { ...inc.ab }; old.saveProf = inc.saveProf.slice(); if (inc.giant) old.giant = inc.giant;     // a Goliath's giant, picked on the survey's card
+  if (Array.isArray(inc.mastery) && inc.mastery.length) old.mastery = inc.mastery.slice();     // Weapon Mastery's kinds, picked there
   if (alertInit(old) && inc.initBonus !== undefined && inc.initBonus !== "") old.initBonus = (+inc.initBonus || 0) - alertInit(old);     // the survey's Initiative has Alert in it already (this sheet sent it)
   for (const [k, v] of Object.entries(inc.skills || {})) old.skills[k] = v; // a bard's half proficiency stays where the survey shows none
   old.hd = { ...old.hd, ...inc.hd }; old.death = { ...inc.death }; old.conds = inc.conds.slice(); old.purse = { ...inc.purse };
@@ -3364,6 +3394,9 @@ document.addEventListener("click", e => {
     case "effdel": { const ef = c.effects.find(x => x.id === el.dataset.id); c.effects = c.effects.filter(x => x !== ef); if (ef && ef.name === "Aid") c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break; }
     case "conddel": c.conds = c.conds.filter(k => k !== el.dataset.k); save(); render(); break;
     case "exh": c.exh = Math.max(0, Math.min(6, (+c.exh || 0) + +el.dataset.d)); c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break;
+    case "mastk": { const k = el.dataset.k, L = (c.mastery || []).filter(x => x !== k);
+      if (!(c.mastery || []).includes(k)) { if (L.length >= masteryMax(c)) { toast(`${masteryMax(c)} kinds at this level.`); break; } L.push(k); }
+      c.mastery = L; save(); render(); break; }
     case "rageon": { const r = res(c, "Rage"); if (!r || resLeft(r) <= 0) { toast("No Rage left: a Short Rest brings one back, a Long Rest all."); break; }
       r.used = (+r.used || 0) + 1; c.effects = c.effects.filter(e => e.name !== "Rage"); addEffect(c, ragePreset(c));
       if (berserker(c) && barbLv(c) >= 6) c.conds = c.conds.filter(k => k !== "Charmed" && k !== "Frightened");     // Mindless Rage

@@ -26,6 +26,12 @@ step("level-ups: 3 offers Primal Knowledge's skill (Survival taken); 5 adds 10 f
   const pc = `level ${c.level}: Str ${c.ab.str}, Con ${c.ab.con}, HP max ${hp0} → ${c.hpMax}`; closeOv();
   return `${sk} | ${fm} | raging: Stealth as Strength ${st}, Arcana ${ar}; not raging: ${off} | Primal Champion at ${pc}`;
 });
+step("Weapon Mastery on its card: the Barbarian's kinds (no bows), up to its number; the survey gets them", () => {
+  const c = C(); closeOv(); ui.tab = "play"; render(); const max = masteryMax(c), kinds = masteryKinds(c);
+  for (const k of ["Greataxe", "Handaxe", "Maul", "Javelin", "Warhammer"]) { const b = bq(`[data-act="mastk"][data-k="${k}"]`); if (b && !b.disabled) b.click(); }
+  const off = (bq('[data-act="mastk"][data-k="Warhammer"]') || {}).disabled;
+  return `level ${c.level}: ${max} kinds, from ${kinds.length} (Longbow offered ${kinds.includes("Longbow")}) | picked ${(c.mastery || []).join(", ")} | Warhammer box off ${off} | to the survey: ${JSON.stringify(toSurvey(c).mastery)}`;
+});
 step("Indomitable Might at 18: a Strength save that comes to 6 counts as their Strength score; a Dexterity one doesn't", () => {
   const c = C(), lv0 = c.level, set = n => { c.level = n; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = n; };
   set(18); rollD20({ label: "Test Str save", ctx: { kind: "save", ab: "str" }, parts: [{ name: "Str", v: 0 }] }); R.mode = "normal"; R.d = [6, 6]; showRoll();
