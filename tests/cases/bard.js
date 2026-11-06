@@ -26,6 +26,6 @@ step("level-ups: 2 asks for Expertise (Performance, Persuasion); 3 with the Coll
 });
 step("Jack of All Trades at level 2: half the Proficiency Bonus on a skill they lack, none on one they have", () => {
   const c = C(), set = n => { c.level = n; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = n; };
-  c.skills.performance = 1; const had = "performance", lack = Object.keys(SKILL).find(k => !skillLv(c, k)); const a1 = skillOf(c, lack); set(2); const a2 = skillOf(c, lack), h2 = skillOf(c, had); set(1);
+  c.skills.performance = 1; const had = "performance", lack = Object.keys(SKILL).find(k => !skillLv(c, k)); set(1); const a1 = skillOf(c, lack); set(2); const a2 = skillOf(c, lack), h2 = skillOf(c, had); set(1);
   return `${SKILL[lack].name}: ${a1} at level 1, ${a2} at level 2 | ${SKILL[had].name} (proficient): ${h2} at level 2`;
 });
