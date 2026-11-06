@@ -465,6 +465,7 @@ function activeMods(c) {
 }
 function hits(tok, ctx) {
   if (tok === ctx.kind) return true;
+  if (tok === "rdmg" && ctx.kind === "dmg" && ctx.str) return true;     // Rage: a Strength attack's damage
   if (ctx.kind === "atk" && ((tok === "satk" && ctx.spell) || (tok === "watk" && !ctx.spell))) return true;
   if (ctx.kind === "init" && (tok === "check" || tok === "check:dex")) return true;
   if (tok === ctx.kind + ":" + ctx.ab) return true;
@@ -564,10 +565,10 @@ function rollSummary(r) {
   return r.label;
 }
 function rollDamage(label, expr, o = {}) {
-  const c = C(); const crit = !!o.crit;
-  const r = rollExpr(expr, crit); const extra = o.noMods ? [] : diceFor(c, { kind: "dmg" }).map(m => ({ name: m.name, r: rollExpr(m.bonus, crit) }));
-  const flat = o.noMods ? 0 : flatFor(c, { kind: "dmg" });
-  R = { type: "dmg", label, expr, crit, base: r, extra, flat, dtype: o.dtype || "", heal: !!o.heal, self: !!o.self, save: o.save || null, at: Date.now(), from: o.from || null };
+  const c = C(); const crit = !!o.crit, dctx = { kind: "dmg", str: !!o.str };     // str: a Strength attack's damage (Rage adds to it)
+  const r = rollExpr(expr, crit); const extra = o.noMods ? [] : diceFor(c, dctx).map(m => ({ name: m.name, r: rollExpr(m.bonus, crit) }));
+  const flat = o.noMods ? 0 : flatFor(c, dctx);
+  R = { type: "dmg", label, expr, crit, base: r, extra, flat, dtype: o.dtype || "", heal: !!o.heal, self: !!o.self, save: o.save || null, at: Date.now(), from: o.from || null, str: !!o.str };
   R.total = Math.max(0, r.total + extra.reduce((a, x) => a + x.r.total, 0) + flat);
   pushRoll(c); save(); showRoll();
 }
@@ -593,7 +594,7 @@ function rollAttack(a) {
   if (asWritten(a)) parts = [{ name: "as written", v: +a.hit || 0 }];
   else { parts = [{ name: AB_SHORT[ab], v: mod(c, ab) }]; if (a.prof !== false) parts.push({ name: "Prof", v: prof(c) }); if (+a.bonus) parts.push({ name: "Weapon", v: +a.bonus }); }
   const ctx = { kind: "atk", spell: false }; const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
-  rollD20({ label: a.name, sub: "attack", ctx, parts, ammo: a.ammo, dmg: dmgOfAtk(c, a) ? { label: a.name + " damage", expr: dmgOfAtk(c, a), dtype: a.dtype } : null });
+  rollD20({ label: a.name, sub: "attack", ctx, parts, ammo: a.ammo, dmg: dmgOfAtk(c, a) ? { label: a.name + " damage", expr: dmgOfAtk(c, a), dtype: a.dtype, str: !asWritten(a) && ab === "str" } : null });
 }
 function rollSpellAttack(sp, lvl) {
   const c = C(); const ab = castAbFor(c, sp), parts = [{ name: AB_SHORT[ab], v: mod(c, ab) }, { name: "Prof", v: prof(c) }];
@@ -639,6 +640,18 @@ function ensureOrigins(c) {
   if (!c.giant && has("Giant Ancestry")) { const m = /\((cloud|fire|frost|hill|stone|storm)\b/i.exec(String(c.species || "")); if (m) { c.giant = m[1].toLowerCase(); did = true; } }
   return did;
 }
+/* the Barbarian (Joseph, 2026-11-06: the SRD's class features): their Barbarian level, a Berserker, and Rage as an effect
+   put on from the Rage card (it spends a use): Advantage on Strength checks and saves, the Rage Damage bonus on Strength
+   attacks; its Resistance and the rest are told on it. The survey does the same in a fight */
+const barbLv = c => { const k = classesOf(c).find(x => /barbarian/i.test(x.cls || "")); return k ? +k.level || 1 : 0; };
+const berserker = c => classesOf(c).some(x => /barbarian/i.test(x.cls || "") && /berserker/i.test(x.sub || "")) || (/barbarian/i.test(c.cls || "") && /berserker/i.test(c.subcls || ""));
+const rageDmg = lv => lv >= 16 ? 4 : lv >= 9 ? 3 : 2;
+function ragePreset(c) {
+  const lv = barbLv(c);
+  return { name: "Rage", to: ["rdmg"], bonus: String(rageDmg(lv)), adv: ["check:str", "save:str"],
+    note: `Resistance to Bludgeoning, Piercing, and Slashing; +${rageDmg(lv)} damage on Strength attacks; no spells or Concentration${berserker(c) && lv >= 6 ? "; immune to Charmed and Frightened" : ""}. ${lv >= 15 ? "Lasts 10 minutes" : "Keep it up each turn: attack an enemy, force a save, or a Bonus Action"}` };
+}
+const raging = c => (c.effects || []).some(e => e.name === "Rage" && e.on !== false);
 /* Alert: the 2024 feat adds their Proficiency Bonus to Initiative, the 2014 one +5 */
 const alertInit = c => { const t = (c.traits || []).find(x => x.name === "Alert"); return !t ? 0 : /Proficiency Bonus/i.test(t.text || "") ? prof(c) : /\+\s*5\b/.test(t.text || "") ? 5 : 0; };
 // the halfling's Luck (2014 "Lucky", 2024 "Luck"): a 1 on the d20 of an attack, check, or save is rerolled, and the new roll stands
@@ -1016,7 +1029,7 @@ function playHtml(c) {
     <div class="lines">${ABS.map(([k, n]) => `<button class="line" data-act="sv" data-ab="${k}"><span class="pf ${c.saveProf.includes(k) ? "on" : ""}"></span><span class="nm">${n}</span><span class="v">${sg(saveOf(c, k))}</span></button>`).join("")}</div>
     <div class="lab" style="margin-bottom:2px">Skills</div>
     <div class="lines">${SKILLS.map(([k, n, ab]) => `<button class="line" data-act="sk" data-k="${k}"><span class="pf ${skillLv(c, k) >= 2 ? "ex" : skillLv(c, k) ? "on" : ""}"></span><span class="nm">${n} <small>${AB_SHORT[ab]}</small></span><span class="v">${sg(skillOf(c, k))}</span></button>`).join("")}</div>`;
-  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
+  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
     ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return todoHtml(c) + hpPanel + effPanel + stats
@@ -3331,6 +3344,11 @@ document.addEventListener("click", e => {
     case "effdel": { const ef = c.effects.find(x => x.id === el.dataset.id); c.effects = c.effects.filter(x => x !== ef); if (ef && ef.name === "Aid") c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break; }
     case "conddel": c.conds = c.conds.filter(k => k !== el.dataset.k); save(); render(); break;
     case "exh": c.exh = Math.max(0, Math.min(6, (+c.exh || 0) + +el.dataset.d)); c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break;
+    case "rageon": { const r = res(c, "Rage"); if (!r || resLeft(r) <= 0) { toast("No Rage left: a Short Rest brings one back, a Long Rest all."); break; }
+      r.used = (+r.used || 0) + 1; c.effects = c.effects.filter(e => e.name !== "Rage"); addEffect(c, ragePreset(c));
+      if (berserker(c) && barbLv(c) >= 6) c.conds = c.conds.filter(k => k !== "Charmed" && k !== "Frightened");     // Mindless Rage
+      save(); render(); toast(`Raging: +${rageDmg(barbLv(c))} on Strength attacks' damage, Advantage on Strength checks and saves.`); break; }
+    case "rageoff": { c.effects = c.effects.filter(e => e.name !== "Rage"); save(); render(); toast("The Rage ends."); break; }
     case "traiteff": { const t = c.traits[+el.dataset.i]; const p = PRESETS.find(x => x.name === t.effect); if (p) { addEffect(c, p); save(); render(); toast(`${p.name} is on.`); } break; }
     // rolls
     case "init": rollInit(); break;
@@ -3339,7 +3357,7 @@ document.addEventListener("click", e => {
     case "sv": rollSave(el.dataset.ab); break;
     case "sk": rollCheck(SKILL[el.dataset.k].ab, el.dataset.k); break;
     case "atk": rollAttack(c.attacks[+el.dataset.i]); break;
-    case "atkdmg": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name + " damage", dmgOfAtk(c, at), { dtype: at.dtype }); break; }
+    case "atkdmg": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name + " damage", dmgOfAtk(c, at), { dtype: at.dtype, str: !asWritten(at) && atkAb(c, at) === "str" }); break; }
     case "atksave": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name, dmgOfAtk(c, at) || "0", { dtype: at.dtype, save: { ab: at.save.ab, dc: at.save.dc, half: at.save.half } }); break; }
     case "traitroll": { const t = c.traits[+el.dataset.i]; const k = t.rollSkill; if (SKILL[k]) rollCheck(SKILL[k].ab, k); else if (AB_NAME[k]) rollCheck(k); else break;
       R.label = `${t.name}: ${SKILL[k] ? SKILL[k].name : AB_NAME[k]}`; if (t.rollExtra) { const x = rollExpr(t.rollExtra); R.hint = `${t.rollExtra}: ${x.total}`; } showRoll(); break; }
@@ -3354,8 +3372,8 @@ document.addEventListener("click", e => {
       R.d[i] = rnd(20); R.pick = i; R.hlr = `Halfling Luck: the 1 rerolled, ${R.d[i]}; that roll stands.`; { const keep = R; logRoll(c, `${R.label}: ${R.hlr}`); R = keep; } save(); showRoll(); break; }
     case "luckvs": { const r = res(c, "Lucky"); if (!resLeft(r)) { toast("No Luck points left."); break; } r.used++; logRoll(c, `Luck point (${resLeft(r)} left): the attacker has Disadvantage`); save(); render(); toast("Luck point spent: the attack roll against you has Disadvantage (the attacker rolls two d20s and uses the lower).", 5000); break; }
     case "ammoback": { const it = c.items.find(i => i.id === R.ammo); if (it) it.qty++; R.ammo = null; save(); showRoll(); break; }
-    case "rolldmg": { const u = usedD(R); const d = R.dmg; rollDamage(d.label.endsWith("damage") ? d.label : d.label + " damage", d.expr, { dtype: d.dtype, crit: u === 20 }); break; }
-    case "rerolldmg": rollDamage(R.label, R.expr, { dtype: R.dtype, crit: R.crit, heal: R.heal, save: R.save, noMods: !R.extra.length && !R.flat }); break;
+    case "rolldmg": { const u = usedD(R); const d = R.dmg; rollDamage(d.label.endsWith("damage") ? d.label : d.label + " damage", d.expr, { dtype: d.dtype, crit: u === 20, str: !!d.str }); break; }
+    case "rerolldmg": rollDamage(R.label, R.expr, { dtype: R.dtype, crit: R.crit, heal: R.heal, save: R.save, noMods: !R.extra.length && !R.flat, str: !!R.str }); break;
     case "wagerfrom": ui.wager = { roll: String(d20Total(R)), dc: "" }; ui.tab = "items"; closeOv(); toast("Put in the AC or DC it was against."); setTimeout(() => { const i = document.querySelector('[data-wager="dc"]'); if (i) { i.scrollIntoView({ block: "center" }); i.focus(); } }, 60); break;
     case "wagerapply": applyWager(c, el.dataset.slot); break;
     // slots, resources, rests
