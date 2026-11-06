@@ -658,6 +658,10 @@ function ragePreset(c) {
     note: `Resistance to Bludgeoning, Piercing, and Slashing; +${rageDmg(lv)} damage on Strength attacks; no spells or Concentration${berserker(c) && lv >= 6 ? "; immune to Charmed and Frightened" : ""}. ${lv >= 15 ? "Lasts 10 minutes" : "Keep it up each turn: attack an enemy, force a save, or a Bonus Action"}` };
 }
 const raging = c => (c.effects || []).some(e => e.name === "Rage" && e.on !== false);
+/* Primal Knowledge (level 3): a skill from the Barbarian's list at the level-up; and while raging, Acrobatics, Intimidation,
+   Perception, Stealth, or Survival can be a Strength check (the app uses Strength when it's the better) */
+const BARB_SKILLS = ["animal", "athletics", "intimidation", "nature", "perception", "survival"], PRIMAL_SK = ["acrobatics", "intimidation", "perception", "stealth", "survival"];
+const primalStr = (c, sk) => raging(c) && barbLv(c) >= 3 && PRIMAL_SK.includes(sk) && mod(c, "str") > mod(c, SKILL[sk].ab);
 /* Alert: the 2024 feat adds their Proficiency Bonus to Initiative, the 2014 one +5 */
 const alertInit = c => { const t = (c.traits || []).find(x => x.name === "Alert"); return !t ? 0 : /Proficiency Bonus/i.test(t.text || "") ? prof(c) : /\+\s*5\b/.test(t.text || "") ? 5 : 0; };
 // the halfling's Luck (2014 "Lucky", 2024 "Luck"): a 1 on the d20 of an attack, check, or save is rerolled, and the new roll stands
@@ -1670,6 +1674,9 @@ function levelUpHtml(c) {
   if (grow.length) h += `<p class="note" style="margin-top:6px">Did any of these grow?</p>${grow.map(r => { const v = LV.res[r.id] ?? r.max; return `<div class="res"><span class="nm">${esc(r.name)}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="-1">−</button><span class="big">${v}</span><button class="btn tiny" data-act="lures" data-id="${r.id}" data-d="1">+</button></div>`; }).join("")}`;
   const written = c.attacks.filter(a => asWritten(a));
   if (written.length) h += `<p class="note" style="margin-top:10px">Attacks written as on the sheet don't follow the level: change any that do (Sneak Attack, a proficiency bonus).</p>${written.map(a => `<div class="row"><span class="grow" style="align-self:center">${esc(a.name)}</span>${a.save ? "" : `<label class="fld n"><span>To hit</span><input type="number" data-lu="atk.${a.id}.hit" value="${esc(LV.atk[a.id]?.hit ?? a.hit ?? "")}"></label>`}<label class="fld n" style="flex:0 0 110px"><span>Damage</span><input data-lu="atk.${a.id}.dmgx" value="${esc(LV.atk[a.id]?.dmgx ?? a.dmgx ?? "")}"></label></div>`).join("")}`;
+  { const T0 = luTarget(c); if (/barbarian/i.test(T0.k.cls || "") && LV.feats.some(f => f.name === "Primal Knowledge")) {     // Primal Knowledge: one more skill from the Barbarian's list
+    const free = BARB_SKILLS.filter(k => !skillLv(c, k));
+    h += `<label class="fld"><span>Primal Knowledge: a skill from the Barbarian's list</span><select data-lu="pkSkill"><option value="">—</option>${free.map(k => `<option value="${k}" ${LV.pkSkill === k ? "selected" : ""}>${SKILL[k].name}</option>`).join("")}</select></label>${free.length ? "" : `<p class="note">They have every skill on the Barbarian's list already: no skill to add.</p>`}`; } }
   h += `<div style="height:8px"></div><div id="luGo">${luGoHtml(c)}</div>${c.buildTo > L ? `<button class="btn wide" data-act="bldlater">Finish later</button>` : `<button class="btn wide" data-act="ovclose">Not now</button>`}`;
   return h;
 }
@@ -1719,6 +1726,12 @@ function applyLevelUp(c) {
     if (f.uses) c.res.push({ id: uid("rs"), name: f.name.trim(), max: +f.max || 1, used: 0, rest: f.rest || "long" });
   });
   for (const [id, v] of Object.entries(LV.atk)) { const a = c.attacks.find(x => x.id === id); if (!a) continue; if (v.hit !== undefined && v.hit !== "") a.hit = +v.hit; if (v.dmgx) a.dmgx = v.dmgx; }
+  /* the Barbarian's features that change the sheet (2026-11-06) */
+  if (/barbarian/i.test(cls || "")) { const got = n => LV.feats.some(f => f.name && f.name.trim() === n);
+    if (got("Fast Movement")) { c.speed = (+c.speed || 30) + 10; did.push("Speed +10 ft (Fast Movement)"); }
+    if (got("Primal Knowledge") && LV.pkSkill && SKILL[LV.pkSkill]) { c.skills[LV.pkSkill] = Math.max(1, skillLv(c, LV.pkSkill)); did.push(`${SKILL[LV.pkSkill].name} (Primal Knowledge)`); }
+    if (got("Primal Champion")) { const con0 = mod(c, "con"); c.ab.str = Math.min(25, (+c.ab.str || 10) + 4); c.ab.con = Math.min(25, (+c.ab.con || 10) + 4);
+      const hpUp = (mod(c, "con") - con0) * N; if (hpUp > 0) { c.hpMax = (+c.hpMax || 0) + hpUp; c.hp = (+c.hp || 0) + hpUp; } did.push(`Strength and Constitution +4 (Primal Champion)${hpUp > 0 ? `, hit points +${hpUp}` : ""}`); } }
   const at = isMulti(c) ? ` (${cls} ${K})` : "";
   if (ensureLucky(c)) did.push("3 Luck points");
   if (ensureOrigins(c)) did.push("their species' uses");
@@ -3361,7 +3374,7 @@ document.addEventListener("click", e => {
     case "satk": rollSpellAttack(el.dataset.cls ? { cls: el.dataset.cls, name: `${el.dataset.cls} spell attack` } : null); break;
     case "chk": rollCheck(el.dataset.ab); break;
     case "sv": rollSave(el.dataset.ab); break;
-    case "sk": rollCheck(SKILL[el.dataset.k].ab, el.dataset.k); break;
+    case "sk": { const sk = el.dataset.k, ab0 = SKILL[sk].ab, ab = primalStr(c, sk) ? "str" : ab0; rollCheck(ab, sk); if (ab !== ab0) toast(`Primal Knowledge: rolled as a Strength check while raging.`); break; }
     case "atk": rollAttack(c.attacks[+el.dataset.i]); break;
     case "atkdmg": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name + " damage", dmgOfAtk(c, at), { dtype: at.dtype, str: !asWritten(at) && atkAb(c, at) === "str" }); break; }
     case "atksave": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name, dmgOfAtk(c, at) || "0", { dtype: at.dtype, save: { ab: at.save.ab, dc: at.save.dc, half: at.save.half } }); break; }

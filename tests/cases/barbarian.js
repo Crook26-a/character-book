@@ -16,6 +16,16 @@ step("a Barbarian built at level 1: the Rage card's button spends a use and puts
   bclick('[data-act="rageoff"]'); const off = raging(c);
   return `${before} | Rage left ${resLeft(res(c, "Rage"))} | Str save ${str.mode}, Str check ${chk.mode}, Dex save ${dex.mode} | ${dmg} | ${after}; raging after End: ${off}`;
 });
+step("level-ups: 3 offers Primal Knowledge's skill (Survival taken); 5 adds 10 ft (Fast Movement); raging, Stealth rolls with Strength when it's better", () => {
+  const c = C(), up = () => { closeOv(); ui.tab = "play"; render(); bclick('[data-act="levelup"]'); bclick('[data-act="luavg"]'); };
+  up(); bclick('[data-act="luapply"]'); up(); const pk = !!bq('[data-lu="pkSkill"]'); bsel('[data-lu="pkSkill"]', "survival"); bclick('[data-act="luapply"]');
+  const sk = `level ${c.level}: picker ${pk}, Survival ${skillLv(c, "survival")}`; const sp0 = c.speed; up(); bsel('[data-lu="a"]', "str"); bsel('[data-lu="b"]', "con"); bclick('[data-act="luapply"]'); up(); bclick('[data-act="luapply"]');
+  const fm = `level ${c.level}: speed ${sp0} → ${c.speed}`; closeOv(); c.ab.str = 16; c.ab.dex = 10; addEffect(c, ragePreset(c));
+  const st = primalStr(c, "stealth"), ar = primalStr(c, "arcana"); c.effects = c.effects.filter(e => e.name !== "Rage"); const off = primalStr(c, "stealth");
+  c.level = 19; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = 19; c.ab.str = 23; c.ab.con = 14; const hp0 = c.hpMax; up(); bclick('[data-act="luapply"]');
+  const pc = `level ${c.level}: Str ${c.ab.str}, Con ${c.ab.con}, HP max ${hp0} → ${c.hpMax}`; closeOv();
+  return `${sk} | ${fm} | raging: Stealth as Strength ${st}, Arcana ${ar}; not raging: ${off} | Primal Champion at ${pc}`;
+});
 step("Indomitable Might at 18: a Strength save that comes to 6 counts as their Strength score; a Dexterity one doesn't", () => {
   const c = C(), lv0 = c.level, set = n => { c.level = n; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = n; };
   set(18); rollD20({ label: "Test Str save", ctx: { kind: "save", ab: "str" }, parts: [{ name: "Str", v: 0 }] }); R.mode = "normal"; R.d = [6, 6]; showRoll();
