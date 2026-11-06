@@ -24,6 +24,12 @@ step("level-ups: 2 asks for Expertise (Performance, Persuasion); 3 with the Coll
   const got = c.spells.find(s => s.name === cure.name); c.level = 3; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = 3;
   return `${two} || ${three} || level 6 Lore: other lists ${sec}; ${cure.name} offered ${!!add}, added ${!!got} (${got ? got.feat : "-"})`;
 });
+step("Words of Creation: reaching 20 adds Power Word Heal and Power Word Kill, always prepared", () => {
+  const c = C(); c.level = 19; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = 19;
+  closeOv(); ui.tab = "play"; render(); dclick('[data-act="levelup"]'); dclick('[data-act="luavg"]'); dclick('[data-act="luapply"]'); closeOv();
+  const pw = c.spells.filter(s => /^Power Word (Heal|Kill)$/.test(s.name)).map(s => `${s.name} (${s.feat})`); c.level = 3; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = 3;
+  return `level 20: ${pw.join(", ") || "none"}`;
+});
 step("Jack of All Trades at level 2: half the Proficiency Bonus on a skill they lack, none on one they have", () => {
   const c = C(), set = n => { c.level = n; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = n; };
   c.skills.performance = 1; const had = "performance", lack = Object.keys(SKILL).find(k => !skillLv(c, k)); set(1); const a1 = skillOf(c, lack); set(2); const a2 = skillOf(c, lack), h2 = skillOf(c, had); set(1);

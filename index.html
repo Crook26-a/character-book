@@ -1785,6 +1785,9 @@ function applyLevelUp(c) {
   /* Bonus Proficiencies, then Expertise, picked in the level-up (2026-11-06) */
   if (LV.feats.some(f => f.name === "Bonus Proficiencies")) for (const k of [LV.bp0, LV.bp1, LV.bp2]) if (k && SKILL[k] && !skillLv(c, k)) { c.skills[k] = 1; did.push(SKILL[k].name); }
   if (LV.feats.some(f => f.name === "Expertise")) for (const k of [...new Set([LV.exp0, LV.exp1])]) if (k && SKILL[k] && skillLv(c, k) >= 1) { c.skills[k] = 2; did.push(`${SKILL[k].name} Expertise`); }
+  /* Words of Creation (a Bard at 20): Power Word Heal and Power Word Kill always prepared (not counted) */
+  if (LV.feats.some(f => f.name === "Words of Creation")) for (const n of ["Power Word Heal", "Power Word Kill"]) { const s = SRD_SPELLS.find(x => x.name === n);
+    if (s && !c.spells.some(x => x.name === n)) { const sp = spellFromData(s); sp.feat = "Words of Creation"; const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp); did.push(n); } }
   /* the Barbarian's features that change the sheet (2026-11-06) */
   if (/barbarian/i.test(cls || "")) { const got = n => LV.feats.some(f => f.name && f.name.trim() === n);
     if (got("Fast Movement")) { c.speed = (+c.speed || 30) + 10; did.push("Speed +10 ft (Fast Movement)"); }
