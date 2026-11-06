@@ -16,6 +16,13 @@ step("a Barbarian built at level 1: the Rage card's button spends a use and puts
   bclick('[data-act="rageoff"]'); const off = raging(c);
   return `${before} | Rage left ${resLeft(res(c, "Rage"))} | Str save ${str.mode}, Str check ${chk.mode}, Dex save ${dex.mode} | ${dmg} | ${after}; raging after End: ${off}`;
 });
+step("Indomitable Might at 18: a Strength save that comes to 6 counts as their Strength score; a Dexterity one doesn't", () => {
+  const c = C(), lv0 = c.level, set = n => { c.level = n; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = n; };
+  set(18); rollD20({ label: "Test Str save", ctx: { kind: "save", ab: "str" }, parts: [{ name: "Str", v: 0 }] }); R.mode = "normal"; R.d = [6, 6]; showRoll();
+  const note = (bq("#ov").textContent.match(/Indomitable Might:[^.]*/) || ["no note"])[0], s = `${d20Raw(R)} → ${d20Total(R)}`; closeOv();
+  rollD20({ label: "Test Dex save", ctx: { kind: "save", ab: "dex" }, parts: [{ name: "Dex", v: 0 }] }); R.mode = "normal"; R.d = [6, 6]; const d = d20Total(R); closeOv(); set(lv0);
+  return `Strength ${c.ab.str}: ${s} (${note}) | Dexterity save: ${d}`;
+});
 step("Danger Sense at level 2 (not while Incapacitated), Feral Instinct at 7: Advantage on Dexterity saves and Initiative", () => {
   const c = C(), lv0 = c.level; c.level = 2; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = 2;
   const ds = autoMode(c, { kind: "save", ab: "dex" }); c.conds.push("Stunned"); const stunned = autoMode(c, { kind: "save", ab: "dex" }); c.conds = c.conds.filter(k => k !== "Stunned");

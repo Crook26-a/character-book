@@ -557,7 +557,10 @@ function usedD(r) {
   return r.mode === "adv" ? Math.max(r.d[0], r.d[1]) : r.mode === "dis" ? Math.min(r.d[0], r.d[1]) : r.d[0];
 }
 const flatParts = r => r.parts.reduce((a, p) => a + p.v, 0);
-const d20Total = r => usedD(r) + flatParts(r) + r.dice.reduce((a, x) => a + x.r.total, 0);
+const d20Raw = r => usedD(r) + flatParts(r) + r.dice.reduce((a, x) => a + x.r.total, 0);
+/* Indomitable Might (a Barbarian, level 18): a Strength check or save under their Strength score counts as the score */
+const mightOf = r => { const c = C(), x = r && r.ctx; return c && x && (x.kind === "check" || x.kind === "save") && x.ab === "str" && barbLv(c) >= 18 ? (+c.ab.str || 0) : 0; };
+const d20Total = r => { const t = d20Raw(r), m = mightOf(r); return m && t < m ? m : t; };
 function pushRoll(c) {
   c.rolls = c.rolls || []; c.rolls.unshift(R); if (c.rolls.length > 40) c.rolls.length = 40;
 }
@@ -688,7 +691,7 @@ function rollHtml() {
   return `<div class="rr-h">${esc(r.label)} <small>${esc(r.sub || "")}</small></div>
     <div class="dice">${chips}<span class="total">${tot}</span></div>
     <div class="brk">d20 ${r.real != null ? "(real die) " : ""}${u}${r.parts.map(p => ` ${sg(p.v)} ${esc(p.name)}`).join("")}${r.dice.map(x => ` ${x.r.total < 0 ? "−" : "+"} ${Math.abs(x.r.total)} ${esc(x.name)} (${esc(x.bonus)})`).join("")}</div>
-    ${verdict}${why}${r.hint ? `<p class="note">${esc(r.hint)}</p>` : ""}${r.spent ? `<p class="note">Used up: ${esc(listAnd(r.spent))}.</p>` : ""}
+    ${verdict}${why}${mightOf(r) && d20Raw(r) < mightOf(r) ? `<p class="note">Indomitable Might: ${d20Raw(r)} counts as your Strength score, ${mightOf(r)}.</p>` : ""}${r.hint ? `<p class="note">${esc(r.hint)}</p>` : ""}${r.spent ? `<p class="note">Used up: ${esc(listAnd(r.spent))}.</p>` : ""}
     ${r.ctx.kind !== "death" ? `<div class="row" style="margin-bottom:10px"><div class="seg">${[["normal", "Normal"], ["adv", "Advantage"], ["dis", "Disadvantage"]].map(([k, l]) => `<button class="${r.mode === k ? "on" : ""}" data-act="rmode" data-m="${k}">${l}</button>`).join("")}</div></div>` : ""}
     <div class="row" style="margin-bottom:10px;align-items:center"><span class="lab">Rolled a real die?</span><input type="number" min="1" max="20" inputmode="numeric" style="width:80px" data-act="realdie" value="${r.real ?? ""}" placeholder="d20"></div>
     ${r.luck.length ? `<p class="note">Lucky: tap the die you want to use.</p>` : ""}${r.lucked ? `<p class="note">A Luck point: ${r.lucked === "adv" ? "Advantage, the higher d20" : "it cancels the Disadvantage: one d20"}.</p>` : ""}${r.hlr ? `<p class="note">${esc(r.hlr)}</p>` : ""}
