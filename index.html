@@ -484,7 +484,8 @@ function hpMaxOf(c) { let m = (+c.hpMax || 1) + flatFor(c, { kind: "hpmax" }); i
 function speedOf(c) { const e = exhOf(c); let s = (+c.speed || 30) + flatFor(c, { kind: "speed" }); if (e >= 5 || c.conds.includes("Grappled") || c.conds.includes("Restrained")) return 0; if (e >= 2) s = Math.floor(s / 2); return s; }
 const saveOf = (c, ab) => mod(c, ab) + (c.saveProf.includes(ab) ? prof(c) : 0) + flatFor(c, { kind: "save", ab });
 const skillLv = (c, k) => +(c.skills[k] || 0); // 0, 1 proficient, 2 expertise, .5 half
-const skillOf = (c, k) => mod(c, SKILL[k].ab) + Math.floor(prof(c) * skillLv(c, k)) + flatFor(c, { kind: "check", ab: SKILL[k].ab, skill: k });
+const joat = (c, k) => !skillLv(c, k) && bardLv(c) >= 2 ? Math.floor(prof(c) / 2) : 0;     // a Bard's Jack of All Trades: half the Proficiency Bonus on a skill they lack
+const skillOf = (c, k) => mod(c, SKILL[k].ab) + Math.floor(prof(c) * skillLv(c, k)) + joat(c, k) + flatFor(c, { kind: "check", ab: SKILL[k].ab, skill: k });
 const passiveOf = (c, k) => 10 + skillOf(c, k);
 function atkAb(c, a) { return a.ab === "best" ? (mod(c, "dex") > mod(c, "str") ? "dex" : "str") : (a.ab || "str"); }
 // an attack as written on a sheet: its own to-hit (or a save and DC) and its own damage, not worked out from the scores
@@ -583,7 +584,7 @@ function rollPlain(label, expr, note) { const r = rollExpr(expr); R = { type: "p
 function d20Parts(c, ab, extra) { const p = [{ name: AB_SHORT[ab], v: mod(c, ab) }]; return p.concat(extra || []); }
 function rollCheck(ab, skill) {
   const c = C(); const lv = skill ? skillLv(c, skill) : 0;
-  const parts = d20Parts(c, ab, lv ? [{ name: lv >= 2 ? "Expertise" : lv < 1 ? "Half prof" : "Prof", v: Math.floor(prof(c) * lv) }] : []);
+  const parts = d20Parts(c, ab, lv ? [{ name: lv >= 2 ? "Expertise" : lv < 1 ? "Half prof" : "Prof", v: Math.floor(prof(c) * lv) }] : skill && joat(c, skill) ? [{ name: "Jack of All Trades", v: joat(c, skill) }] : []);
   const ctx = { kind: "check", ab, skill };
   const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
   rollD20({ label: skill ? SKILL[skill].name : AB_NAME[ab] + " check", sub: skill ? AB_SHORT[ab] : "", ctx, parts });
@@ -642,8 +643,9 @@ function ensureOrigins(c) {
   if (has("Adrenaline Rush")) want.push(["Adrenaline Rush", pb, "short"]);
   if (has("Relentless Endurance")) want.push(["Relentless Endurance", 1, "long"]);
   if (has("Intimidating Presence")) want.push(["Intimidating Presence", 1, "long"]);     // a Berserker's, level 14 (once a Long Rest, or spend a Rage)
+  if (has("Bardic Inspiration") && bardLv(c)) want.push(["Bardic Inspiration", Math.max(1, mod(c, "cha")), bardLv(c) >= 5 ? "short" : "long"]);     // a Bard's (Font of Inspiration: a Short Rest too from 5)
   let did = false; c.res = c.res || [];
-  for (const [name, max, rest] of want) { const r = res(c, name); if (!r) { c.res.push({ id: uid("rs"), name, max, used: 0, rest, note: "species" }); did = true; } else if (+r.max !== max) { r.max = max; r.used = Math.min(+r.used || 0, max); did = true; } }
+  for (const [name, max, rest] of want) { const r = res(c, name); if (!r) { c.res.push({ id: uid("rs"), name, max, used: 0, rest, note: "species" }); did = true; } else if (+r.max !== max || r.rest !== rest) { r.max = max; r.rest = rest; r.used = Math.min(+r.used || 0, max); did = true; } }
   if (!c.giant && has("Giant Ancestry")) { const m = /\((cloud|fire|frost|hill|stone|storm)\b/i.exec(String(c.species || "")); if (m) { c.giant = m[1].toLowerCase(); did = true; } }
   return did;
 }
@@ -663,6 +665,18 @@ const raging = c => (c.effects || []).some(e => e.name === "Rage" && e.on !== fa
    Perception, Stealth, or Survival can be a Strength check (the app uses Strength when it's the better) */
 const BARB_SKILLS = ["animal", "athletics", "intimidation", "nature", "perception", "survival"], PRIMAL_SK = ["acrobatics", "intimidation", "perception", "stealth", "survival"];
 const primalStr = (c, sk) => raging(c) && barbLv(c) >= 3 && PRIMAL_SK.includes(sk) && mod(c, "str") > mod(c, SKILL[sk].ab);
+/* the Bard (Joseph, 2026-11-06, the SRD walk-through): their Bard level, the College of Lore, Bardic Inspiration's die
+   (d6; d8 at 5, d10 at 10, d12 at 15). A die someone gave them is c.bi ("8"), picked on the Play tab, and added to a d20
+   roll from the roll's own button */
+const bardLv = c => { const k = classesOf(c).find(x => /^bard$/i.test(String(x.cls || "").trim())); return k ? +k.level || 1 : 0; };
+const lore = c => classesOf(c).some(x => /^bard$/i.test(String(x.cls || "").trim()) && /lore/i.test(x.sub || "")) || (/^bard$/i.test(String(c.cls || "").trim()) && /lore/i.test(c.subcls || ""));
+const biDie = lv => lv >= 15 ? 12 : lv >= 10 ? 10 : lv >= 5 ? 8 : 6;
+/* Peerless Skill (Lore, 14): a failed ability check or attack roll, a Bardic Inspiration die added; the use isn't spent
+   if it still fails (with a DC on the roll the app knows; without, the use comes back from the second button) */
+function peerlessHtml(c, r) {
+  if (!r || r.type !== "d20" || !lore(c) || bardLv(c) < 14 || !(r.ctx && (r.ctx.kind === "check" || r.ctx.kind === "atk")) || r.peerless) return "";
+  const u = res(c, "Bardic Inspiration"); return resLeft(u) > 0 ? `<button class="btn wide" data-act="peerless">Peerless Skill: add a d${biDie(bardLv(c))} (${resLeft(u)} left)</button>` : "";
+}
 /* Weapon Mastery (Joseph, 2026-11-06): the kinds of weapons whose mastery property they use (c.mastery), picked on the
    Weapon Mastery card; how many by class and level (Barbarian 2/3 at 4/4 at 10, Fighter 3/4 at 4/5 at 10/6 at 16, Paladin,
    Ranger, Rogue 2); each kind's property and the properties' words from the SRD 5.2 (Open5e's srd-2024 weapons). The survey
@@ -725,6 +739,7 @@ function rollHtml() {
   return `<div class="rr-h">${esc(r.label)} <small>${esc(r.sub || "")}</small></div>
     <div class="dice">${chips}<span class="total">${tot}</span></div>
     <div class="brk">d20 ${r.real != null ? "(real die) " : ""}${u}${r.parts.map(p => ` ${sg(p.v)} ${esc(p.name)}`).join("")}${r.dice.map(x => ` ${x.r.total < 0 ? "−" : "+"} ${Math.abs(x.r.total)} ${esc(x.name)} (${esc(x.bonus)})`).join("")}</div>
+    ${c.bi ? `<button class="btn wide" data-act="biuse" title="For a failed roll; it's used up">Add your Bardic Inspiration (d${esc(c.bi)})</button>` : ""}${peerlessHtml(c, r)}
     ${verdict}${why}${mightOf(r) && d20Raw(r) < mightOf(r) ? `<p class="note">Indomitable Might: ${d20Raw(r)} counts as your Strength score, ${mightOf(r)}.</p>` : ""}${r.hint ? `<p class="note">${esc(r.hint)}</p>` : ""}${r.spent ? `<p class="note">Used up: ${esc(listAnd(r.spent))}.</p>` : ""}
     ${r.ctx.kind !== "death" ? `<div class="row" style="margin-bottom:10px"><div class="seg">${[["normal", "Normal"], ["adv", "Advantage"], ["dis", "Disadvantage"]].map(([k, l]) => `<button class="${r.mode === k ? "on" : ""}" data-act="rmode" data-m="${k}">${l}</button>`).join("")}</div></div>` : ""}
     <div class="row" style="margin-bottom:10px;align-items:center"><span class="lab">Rolled a real die?</span><input type="number" min="1" max="20" inputmode="numeric" style="width:80px" data-act="realdie" value="${r.real ?? ""}" placeholder="d20"></div>
@@ -1001,6 +1016,7 @@ function nowEditHtml(c) {
     <div class="row">${fld("Death save successes", "death.ok", c.death.ok || 0, { n: 1 })}${fld("Failures", "death.fail", c.death.fail || 0, { n: 1 })}</div>
     <div class="row">${fld("Concentrating on", "conc", c.conc || "")}</div>
     <label class="check"><input type="checkbox" data-f="inspiration" data-t="b" ${c.inspiration ? "checked" : ""}> Inspiration</label>
+    <label class="fld" style="max-width:240px;margin-top:4px" title="A bard gave you one: add it to a failed d20 roll within the hour (the roll's button)"><span>Bardic Inspiration die</span><select data-f="bi"><option value="">None</option>${[6, 8, 10, 12].map(n => `<option value="${n}" ${String(c.bi || "") === String(n) ? "selected" : ""}>d${n}</option>`).join("")}</select></label>
     ${sl.length ? `<div class="lab">Slots spent</div><div class="row">${sl.map(k => fld(c.pact ? `Pact (${ord(+k)})` : ord(+k), `slots.${k}.used`, c.slots[k].used || 0, { n: 1 })).join("")}</div>` : ""}
     ${c.pactSlots ? `<div class="row">${fld(`Pact slots spent (${ord(c.pactSlots.lvl)})`, "pactSlots.used", c.pactSlots.used || 0, { n: 1 })}</div>` : ""}
     ${c.res.length ? `<div class="lab">Uses spent</div><div class="row">${c.res.map((r, i) => fld(esc(r.name), `res.${i}.used`, r.used || 0, { n: 1 })).join("")}</div>` : ""}
@@ -1069,7 +1085,7 @@ function playHtml(c) {
     <div class="lines">${ABS.map(([k, n]) => `<button class="line" data-act="sv" data-ab="${k}"><span class="pf ${c.saveProf.includes(k) ? "on" : ""}"></span><span class="nm">${n}</span><span class="v">${sg(saveOf(c, k))}</span></button>`).join("")}</div>
     <div class="lab" style="margin-bottom:2px">Skills</div>
     <div class="lines">${SKILLS.map(([k, n, ab]) => `<button class="line" data-act="sk" data-k="${k}"><span class="pf ${skillLv(c, k) >= 2 ? "ex" : skillLv(c, k) ? "on" : ""}"></span><span class="nm">${n} <small>${AB_SHORT[ab]}</small></span><span class="v">${sg(skillOf(c, k))}</span></button>`).join("")}</div>`;
-  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Weapon Mastery" ? masteryPickHtml(c) : ""}${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
+  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Weapon Mastery" ? masteryPickHtml(c) : ""}${t.name === "Bardic Inspiration" && bardLv(c) ? `<div class="acts"><button class="btn small" data-act="bigive">Give a d${biDie(bardLv(c))} (a Bonus Action; ${resLeft(res(c, "Bardic Inspiration"))} left)</button>${bardLv(c) >= 5 && (+(res(c, "Bardic Inspiration") || {}).used || 0) > 0 && Object.keys(c.slots).some(k => c.slots[k].max > c.slots[k].used) ? `<button class="btn small" data-act="bifont" title="Font of Inspiration: no action needed">Spend a spell slot: one use back</button>` : ""}</div>` : ""}${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
     ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return todoHtml(c) + hpPanel + effPanel + stats
@@ -3047,7 +3063,7 @@ function toSurvey(c) {
     skills: [byLv(1) ? `Proficient: ${byLv(1)}.` : "", byLv(2) ? `Expertise: ${byLv(2)}.` : "", others ? `Also ${others}.` : ""].filter(Boolean).join(" "),
     senses: range ? `Darkvision ${range[1]} ft.` : "", langs: langs ? langs[1].trim() : "", looks: c.story.looks || "", persona,
     notes: [c.story.backstory, c.traits.length ? "Features: " + c.traits.map(t => t.name).join(", ") + "." : ""].filter(Boolean).join("\n\n"),
-    feats: c.traits.map(t => t.name).join(", "), giant: c.giant || "", mastery: (c.mastery || []).slice(),
+    feats: c.traits.map(t => t.name).join(", "), giant: c.giant || "", mastery: (c.mastery || []).slice(), bi: c.bi ? { die: +c.bi } : null,
     purse: { ...c.purse }, death: { s: +c.death.ok || 0, f: +c.death.fail || 0 }, conds: c.conds.slice(), slots, attacks,
     res: c.res.map(r => ({ name: r.name, max: +r.max || 0, used: +r.used || 0, rest: r.rest })).concat(hdPools(c).map(p => ({ name: `Hit Point Dice (d${p.die})`, max: +p.max || 1, used: +p.used || 0, rest: "long" }))),
     spells: c.spells.map(s => ({ name: s.name, lv: s.lvl, time: s.time || "", range: s.range || "", dur: s.dur || "", conc: !!s.conc, save: s.roll && s.roll.kind === "save" ? saveWord[s.roll.save] : s.save ? saveWord[s.save] : "",
@@ -3060,6 +3076,7 @@ function fromSurvey(old, inc) {
   for (const k of ["name", "player", "species", "cls", "subcls", "bg", "align", "level", "ac", "speed", "initBonus", "hpMax", "hp", "temp"]) if (inc[k] !== undefined && inc[k] !== "") old[k] = inc[k];
   old.ab = { ...inc.ab }; old.saveProf = inc.saveProf.slice(); if (inc.giant) old.giant = inc.giant;     // a Goliath's giant, picked on the survey's card
   if (Array.isArray(inc.mastery) && inc.mastery.length) old.mastery = inc.mastery.slice();     // Weapon Mastery's kinds, picked there
+  if (inc.bi !== undefined) { if (inc.bi) old.bi = String(inc.bi); else delete old.bi; }     // a Bardic Inspiration die they hold
   if (alertInit(old) && inc.initBonus !== undefined && inc.initBonus !== "") old.initBonus = (+inc.initBonus || 0) - alertInit(old);     // the survey's Initiative has Alert in it already (this sheet sent it)
   for (const [k, v] of Object.entries(inc.skills || {})) old.skills[k] = v; // a bard's half proficiency stays where the survey shows none
   old.hd = { ...old.hd, ...inc.hd }; old.death = { ...inc.death }; old.conds = inc.conds.slice(); old.purse = { ...inc.purse };
@@ -3394,6 +3411,13 @@ document.addEventListener("click", e => {
     case "effdel": { const ef = c.effects.find(x => x.id === el.dataset.id); c.effects = c.effects.filter(x => x !== ef); if (ef && ef.name === "Aid") c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break; }
     case "conddel": c.conds = c.conds.filter(k => k !== el.dataset.k); save(); render(); break;
     case "exh": c.exh = Math.max(0, Math.min(6, (+c.exh || 0) + +el.dataset.d)); c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break;
+    case "bigive": { const r = res(c, "Bardic Inspiration"); if (!r || resLeft(r) <= 0) { toast(bardLv(c) >= 5 ? "No Bardic Inspiration left: a Short or Long Rest brings it back, or spend a spell slot." : "No Bardic Inspiration left: a Long Rest brings it back."); break; }
+      r.used = (+r.used || 0) + 1; save(); render(); toast(`A d${biDie(bardLv(c))} to someone within 60 feet who can see or hear you; they add it to a failed d20 roll within the hour.`); break; }
+    case "bifont": { const r = res(c, "Bardic Inspiration"), L = Object.keys(c.slots).map(Number).sort((a, b) => a - b).find(k => c.slots[k].max > c.slots[k].used); if (!r || !L) break;
+      c.slots[L].used = (+c.slots[L].used || 0) + 1; r.used = Math.max(0, (+r.used || 0) - 1); save(); render(); toast(`A ${ord(L)}-level slot spent: Bardic Inspiration ${resLeft(r)} of ${r.max}.`); break; }
+    case "peerless": { if (!R || R.type !== "d20") break; const u = res(c, "Bardic Inspiration"), n = rnd(biDie(bardLv(c))); R.parts.push({ name: "Peerless Skill", v: n }); R.peerless = true;
+      const still = R.dc != null && d20Total(R) < +R.dc; if (!still) u.used = (+u.used || 0) + 1; save(); showRoll(); toast(`Peerless Skill: +${n}${still ? ": still short, so the use isn't spent" : R.dc == null ? ". If it still fails, give the use back on the Rests card" : ""}.`); break; }
+    case "biuse": { if (!R || R.type !== "d20" || !c.bi) break; const n = rnd(+c.bi); R.parts.push({ name: `Bardic Inspiration d${c.bi}`, v: n }); delete c.bi; save(); showRoll(); toast(`Bardic Inspiration: +${n}.`); break; }
     case "mastk": { const k = el.dataset.k, L = (c.mastery || []).filter(x => x !== k);
       if (!(c.mastery || []).includes(k)) { if (L.length >= masteryMax(c)) { toast(`${masteryMax(c)} kinds at this level.`); break; } L.push(k); }
       c.mastery = L; save(); render(); break; }

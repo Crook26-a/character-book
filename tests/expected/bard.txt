@@ -1,0 +1,2 @@
+1. a Bard built at level 1: Bardic Inspiration's uses (Charisma, at least 1), the Give button spends one; a held d8 goes onto a roll: uses 1/1 (long), Cha 10 | Give a d6 (a Bonus Action; 1 left) → 0 left | the roll: 4 → 7 (button true), die now ""
+2. Jack of All Trades at level 2: half the Proficiency Bonus on a skill they lack, none on one they have: Acrobatics: 0 at level 1, 1 at level 2 | Performance (proficient): 2 at level 2
