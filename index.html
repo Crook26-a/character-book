@@ -641,6 +641,7 @@ function ensureOrigins(c) {
   if (has("Large Form") && (+c.level || 1) >= 5) want.push(["Large Form", 1, "long"]);
   if (has("Adrenaline Rush")) want.push(["Adrenaline Rush", pb, "short"]);
   if (has("Relentless Endurance")) want.push(["Relentless Endurance", 1, "long"]);
+  if (has("Intimidating Presence")) want.push(["Intimidating Presence", 1, "long"]);     // a Berserker's, level 14 (once a Long Rest, or spend a Rage)
   let did = false; c.res = c.res || [];
   for (const [name, max, rest] of want) { const r = res(c, name); if (!r) { c.res.push({ id: uid("rs"), name, max, used: 0, rest, note: "species" }); did = true; } else if (+r.max !== max) { r.max = max; r.used = Math.min(+r.used || 0, max); did = true; } }
   if (!c.giant && has("Giant Ancestry")) { const m = /\((cloud|fire|frost|hill|stone|storm)\b/i.exec(String(c.species || "")); if (m) { c.giant = m[1].toLowerCase(); did = true; } }
