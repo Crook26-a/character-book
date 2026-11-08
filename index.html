@@ -326,7 +326,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 57;
+const VERSION = 58;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -3211,8 +3211,8 @@ async function exportAll(only) {
 /* ══ A PDF of the sheet (Joseph, 2026-11-07: "make it exportable to pdf"): the whole sheet with the numbers worked out the
    way the app shows them (AC, saves, skills, attacks, DC), on Letter pages to print or send. jsPDF (MIT, kept here as
    jspdf.umd.min.js and cached by sw.js, so it works offline) loads only when asked. Its built-in fonts know Western
-   letters only, so pdfTxt swaps anything else for a plain one. Shared like a backup: the share sheet on a phone, a
-   download on a computer. ══ */
+   letters only, so pdfTxt swaps anything else for a plain one. It downloads straight away, on a phone too.
+   ══ */
 function loadJsPdf() {
   if (window.jspdf) return Promise.resolve(window.jspdf);
   return new Promise((ok, no) => { const s = document.createElement("script"); s.src = "jspdf.umd.min.js";
@@ -3350,8 +3350,8 @@ async function pdfOf(c) {
   const n = doc.getNumberOfPages(), when = new Date().toLocaleDateString([], { dateStyle: "medium" });
   for (let i = 1; i <= n; i++) { doc.setPage(i); font("normal", 8, SOFT); text(`${c.name} · Character Book · ${when}`, M, H - M + 6); text(`Page ${i} of ${n}`, W - M, H - M + 6, { align: "right" }); }
   const name = `${(c.short || c.name || "character").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "character"}-sheet-${today()}.pdf`;
-  const blob = doc.output("blob"), file = new File([blob], name, { type: "application/pdf" });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); return name; } catch (e) { if (e.name === "AbortError") return name; } }
+  // straight to a download, never the share sheet (Joseph, 2026-11-07: "I want it to be downloadable")
+  const blob = doc.output("blob");
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
   toast("Saved " + name); return name;
 }
