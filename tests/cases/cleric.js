@@ -19,6 +19,13 @@ step("Blessed Strikes at 7 (Wisdom 16): Potent Spellcasting adds +3 to Sacred Fl
   const t0 = R.total, btn = !!kq('[data-act="dstrike"]'); kclick('[data-act="dstrike"][data-k="radiant"]'); const again = !!kq('[data-act="dstrike"]'); const t1 = R.total, ex = R.extra.map(x => x.name).join(", "); closeOv(); delete c.strikes; set(lv0);
   return `Sacred Flame with Potent Spellcasting: ${pot} | ${a.name}: ${t0} → ${t1} (button ${btn}, again ${again}, ${ex})`;
 });
+step("Divine Intervention at 10: its use and button; at 20 Wish takes it away for 2d4 Long Rests", () => {
+  const c = C(), lv0 = c.level, set = n => { c.level = n; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].level = n; }; set(10);
+  if (!c.traits.some(t => t.name === "Divine Intervention")) c.traits.push({ name: "Divine Intervention", text: "", src: "Cleric 10" }); ensureOrigins(c); closeOv(); ui.tab = "play"; render();
+  const r = res(c, "Divine Intervention"), b = !!kq('[data-act="diuse"]'); kclick('[data-act="diuse"]'); const used = `${resLeft(r)} left`; longRest(c);
+  set(20); render(); kclick('[data-act="diuse"][data-k="wish"]'); const w = c.diWait; longRest(c); const after = `${c.diWait || 0} more, ${resLeft(res(c, "Divine Intervention")) ? "ready" : "still gone"}`; delete c.diWait; set(lv0);
+  return `use ${r ? `${r.max} (${r.rest})` : "none"}, button ${b} → ${used} | Wish: ${w} Long Rests | after one: ${after}`;
+});
 step("Divine Order on its card: Thaumaturge (a cantrip more, Wisdom on Religion); Protector (Martial weapons, Heavy armor in the proficiencies)", () => {
   const c = C(); ui.tab = "play"; render(); const cap0 = spellCap(c, "Cleric").cantrips, rel0 = skillOf(c, "religion");
   ksel('[data-clpick="order"]', "thaumaturge"); const thaum = `order ${c.order}: cantrips ${cap0} → ${spellCap(c, "Cleric").cantrips}, Religion ${rel0} → ${skillOf(c, "religion")}`;
