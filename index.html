@@ -575,7 +575,7 @@ function rollDamage(label, expr, o = {}) {
   const c = C(); const crit = !!o.crit, dctx = { kind: "dmg", str: !!o.str };     // str: a Strength attack's damage (Rage adds to it)
   const r = rollExpr(expr, crit); const extra = o.noMods ? [] : diceFor(c, dctx).map(m => ({ name: m.name, r: rollExpr(m.bonus, crit) }));
   const flat = o.noMods ? 0 : flatFor(c, dctx);
-  R = { type: "dmg", label, expr, crit, base: r, extra, flat, dtype: o.dtype || "", heal: !!o.heal, self: !!o.self, save: o.save || null, at: Date.now(), from: o.from || null, str: !!o.str };
+  R = { type: "dmg", label, expr, crit, base: r, extra, flat, dtype: o.dtype || "", heal: !!o.heal, self: !!o.self, save: o.save || null, at: Date.now(), from: o.from || null, str: !!o.str, weapon: !!o.weapon };
   R.total = Math.max(0, r.total + extra.reduce((a, x) => a + x.r.total, 0) + flat);
   pushRoll(c); save(); showRoll();
 }
@@ -601,7 +601,7 @@ function rollAttack(a) {
   if (asWritten(a)) parts = [{ name: "as written", v: +a.hit || 0 }];
   else { parts = [{ name: AB_SHORT[ab], v: mod(c, ab) }]; if (a.prof !== false) parts.push({ name: "Prof", v: prof(c) }); if (+a.bonus) parts.push({ name: "Weapon", v: +a.bonus }); }
   const ctx = { kind: "atk", spell: false }; const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
-  rollD20({ label: a.name, sub: "attack", ctx, parts, ammo: a.ammo, dmg: dmgOfAtk(c, a) ? { label: a.name + " damage", expr: dmgOfAtk(c, a), dtype: a.dtype, str: !asWritten(a) && ab === "str" } : null });
+  rollD20({ label: a.name, sub: "attack", ctx, parts, ammo: a.ammo, dmg: dmgOfAtk(c, a) ? { label: a.name + " damage", expr: dmgOfAtk(c, a), dtype: a.dtype, str: !asWritten(a) && ab === "str", weapon: true } : null });
 }
 function rollSpellAttack(sp, lvl) {
   const c = C(); const ab = castAbFor(c, sp), parts = [{ name: AB_SHORT[ab], v: mod(c, ab) }, { name: "Prof", v: prof(c) }];
@@ -614,6 +614,7 @@ function spellExpr(c, sp, lvl) {
   if (r.up && steps) e = addDice(e, scaleDice(r.up, steps));
   if (sp.lvl === 0 && r.cantrip) { const lv = +c.level || 1; const n = lv >= 17 ? 4 : lv >= 11 ? 3 : lv >= 5 ? 2 : 1; e = scaleDice(r.dice, n); }
   if (r.mod) { const m = mod(c, castAbFor(c, sp)); if (m) e = addDice(e, String(m)); }
+  if (sp.lvl === 0 && r.kind !== "heal" && c.strikes === "potent" && clericLv(c) >= 7 && mod(c, "wis") > 0 && /\bCleric\b/.test(((SRD_SPELLS.find(x => x.name === sp.name) || {}).cls) || "")) e = addDice(e, String(mod(c, "wis")));     // Potent Spellcasting
   return tidyDice(e);
 }
 function tidyDice(expr) { // "1d4+1d4+3" reads as "2d4+3"
@@ -740,6 +741,7 @@ function rollHtml() {
     return `<div class="rr-h">${esc(r.label)} <small>${r.heal ? "healing" : esc(r.dtype || "damage")}${r.crit ? " · critical" : ""}</small></div>
       <div class="total">${r.total}</div>
       <div class="brk">${esc(r.base.text)}${r.extra.map(x => ` + ${esc(x.name)} ${esc(x.r.text)}`).join("")}${r.flat ? ` ${sg(r.flat)} bonuses` : ""}</div>${tgt}
+      ${r.weapon && !r.heal && !r.dstrike && c.strikes === "divine" && clericLv(c) >= 7 ? `<div class="row">${["radiant", "necrotic"].map(k => `<button class="btn grow" data-act="dstrike" data-k="${k}" title="Divine Strike: once on each of your turns, a weapon hit">Divine Strike: +${clericLv(c) >= 14 ? 2 : 1}d8 ${k}</button>`).join("")}</div>` : ""}
       ${r.heal ? `<button class="btn wide good" data-act="healself" data-n="${r.total}">Heal ${esc(c.short || c.name)} by ${r.total}</button>` : ""}
       <div class="row"><button class="btn grow" data-act="rerolldmg">Roll it again</button><button class="btn grow main" data-act="ovclose">Done</button></div>`;
   }
@@ -3599,6 +3601,8 @@ document.addEventListener("click", e => {
     case "effdel": { const ef = c.effects.find(x => x.id === el.dataset.id); c.effects = c.effects.filter(x => x !== ef); if (ef && ef.name === "Aid") c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break; }
     case "conddel": c.conds = c.conds.filter(k => k !== el.dataset.k); save(); render(); break;
     case "exh": c.exh = Math.max(0, Math.min(6, (+c.exh || 0) + +el.dataset.d)); c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break;
+    case "dstrike": { if (!R || R.type !== "dmg" || R.dstrike) break; const x = { name: `Divine Strike (${el.dataset.k})`, r: rollExpr(clericLv(c) >= 14 ? "2d8" : "1d8", R.crit) };
+      R.extra.push(x); R.total += x.r.total; R.dstrike = true; showRoll(); break; }
     case "cdspark": case "cdturn": case "cdpres": { const r = res(c, "Channel Divinity"); if (!r || resLeft(r) <= 0) { toast("No Channel Divinity left: a Short Rest brings one back, a Long Rest all."); break; }
       r.used = (+r.used || 0) + 1; save(); const lv = clericLv(c), w = mod(c, "wis"), dice = `${cdSparkDice(lv)}${w ? sg(w) : ""}`;
       if (el.dataset.act === "cdspark") { const k = el.dataset.k; if (k === "heal") rollDamage("Divine Spark", dice, { heal: true, noMods: true }); else rollDamage("Divine Spark", dice, { dtype: k, save: { ab: "con", dc: dcOf(c), half: true }, noMods: true }); break; }
@@ -3629,7 +3633,7 @@ document.addEventListener("click", e => {
     case "sv": rollSave(el.dataset.ab); break;
     case "sk": { const sk = el.dataset.k, ab0 = SKILL[sk].ab, ab = primalStr(c, sk) ? "str" : ab0; rollCheck(ab, sk); if (ab !== ab0) toast(`Primal Knowledge: rolled as a Strength check while raging.`); break; }
     case "atk": rollAttack(c.attacks[+el.dataset.i]); break;
-    case "atkdmg": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name + " damage", dmgOfAtk(c, at), { dtype: at.dtype, str: !asWritten(at) && atkAb(c, at) === "str" }); break; }
+    case "atkdmg": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name + " damage", dmgOfAtk(c, at), { dtype: at.dtype, str: !asWritten(at) && atkAb(c, at) === "str", weapon: true }); break; }
     case "atksave": { const at = c.attacks[+el.dataset.i]; rollDamage(at.name, dmgOfAtk(c, at) || "0", { dtype: at.dtype, save: { ab: at.save.ab, dc: at.save.dc, half: at.save.half } }); break; }
     case "traitroll": { const t = c.traits[+el.dataset.i]; const k = t.rollSkill; if (SKILL[k]) rollCheck(SKILL[k].ab, k); else if (AB_NAME[k]) rollCheck(k); else break;
       R.label = `${t.name}: ${SKILL[k] ? SKILL[k].name : AB_NAME[k]}`; if (t.rollExtra) { const x = rollExpr(t.rollExtra); R.hint = `${t.rollExtra}: ${x.total}`; } showRoll(); break; }
@@ -3644,8 +3648,8 @@ document.addEventListener("click", e => {
       R.d[i] = rnd(20); R.pick = i; R.hlr = `Halfling Luck: the 1 rerolled, ${R.d[i]}; that roll stands.`; { const keep = R; logRoll(c, `${R.label}: ${R.hlr}`); R = keep; } save(); showRoll(); break; }
     case "luckvs": { const r = res(c, "Lucky"); if (!resLeft(r)) { toast("No Luck points left."); break; } r.used++; logRoll(c, `Luck point (${resLeft(r)} left): the attacker has Disadvantage`); save(); render(); toast("Luck point spent: the attack roll against you has Disadvantage (the attacker rolls two d20s and uses the lower).", 5000); break; }
     case "ammoback": { const it = c.items.find(i => i.id === R.ammo); if (it) it.qty++; R.ammo = null; save(); showRoll(); break; }
-    case "rolldmg": { const u = usedD(R); const d = R.dmg; rollDamage(d.label.endsWith("damage") ? d.label : d.label + " damage", d.expr, { dtype: d.dtype, crit: u === 20, str: !!d.str }); break; }
-    case "rerolldmg": rollDamage(R.label, R.expr, { dtype: R.dtype, crit: R.crit, heal: R.heal, save: R.save, noMods: !R.extra.length && !R.flat, str: !!R.str }); break;
+    case "rolldmg": { const u = usedD(R); const d = R.dmg; rollDamage(d.label.endsWith("damage") ? d.label : d.label + " damage", d.expr, { dtype: d.dtype, crit: u === 20, str: !!d.str, weapon: !!d.weapon }); break; }
+    case "rerolldmg": rollDamage(R.label, R.expr, { dtype: R.dtype, crit: R.crit, heal: R.heal, save: R.save, noMods: !R.extra.length && !R.flat, str: !!R.str, weapon: !!R.weapon }); break;
     case "wagerfrom": ui.wager = { roll: String(d20Total(R)), dc: "" }; ui.tab = "items"; closeOv(); toast("Put in the AC or DC it was against."); setTimeout(() => { const i = document.querySelector('[data-wager="dc"]'); if (i) { i.scrollIntoView({ block: "center" }); i.focus(); } }, 60); break;
     case "wagerapply": applyWager(c, el.dataset.slot); break;
     // slots, resources, rests
