@@ -575,7 +575,7 @@ function rollDamage(label, expr, o = {}) {
   const c = C(); const crit = !!o.crit, dctx = { kind: "dmg", str: !!o.str };     // str: a Strength attack's damage (Rage adds to it)
   const r = rollExpr(expr, crit); const extra = o.noMods ? [] : diceFor(c, dctx).map(m => ({ name: m.name, r: rollExpr(m.bonus, crit) }));
   const flat = o.noMods ? 0 : flatFor(c, dctx);
-  R = { type: "dmg", label, expr, crit, base: r, extra, flat, dtype: o.dtype || "", heal: !!o.heal, self: !!o.self, save: o.save || null, at: Date.now(), from: o.from || null, str: !!o.str, weapon: !!o.weapon };
+  R = { type: "dmg", label, expr, crit, base: r, extra, flat, dtype: o.dtype || "", heal: !!o.heal, self: !!o.self, save: o.save || null, at: Date.now(), from: o.from || null, str: !!o.str, weapon: !!o.weapon, life: +o.life || 0 };
   R.total = Math.max(0, r.total + extra.reduce((a, x) => a + x.r.total, 0) + flat);
   pushRoll(c); save(); showRoll();
 }
@@ -645,8 +645,13 @@ function ensureOrigins(c) {
   if (has("Relentless Endurance")) want.push(["Relentless Endurance", 1, "long"]);
   if (has("Intimidating Presence")) want.push(["Intimidating Presence", 1, "long"]);     // a Berserker's, level 14 (once a Long Rest, or spend a Rage)
   if (has("Divine Intervention") && clericLv(c) >= 10) want.push(["Divine Intervention", 1, "long"]);     // a Cleric's, once a Long Rest
+  /* a Life cleric's always-prepared spells (the Life Domain Spells table: 3, 5, 7, 9) */
+  let lifeAdded = false;
+  if (lifeDomain(c)) for (const [lv, names] of [[3, ["Aid", "Bless", "Cure Wounds", "Lesser Restoration"]], [5, ["Mass Healing Word", "Revivify"]], [7, ["Aura of Life", "Death Ward"]], [9, ["Greater Restoration", "Mass Cure Wounds"]]])
+    if (clericLv(c) >= lv) for (const n of names) { if ((c.spells || []).some(s => s.name === n)) continue; const s = SRD_SPELLS.find(x => x.name === n); if (!s) continue;
+      const sp = spellFromData(s); sp.tag = "D"; c.spells = c.spells || []; const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp); lifeAdded = true; }
   if (has("Bardic Inspiration") && bardLv(c)) want.push(["Bardic Inspiration", Math.max(1, mod(c, "cha")), bardLv(c) >= 5 ? "short" : "long"]);     // a Bard's (Font of Inspiration: a Short Rest too from 5)
-  let did = false; c.res = c.res || [];
+  let did = lifeAdded; c.res = c.res || [];
   for (const [name, max, rest] of want) { const r = res(c, name); if (!r) { c.res.push({ id: uid("rs"), name, max, used: 0, rest, note: "species" }); did = true; } else if (+r.max !== max || r.rest !== rest) { r.max = max; r.rest = rest; r.used = Math.min(+r.used || 0, max); did = true; } }
   if (!c.giant && has("Giant Ancestry")) { const m = /\((cloud|fire|frost|hill|stone|storm)\b/i.exec(String(c.species || "")); if (m) { c.giant = m[1].toLowerCase(); did = true; } }
   return did;
@@ -743,6 +748,7 @@ function rollHtml() {
       <div class="total">${r.total}</div>
       <div class="brk">${esc(r.base.text)}${r.extra.map(x => ` + ${esc(x.name)} ${esc(x.r.text)}`).join("")}${r.flat ? ` ${sg(r.flat)} bonuses` : ""}</div>${tgt}
       ${r.weapon && !r.heal && !r.dstrike && c.strikes === "divine" && clericLv(c) >= 7 ? `<div class="row">${["radiant", "necrotic"].map(k => `<button class="btn grow" data-act="dstrike" data-k="${k}" title="Divine Strike: once on each of your turns, a weapon hit">Divine Strike: +${clericLv(c) >= 14 ? 2 : 1}d8 ${k}</button>`).join("")}</div>` : ""}
+      ${r.heal && r.life ? `<p class="note">Disciple of Life: +${r.life} is in it.${clericLv(c) >= 6 ? "" : ""}</p>${clericLv(c) >= 6 ? `<button class="btn wide" data-act="healself" data-n="${r.life}" title="Blessed Healer: when this heals someone else">Blessed Healer: heal ${esc(c.short || c.name)} by ${r.life}</button>` : ""}` : ""}
       ${r.heal ? `<button class="btn wide good" data-act="healself" data-n="${r.total}">Heal ${esc(c.short || c.name)} by ${r.total}</button>` : ""}
       <div class="row"><button class="btn grow" data-act="rerolldmg">Roll it again</button><button class="btn grow main" data-act="ovclose">Done</button></div>`;
   }
@@ -890,7 +896,10 @@ function cast(c, sp, lvl, how) {
   if (sp.roll) {
     if (sp.roll.kind === "atk") return rollSpellAttack(sp, lvl);
     if (sp.roll.kind === "save") return rollDamage(sp.name, spellExpr(c, sp, lvl), { dtype: sp.roll.type, save: { ab: sp.roll.save, half: !!sp.roll.half, dc: dcOf(c, sp) }, noMods: true });
-    if (sp.roll.kind === "heal") return rollDamage(sp.name, spellExpr(c, sp, lvl), { heal: true, noMods: true });
+    if (sp.roll.kind === "heal") { let e = spellExpr(c, sp, lvl); const L = +lvl || +sp.lvl || 0;     // a Life cleric: Supreme Healing (17) every die at its highest; Disciple of Life (3) 2 + the slot level
+      if (lifeDomain(c) && clericLv(c) >= 17) e = String(parseDice(e).reduce((a, x) => a + x.sign * (x.d ? x.n * x.d : x.k), 0));
+      const dl = lifeDomain(c) && clericLv(c) >= 3 && L > 0 ? 2 + L : 0; if (dl) e = addDice(e, String(dl));
+      return rollDamage(sp.name, e, { heal: true, noMods: true, life: dl }); }
   }
   // Blink: the reminder that its d6 comes at the end of this turn (Joseph, 2026-11-03)
   const blinkNow = c.effects.some(e => e.blink && e.on !== false) && eff === "Blink";

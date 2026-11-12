@@ -26,6 +26,13 @@ step("Divine Intervention at 10: its use and button; at 20 Wish takes it away fo
   set(20); render(); kclick('[data-act="diuse"][data-k="wish"]'); const w = c.diWait; longRest(c); const after = `${c.diWait || 0} more, ${resLeft(res(c, "Divine Intervention")) ? "ready" : "still gone"}`; delete c.diWait; set(lv0);
   return `use ${r ? `${r.max} (${r.rest})` : "none"}, button ${b} → ${used} | Wish: ${w} Long Rests | after one: ${after}`;
 });
+step("Life Domain at 5: its spells always prepared; Cure Wounds at 1st level has +3 (Disciple of Life); at 6 the Blessed Healer button; at 17 every die at its highest", () => {
+  const c = C(), lv0 = c.level, set = n => { c.level = n; if (Array.isArray(c.classes) && c.classes[0]) { c.classes[0].level = n; c.classes[0].sub = "Life Domain"; } c.subcls = "Life Domain"; };
+  set(5); ensureOrigins(c); const life = c.spells.filter(s => s.tag === "D").map(s => s.name).join(", "); const cw = c.spells.find(s => s.name === "Cure Wounds");
+  cast(c, cw, 1); const five = `${R.expr} (life ${R.life})`; closeOv(); set(6); cast(c, cw, 1); showRoll(); const bh = !!kq('[data-act="healself"][data-n="3"]'); closeOv();
+  set(17); cast(c, cw, 1); const sup = `${R.expr} = ${R.total}`; closeOv(); set(lv0); c.subcls = ""; if (Array.isArray(c.classes) && c.classes[0]) c.classes[0].sub = "";
+  return `always prepared: ${life} | level 5 Cure Wounds: ${five} | level 6 Blessed Healer button ${bh} | level 17: ${sup}`;
+});
 step("Divine Order on its card: Thaumaturge (a cantrip more, Wisdom on Religion); Protector (Martial weapons, Heavy armor in the proficiencies)", () => {
   const c = C(); ui.tab = "play"; render(); const cap0 = spellCap(c, "Cleric").cantrips, rel0 = skillOf(c, "religion");
   ksel('[data-clpick="order"]', "thaumaturge"); const thaum = `order ${c.order}: cantrips ${cap0} → ${spellCap(c, "Cleric").cantrips}, Religion ${rel0} → ${skillOf(c, "religion")}`;
