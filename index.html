@@ -584,7 +584,7 @@ function rollPlain(label, expr, note) { const r = rollExpr(expr); R = { type: "p
 function d20Parts(c, ab, extra) { const p = [{ name: AB_SHORT[ab], v: mod(c, ab) }]; return p.concat(extra || []); }
 function rollCheck(ab, skill) {
   const c = C(); const lv = skill ? skillLv(c, skill) : 0;
-  const parts = d20Parts(c, ab, lv ? [{ name: lv >= 2 ? "Expertise" : lv < 1 ? "Half prof" : "Prof", v: Math.floor(prof(c) * lv) }] : skill && joat(c, skill) ? [{ name: "Jack of All Trades", v: joat(c, skill) }] : []).concat(skill && thaumOf(c, skill) ? [{ name: "Thaumaturge", v: thaumOf(c, skill) }] : []);
+  const parts = d20Parts(c, ab, lv ? [{ name: lv >= 2 ? "Expertise" : lv < 1 ? "Half prof" : "Prof", v: Math.floor(prof(c) * lv) }] : skill && joat(c, skill) ? [{ name: "Jack of All Trades", v: joat(c, skill) }] : []).concat(skill && thaumOf(c, skill) ? [{ name: c.porder === "magician" && druidLv(c) ? "Magician" : "Thaumaturge", v: thaumOf(c, skill) }] : []);
   const ctx = { kind: "check", ab, skill };
   const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
   rollD20({ label: skill ? SKILL[skill].name : AB_NAME[ab] + " check", sub: skill ? AB_SHORT[ab] : "", ctx, parts });
@@ -614,7 +614,8 @@ function spellExpr(c, sp, lvl) {
   if (r.up && steps) e = addDice(e, scaleDice(r.up, steps));
   if (sp.lvl === 0 && r.cantrip) { const lv = +c.level || 1; const n = lv >= 17 ? 4 : lv >= 11 ? 3 : lv >= 5 ? 2 : 1; e = scaleDice(r.dice, n); }
   if (r.mod) { const m = mod(c, castAbFor(c, sp)); if (m) e = addDice(e, String(m)); }
-  if (sp.lvl === 0 && r.kind !== "heal" && c.strikes === "potent" && clericLv(c) >= 7 && mod(c, "wis") > 0 && /\bCleric\b/.test(((SRD_SPELLS.find(x => x.name === sp.name) || {}).cls) || "")) e = addDice(e, String(mod(c, "wis")));     // Potent Spellcasting
+  if (sp.lvl === 0 && r.kind !== "heal" && mod(c, "wis") > 0) { const L = ((SRD_SPELLS.find(x => x.name === sp.name) || {}).cls) || "";     // Potent Spellcasting: a Cleric's (Blessed Strikes) or a Druid's (Elemental Fury)
+    if ((c.strikes === "potent" && clericLv(c) >= 7 && /\bCleric\b/.test(L)) || (c.fury === "potent" && druidLv(c) >= 7 && /\bDruid\b/.test(L))) e = addDice(e, String(mod(c, "wis"))); }
   return tidyDice(e);
 }
 function tidyDice(expr) { // "1d4+1d4+3" reads as "2d4+3"
@@ -647,6 +648,14 @@ function ensureOrigins(c) {
   if (has("Divine Intervention") && clericLv(c) >= 10) want.push(["Divine Intervention", 1, "long"]);     // a Cleric's, once a Long Rest
   /* a Life cleric's always-prepared spells (the Life Domain Spells table: 3, 5, 7, 9) */
   let lifeAdded = false;
+  /* a Druid's (2026-11-12): Wild Shape's uses (the SRD 5.2.1 table: 2, 3 at 6, 4 at 17), Natural Recovery's free cast, Druidic's Speak with Animals, the land's Circle Spells */
+  { const dl = druidLv(c); if (dl >= 2 && c.rules !== "2014" && has("Wild Shape")) want.push(["Wild Shape", dl >= 17 ? 4 : dl >= 6 ? 3 : 2, "one"]);
+    if (dl >= 6 && landD(c) && has("Natural Recovery")) want.push(["Natural Recovery", 1, "long"]);
+    const add = (n, mark) => { if ((c.spells || []).some(s => s.name === n)) return; const s = SRD_SPELLS.find(x => x.name === n); if (!s) return; const sp = spellFromData(s); sp.tag = "D"; if (mark) sp.landSpell = true;
+      c.spells = c.spells || []; const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp); lifeAdded = true; };
+    if (dl && has("Druidic") && c.rules !== "2014") add("Speak with Animals");
+    if (dl >= 3 && landD(c)) { const want2 = (D_LANDS[c.land] || []).filter(([lv]) => dl >= lv).flatMap(([, n]) => n);
+      const before = (c.spells || []).length; c.spells = (c.spells || []).filter(s => !s.landSpell || want2.includes(s.name)); if (c.spells.length !== before) lifeAdded = true; for (const n of want2) add(n, true); } }
   if (lifeDomain(c)) for (const [lv, names] of [[3, ["Aid", "Bless", "Cure Wounds", "Lesser Restoration"]], [5, ["Mass Healing Word", "Revivify"]], [7, ["Aura of Life", "Death Ward"]], [9, ["Greater Restoration", "Mass Cure Wounds"]]])
     if (clericLv(c) >= lv) for (const n of names) { if ((c.spells || []).some(s => s.name === n)) continue; const s = SRD_SPELLS.find(x => x.name === n); if (!s) continue;
       const sp = spellFromData(s); sp.tag = "D"; c.spells = c.spells || []; const at = c.spells.findIndex(x => x.lvl > sp.lvl); c.spells.splice(at < 0 ? c.spells.length : at, 0, sp); lifeAdded = true; }
@@ -695,7 +704,32 @@ function cdButtonsHtml(c) {
 }
 const clPickHtml = (c, k, label, opts) => `<label class="fld" style="margin-top:6px"><span>${label}${c[k] ? "" : " (not picked yet)"}</span><select data-clpick="${k}"><option value="">Pick one</option>${opts.map(([v, l]) => `<option value="${v}" ${c[k] === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
 /* Thaumaturge: Wisdom (at least +1) on Arcana and Religion */
-const thaumOf = (c, k) => c.order === "thaumaturge" && clericLv(c) && (k === "arcana" || k === "religion") ? Math.max(1, mod(c, "wis")) : 0;
+/* the Druid (Joseph, 2026-11-12, the SRD walk-through): their Druid level, the Circle of the Land; Wild Shape's uses (two,
+   the text's own number; the table's later counts aren't in the data, so a sheet's own larger number is kept) and the
+   forms the survey's card learned (by name); the land's Circle Spells always prepared; Magician's Wisdom on Arcana and
+   Nature; the buttons for Wild Resurgence, Wild Companion, Nature Magician, Land's Aid, Natural Recovery, Nature's
+   Sanctuary */
+const druidLv = c => { const k = classesOf(c).find(x => /^druid$/i.test(String(x.cls || "").trim())); return k ? +k.level || 1 : 0; };
+const landD = c => classesOf(c).some(x => /^druid$/i.test(String(x.cls || "").trim()) && /\bland\b/i.test(x.sub || "")) || (/^druid$/i.test(String(c.cls || "").trim()) && /\bland\b/i.test(c.subcls || ""));
+const D_LANDS = { arid: [[3, ["Blur", "Burning Hands", "Fire Bolt"]], [5, ["Fireball"]], [7, ["Blight"]], [9, ["Wall of Stone"]]], polar: [[3, ["Fog Cloud", "Hold Person", "Ray of Frost"]], [5, ["Sleet Storm"]], [7, ["Ice Storm"]], [9, ["Cone of Cold"]]],
+  temperate: [[3, ["Misty Step", "Shocking Grasp", "Sleep"]], [5, ["Lightning Bolt"]], [7, ["Freedom of Movement"]], [9, ["Tree Stride"]]], tropical: [[3, ["Acid Splash", "Ray of Sickness", "Web"]], [5, ["Stinking Cloud"]], [7, ["Polymorph"]], [9, ["Insect Plague"]]] };
+const D_WARD = { arid: "Fire", polar: "Cold", temperate: "Lightning", tropical: "Poison" };
+const dHas = (c, n) => (c.traits || []).some(t => t.name === n);
+function druidButtonsHtml(c, name) {
+  const lv = druidLv(c), ws = res(c, "Wild Shape"), wsLeft = resLeft(ws), slot = Object.keys(c.slots).map(Number).sort((a, b) => a - b).find(k => c.slots[k].max > c.slots[k].used), B = [];
+  if (name === "Wild Shape") { const forms = c.forms || [];
+    return `<div class="acts" style="flex-wrap:wrap">${c.shape ? `<span class="tag">In ${esc(c.shape)} form</span><button class="btn small" data-act="wsback">Back to normal (a Bonus Action)</button>` : forms.length ? `<select id="wsPick">${forms.map(f => `<option>${esc(f)}</option>`).join("")}</select><button class="btn small" data-act="wsgo" ${wsLeft ? "" : "disabled"}>Shift (a Bonus Action)</button>` : ""}</div>
+      <p class="note" style="margin:2px 0 0">${ws ? `${wsLeft} of ${ws.max} left (one back on a Short Rest, all on a Long Rest)` : "No uses on the sheet"}.${forms.length ? "" : " Known forms are learned on the DM's survey card (they come over by name)."}</p>`; }
+  if (name === "Wild Resurgence") { if (!wsLeft && slot) B.push(`<button class="btn small" data-act="wrslot">A ${ord(slot)}-level slot for a Wild Shape use</button>`); if (wsLeft && !c.wrUsed && c.slots[1] && c.slots[1].used > 0) B.push(`<button class="btn small" data-act="wruse">A Wild Shape use for a 1st-level slot</button>`); }
+  if (name === "Wild Companion" && wsLeft) B.push(`<button class="btn small" data-act="wcfam">Find Familiar for a Wild Shape use</button>`);
+  if (name === "Archdruid" && wsLeft && !c.nmUsed) B.push(`<button class="btn small" data-act="natmag">Wild Shape uses for a spell slot</button>`);
+  if (name === "Land's Aid" && wsLeft) B.push(`<button class="btn small" data-act="laid">Land's Aid (a Wild Shape use)</button>`);
+  if (name === "Natural Recovery" && !c.nrUsed && [1, 2, 3, 4, 5].some(k => c.slots[k] && c.slots[k].used > 0)) B.push(`<button class="btn small" data-act="nrslots">Slots back (${Math.ceil(lv / 2)} levels, after a Short Rest)</button>`);
+  if (name === "Nature's Sanctuary" && wsLeft) B.push(`<button class="btn small" data-act="nsanct">Nature's Sanctuary (a Wild Shape use)</button>`);
+  if (name === "Nature's Ward" && c.land) return `<p class="note" style="margin:2px 0 0">Now: immune to Poisoned, Resistance to ${D_WARD[c.land]} damage.</p>`;
+  return B.length ? `<div class="acts" style="flex-wrap:wrap">${B.join("")}</div>` : "";
+}
+const thaumOf = (c, k) => (c.porder === "magician" && druidLv(c) && (k === "arcana" || k === "nature") ? Math.max(1, mod(c, "wis")) : 0) + (c.order === "thaumaturge" && clericLv(c) && (k === "arcana" || k === "religion") ? Math.max(1, mod(c, "wis")) : 0);
 const bardSecrets = (c, cls) => /^bard$/i.test(String(cls || "").trim()) && (bardLv(c) >= 10 || (lore(c) && bardLv(c) >= 6));
 /* Peerless Skill (Lore, 14): a failed ability check or attack roll, a Bardic Inspiration die added; the use isn't spent
    if it still fails (with a DC on the roll the app knows; without, the use comes back from the second button) */
@@ -747,6 +781,7 @@ function rollHtml() {
     return `<div class="rr-h">${esc(r.label)} <small>${r.heal ? "healing" : esc(r.dtype || "damage")}${r.crit ? " · critical" : ""}</small></div>
       <div class="total">${r.total}</div>
       <div class="brk">${esc(r.base.text)}${r.extra.map(x => ` + ${esc(x.name)} ${esc(x.r.text)}`).join("")}${r.flat ? ` ${sg(r.flat)} bonuses` : ""}</div>${tgt}
+      ${r.weapon && !r.heal && !r.dstrike && c.fury === "primal" && druidLv(c) >= 7 ? `<div class="row" style="flex-wrap:wrap">${["cold", "fire", "lightning", "thunder"].map(k => `<button class="btn grow" data-act="dstrike" data-k="${k}" data-src="primal" title="Primal Strike: once on each of your turns, a weapon or beast-form hit">Primal Strike: +${druidLv(c) >= 15 ? 2 : 1}d8 ${k}</button>`).join("")}</div>` : ""}
       ${r.weapon && !r.heal && !r.dstrike && c.strikes === "divine" && clericLv(c) >= 7 ? `<div class="row">${["radiant", "necrotic"].map(k => `<button class="btn grow" data-act="dstrike" data-k="${k}" title="Divine Strike: once on each of your turns, a weapon hit">Divine Strike: +${clericLv(c) >= 14 ? 2 : 1}d8 ${k}</button>`).join("")}</div>` : ""}
       ${r.heal && r.life ? `<p class="note">Disciple of Life: +${r.life} is in it.${clericLv(c) >= 6 ? "" : ""}</p>${clericLv(c) >= 6 ? `<button class="btn wide" data-act="healself" data-n="${r.life}" title="Blessed Healer: when this heals someone else">Blessed Healer: heal ${esc(c.short || c.name)} by ${r.life}</button>` : ""}` : ""}
       ${r.heal ? `<button class="btn wide good" data-act="healself" data-n="${r.total}">Heal ${esc(c.short || c.name)} by ${r.total}</button>` : ""}
@@ -918,6 +953,7 @@ function shortRestHtml(c) {
 function longRest(c) {
   c.hp = hpMaxOf(c); c.temp = 0; c.death = { ok: 0, fail: 0 };
   Object.values(c.slots).forEach(s => s.used = 0); c.res.forEach(r => { if (r.rest === "short" || r.rest === "one" || r.rest === "long") r.used = 0; });
+  delete c.wrUsed; delete c.nmUsed; delete c.nrUsed;     // a Druid's once-a-Long-Rest buttons
   if (c.diWait > 0) { c.diWait--; const r = res(c, "Divine Intervention"); if (c.diWait > 0 && r) r.used = r.max; else delete c.diWait; }     // after Wish: 2d4 Long Rests without Divine Intervention
   // half the hit dice back (at least one), the biggest first; pact slots too
   { let back = Math.max(1, Math.floor(hdPools(c).reduce((a, p) => a + +p.max, 0) / 2)); for (const p of hdPools(c).slice().sort((x, y) => y.die - x.die)) { const n = Math.min(back, +p.used || 0); p.used -= n; back -= n; } }
@@ -1117,7 +1153,7 @@ function playHtml(c) {
     <div class="lines">${ABS.map(([k, n]) => `<button class="line" data-act="sv" data-ab="${k}"><span class="pf ${c.saveProf.includes(k) ? "on" : ""}"></span><span class="nm">${n}</span><span class="v">${sg(saveOf(c, k))}</span></button>`).join("")}</div>
     <div class="lab" style="margin-bottom:2px">Skills</div>
     <div class="lines">${SKILLS.map(([k, n, ab]) => `<button class="line" data-act="sk" data-k="${k}"><span class="pf ${skillLv(c, k) >= 2 ? "ex" : skillLv(c, k) ? "on" : ""}"></span><span class="nm">${n} <small>${AB_SHORT[ab]}</small></span><span class="v">${sg(skillOf(c, k))}</span></button>`).join("")}</div>`;
-  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Weapon Mastery" ? masteryPickHtml(c) : ""}${t.name === "Channel Divinity" && clericLv(c) ? cdButtonsHtml(c) : ""}${t.name === "Divine Intervention" && clericLv(c) >= 10 ? (r => `<div class="acts"><button class="btn small" data-act="diuse" ${resLeft(r) ? "" : "disabled"}>Use it: a Cleric spell of level 5 or lower, no slot</button>${clericLv(c) >= 20 ? `<button class="btn small" data-act="diuse" data-k="wish" ${resLeft(r) ? "" : "disabled"}>Wish (then 2d4 Long Rests without it)</button>` : ""}</div><p class="note" style="margin:2px 0 0">${c.diWait ? `Back after ${c.diWait} more Long Rest${c.diWait === 1 ? "" : "s"}.` : resLeft(r) ? "Ready." : "Used: back on a Long Rest."}</p>`)(res(c, "Divine Intervention")) : ""}${t.name === "Divine Order" && clericLv(c) ? clPickHtml(c, "order", "Your Divine Order", [["protector", "Protector: Martial weapons, Heavy armor"], ["thaumaturge", "Thaumaturge: a cantrip more, Wisdom on Arcana and Religion"]]) : ""}${t.name === "Blessed Strikes" && clericLv(c) ? clPickHtml(c, "strikes", "Your Blessed Strikes", [["divine", "Divine Strike: +1d8 on a weapon hit, once a turn"], ["potent", "Potent Spellcasting: Wisdom on Cleric cantrip damage"]]) : ""}${t.name === "Bardic Inspiration" && bardLv(c) ? `<div class="acts"><button class="btn small" data-act="bigive">Give a d${biDie(bardLv(c))} (a Bonus Action; ${resLeft(res(c, "Bardic Inspiration"))} left)</button>${bardLv(c) >= 5 && (+(res(c, "Bardic Inspiration") || {}).used || 0) > 0 && Object.keys(c.slots).some(k => c.slots[k].max > c.slots[k].used) ? `<button class="btn small" data-act="bifont" title="Font of Inspiration: no action needed">Spend a spell slot: one use back</button>` : ""}</div>` : ""}${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
+  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Weapon Mastery" ? masteryPickHtml(c) : ""}${druidLv(c) && ["Wild Shape", "Wild Resurgence", "Wild Companion", "Archdruid", "Land's Aid", "Natural Recovery", "Nature's Sanctuary", "Nature's Ward"].includes(t.name) ? druidButtonsHtml(c, t.name) : ""}${t.name === "Primal Order" && druidLv(c) ? clPickHtml(c, "porder", "Your Primal Order", [["magician", "Magician: a cantrip more, Wisdom on Arcana and Nature"], ["warden", "Warden: Martial weapons, Medium armor"]]) : ""}${t.name === "Elemental Fury" && druidLv(c) ? clPickHtml(c, "fury", "Your Elemental Fury", [["potent", "Potent Spellcasting: Wisdom on Druid cantrips"], ["primal", "Primal Strike: +1d8 Cold, Fire, Lightning, or Thunder on a hit"]]) : ""}${t.name === "Circle of the Land Spells" && druidLv(c) ? clPickHtml(c, "land", "Your land (each Long Rest)", [["arid", "Arid"], ["polar", "Polar"], ["temperate", "Temperate"], ["tropical", "Tropical"]]) : ""}${t.name === "Channel Divinity" && clericLv(c) ? cdButtonsHtml(c) : ""}${t.name === "Divine Intervention" && clericLv(c) >= 10 ? (r => `<div class="acts"><button class="btn small" data-act="diuse" ${resLeft(r) ? "" : "disabled"}>Use it: a Cleric spell of level 5 or lower, no slot</button>${clericLv(c) >= 20 ? `<button class="btn small" data-act="diuse" data-k="wish" ${resLeft(r) ? "" : "disabled"}>Wish (then 2d4 Long Rests without it)</button>` : ""}</div><p class="note" style="margin:2px 0 0">${c.diWait ? `Back after ${c.diWait} more Long Rest${c.diWait === 1 ? "" : "s"}.` : resLeft(r) ? "Ready." : "Used: back on a Long Rest."}</p>`)(res(c, "Divine Intervention")) : ""}${t.name === "Divine Order" && clericLv(c) ? clPickHtml(c, "order", "Your Divine Order", [["protector", "Protector: Martial weapons, Heavy armor"], ["thaumaturge", "Thaumaturge: a cantrip more, Wisdom on Arcana and Religion"]]) : ""}${t.name === "Blessed Strikes" && clericLv(c) ? clPickHtml(c, "strikes", "Your Blessed Strikes", [["divine", "Divine Strike: +1d8 on a weapon hit, once a turn"], ["potent", "Potent Spellcasting: Wisdom on Cleric cantrip damage"]]) : ""}${t.name === "Bardic Inspiration" && bardLv(c) ? `<div class="acts"><button class="btn small" data-act="bigive">Give a d${biDie(bardLv(c))} (a Bonus Action; ${resLeft(res(c, "Bardic Inspiration"))} left)</button>${bardLv(c) >= 5 && (+(res(c, "Bardic Inspiration") || {}).used || 0) > 0 && Object.keys(c.slots).some(k => c.slots[k].max > c.slots[k].used) ? `<button class="btn small" data-act="bifont" title="Font of Inspiration: no action needed">Spend a spell slot: one use back</button>` : ""}</div>` : ""}${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
     ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return todoHtml(c) + hpPanel + effPanel + stats
@@ -1493,7 +1529,9 @@ function spellCap(c, cls) {
   const p14 = c.rules === "2014" && (k.cls === "Wizard" ? 6 + 2 * (K - 1) : PREPARE_2014[k.cls] ? Math.max(1, mod(c, PREPARE_2014[k.cls]) + K) : k.cls === "Paladin" && K >= 2 ? Math.max(1, mod(c, "cha") + Math.floor(K / 2)) : 0);
   const mine = c.spells.filter(s => s.tag !== "D" && !s.feat && (!isMulti(c) || !s.cls || s.cls === k.cls));
   // an SRD class with no Cantrips column has none (a Paladin); for one of your own it's not known
-  return { cls: k.cls, top, cantrips: (col("Cantrips") || col("Cantrips Known") || (R && !R.mine ? 0 : null)) + (/^cleric$/i.test(k.cls) && c.order === "thaumaturge" && (col("Cantrips") || col("Cantrips Known")) ? 1 : 0),     // Thaumaturge: one more cantrip spells: col("Prepared Spells") || col("Spells Known") || p14 || null,
+  const ordCantrip = ((/^druid$/i.test(k.cls) && c.porder === "magician") || (/^cleric$/i.test(k.cls) && c.order === "thaumaturge")) && (col("Cantrips") || col("Cantrips Known")) ? 1 : 0;     // a Thaumaturge cleric or Magician druid: one more cantrip
+  return { cls: k.cls, top, cantrips: (col("Cantrips") || col("Cantrips Known") || (R && !R.mine ? 0 : null)) + ordCantrip,
+    spells: col("Prepared Spells") || col("Spells Known") || p14 || null,
     hasC: mine.filter(s => !s.lvl).length, hasS: mine.filter(s => s.lvl > 0).length };
 }
 // the spell's own words, under its row in the picker
@@ -3111,7 +3149,7 @@ function toSurvey(c) {
     skills: [byLv(1) ? `Proficient: ${byLv(1)}.` : "", byLv(2) ? `Expertise: ${byLv(2)}.` : "", others ? `Also ${others}.` : ""].filter(Boolean).join(" "),
     senses: range ? `Darkvision ${range[1]} ft.` : "", langs: langs ? langs[1].trim() : "", looks: c.story.looks || "", persona,
     notes: [c.story.backstory, c.traits.length ? "Features: " + c.traits.map(t => t.name).join(", ") + "." : ""].filter(Boolean).join("\n\n"),
-    feats: c.traits.map(t => t.name).join(", "), rules: c.rules || "", order: c.order || "", strikes: c.strikes || "", giant: c.giant || "", mastery: (c.mastery || []).slice(), bi: c.bi ? { die: +c.bi } : null,
+    feats: c.traits.map(t => t.name).join(", "), rules: c.rules || "", order: c.order || "", strikes: c.strikes || "", porder: c.porder || "", fury: c.fury || "", land: c.land || "", forms: (c.forms || []).slice(), giant: c.giant || "", mastery: (c.mastery || []).slice(), bi: c.bi ? { die: +c.bi } : null,
     purse: { ...c.purse }, death: { s: +c.death.ok || 0, f: +c.death.fail || 0 }, conds: c.conds.slice(), slots, attacks,
     res: c.res.map(r => ({ name: r.name, max: +r.max || 0, used: +r.used || 0, rest: r.rest })).concat(hdPools(c).map(p => ({ name: `Hit Point Dice (d${p.die})`, max: +p.max || 1, used: +p.used || 0, rest: "long" }))),
     spells: c.spells.map(s => ({ name: s.name, lv: s.lvl, time: s.time || "", range: s.range || "", dur: s.dur || "", conc: !!s.conc, save: s.roll && s.roll.kind === "save" ? saveWord[s.roll.save] : s.save ? saveWord[s.save] : "",
@@ -3125,7 +3163,8 @@ function fromSurvey(old, inc) {
   old.ab = { ...inc.ab }; old.saveProf = inc.saveProf.slice(); if (inc.giant) old.giant = inc.giant;     // a Goliath's giant, picked on the survey's card
   if (Array.isArray(inc.mastery) && inc.mastery.length) old.mastery = inc.mastery.slice();     // Weapon Mastery's kinds, picked there
   if (inc.bi !== undefined) { if (inc.bi) old.bi = String(inc.bi); else delete old.bi; }     // a Bardic Inspiration die they hold
-  if (inc.order) old.order = inc.order; if (inc.strikes) old.strikes = inc.strikes;     // a Cleric's Divine Order and Blessed Strikes, picked on the survey's card
+  if (inc.order) old.order = inc.order; if (inc.strikes) old.strikes = inc.strikes;
+  for (const k of ["porder", "fury", "land"]) if (inc[k]) old[k] = inc[k]; if (Array.isArray(inc.forms) && inc.forms.length) old.forms = inc.forms.slice();     // a Druid's picks and Wild Shape forms (by name)     // a Cleric's Divine Order and Blessed Strikes, picked on the survey's card
   if (alertInit(old) && inc.initBonus !== undefined && inc.initBonus !== "") old.initBonus = (+inc.initBonus || 0) - alertInit(old);     // the survey's Initiative has Alert in it already (this sheet sent it)
   for (const [k, v] of Object.entries(inc.skills || {})) old.skills[k] = v; // a bard's half proficiency stays where the survey shows none
   old.hd = { ...old.hd, ...inc.hd }; old.death = { ...inc.death }; old.conds = inc.conds.slice(); old.purse = { ...inc.purse };
@@ -3451,6 +3490,8 @@ document.addEventListener("change", e => {
   if (el.dataset && el.dataset.lib) return;
   if (el.dataset && el.dataset.clpick) { const k = el.dataset.clpick; if (el.value) c[k] = el.value; else delete c[k];     // a Cleric's Divine Order or Blessed Strikes
     if (k === "order" && el.value === "protector" && !/Martial weapons, Heavy armor \(Protector\)/.test(c.story.profs || "")) c.story.profs = [String(c.story.profs || "").trim(), "Martial weapons, Heavy armor (Protector)"].filter(Boolean).join("\n");
+    if (k === "porder") { const line = "Martial weapons, Medium armor (Warden)"; c.story.profs = String(c.story.profs || "").split("\n").filter(l => l.trim() !== line).join("\n"); if (el.value === "warden") c.story.profs = [String(c.story.profs || "").trim(), line].filter(Boolean).join("\n"); }
+    if (k === "land") ensureOrigins(c);     // the Circle Spells for the new land
     if (k === "order" && el.value !== "protector") c.story.profs = String(c.story.profs || "").split("\n").filter(l => l.trim() !== "Martial weapons, Heavy armor (Protector)").join("\n");
     save(); render(); return; }
   if (el.dataset && (el.dataset.tbl || el.dataset.bgf)) return;
@@ -3614,7 +3655,19 @@ document.addEventListener("click", e => {
     case "exh": c.exh = Math.max(0, Math.min(6, (+c.exh || 0) + +el.dataset.d)); c.hp = Math.min(c.hp, hpMaxOf(c)); save(); render(); break;
     case "diuse": { const r = res(c, "Divine Intervention"); if (!r || resLeft(r) <= 0) break; r.used = r.max; const wish = el.dataset.k === "wish";
       if (wish) c.diWait = rnd(4) + rnd(4); save(); render(); toast(wish ? `Wish, through Greater Divine Intervention: Divine Intervention is gone for ${c.diWait} Long Rests.` : "Divine Intervention: cast it with no slot and no Material components. Back on a Long Rest.", 5000); break; }
-    case "dstrike": { if (!R || R.type !== "dmg" || R.dstrike) break; const x = { name: `Divine Strike (${el.dataset.k})`, r: rollExpr(clericLv(c) >= 14 ? "2d8" : "1d8", R.crit) };
+    case "wsgo": { const r = res(c, "Wild Shape"), s = $("#wsPick"); if (!r || resLeft(r) <= 0 || !s) break; r.used = (+r.used || 0) + 1; c.shape = s.value; c.temp = Math.max(+c.temp || 0, druidLv(c)); save(); render(); toast(`${s.value} form: ${druidLv(c)} temporary hit points; the beast's stat block for the rest, no spellcasting.`); break; }
+    case "wsback": { delete c.shape; save(); render(); break; }
+    case "wrslot": { const r = res(c, "Wild Shape"), L = Object.keys(c.slots).map(Number).sort((a, b) => a - b).find(k => c.slots[k].max > c.slots[k].used); if (!r || !L) break; c.slots[L].used++; r.used = Math.max(0, r.used - 1); save(); render(); toast(`A ${ord(L)}-level slot for a Wild Shape use.`); break; }
+    case "wruse": { const r = res(c, "Wild Shape"); if (!r || !resLeft(r) || !(c.slots[1] && c.slots[1].used > 0)) break; r.used++; c.slots[1].used--; c.wrUsed = true; save(); render(); toast("A Wild Shape use for a 1st-level slot (once a Long Rest)."); break; }
+    case "wcfam": { const r = res(c, "Wild Shape"); if (!r || !resLeft(r)) break; r.used++; save(); render(); toast("Wild Companion: Find Familiar, no Material components; the familiar is Fey and goes at your next Long Rest."); break; }
+    case "natmag": { const r = res(c, "Wild Shape"), left = resLeft(r), n = Math.round(+prompt(`Nature Magician: how many Wild Shape uses (1 to ${left}) to turn into one spell slot? Each is 2 spell levels.`, String(Math.min(left, 2)))) || 0;
+      if (n < 1 || n > left) break; const L = Math.min(9, 2 * n); if (!(c.slots[L] && c.slots[L].used > 0)) { toast(`No spent ${ord(L)}-level slot to get back.`); break; } r.used += n; c.slots[L].used--; c.nmUsed = true; save(); render(); toast(`${n} Wild Shape use${n > 1 ? "s" : ""}: a ${ord(L)}-level slot.`); break; }
+    case "laid": { const r = res(c, "Wild Shape"); if (!r || !resLeft(r)) break; r.used++; save(); const lv = druidLv(c), d = `${lv >= 14 ? 4 : lv >= 10 ? 3 : 2}d6`;
+      rollDamage("Land's Aid (each in the sphere)", d, { dtype: "necrotic", save: { ab: "con", dc: dcOf(c), half: true }, noMods: true }); toast(`And one creature of your choice in the sphere regains ${d} hit points.`, 5000); break; }
+    case "nrslots": { let b = Math.ceil(druidLv(c) / 2); const got = []; for (let L = 5; L >= 1; L--) while (c.slots[L] && c.slots[L].used > 0 && L <= b) { c.slots[L].used--; b -= L; got.push(ord(L)); }
+      if (!got.length) break; c.nrUsed = true; save(); render(); toast(`Natural Recovery: ${listAnd(got)}-level slots back (once a Long Rest).`); break; }
+    case "nsanct": { const r = res(c, "Wild Shape"); if (!r || !resLeft(r)) break; r.used++; save(); render(); toast(`Nature's Sanctuary: a 15-foot cube within 120 feet for 1 minute; you and allies in it have Half Cover${c.land ? `, allies Resistance to ${D_WARD[c.land]}` : ""}. A Bonus Action moves it 60 feet.`, 6000); break; }
+    case "dstrike": { if (!R || R.type !== "dmg" || R.dstrike) break; const x = { name: el.dataset.src === "primal" ? `Primal Strike (${el.dataset.k})` : `Divine Strike (${el.dataset.k})`, r: rollExpr(el.dataset.src === "primal" ? (druidLv(c) >= 15 ? "2d8" : "1d8") : (clericLv(c) >= 14 ? "2d8" : "1d8"), R.crit) };
       R.extra.push(x); R.total += x.r.total; R.dstrike = true; showRoll(); break; }
     case "cdspark": case "cdturn": case "cdpres": { const r = res(c, "Channel Divinity"); if (!r || resLeft(r) <= 0) { toast("No Channel Divinity left: a Short Rest brings one back, a Long Rest all."); break; }
       r.used = (+r.used || 0) + 1; save(); const lv = clericLv(c), w = mod(c, "wis"), dice = `${cdSparkDice(lv)}${w ? sg(w) : ""}`;
