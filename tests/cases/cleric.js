@@ -12,3 +12,9 @@ step("a Cleric built and taken to 2: Channel Divinity's card has Divine Spark an
   const before = r ? `${resLeft(r)}/${r.max} (${r.rest})` : "no uses"; kclick('[data-act="cdspark"][data-k="heal"]'); const roll = `${R.label}: ${R.expr} = ${R.total}, heal ${R.heal}`; closeOv();
   return `level ${c.level}: [${btns.join(" | ")}] | uses ${before} → ${resLeft(r)} | ${roll} | to the survey: rules "${toSurvey(c).rules}"`;
 });
+step("Divine Order on its card: Thaumaturge (a cantrip more, Wisdom on Religion); Protector (Martial weapons, Heavy armor in the proficiencies)", () => {
+  const c = C(); ui.tab = "play"; render(); const cap0 = spellCap(c, "Cleric").cantrips, rel0 = skillOf(c, "religion");
+  ksel('[data-clpick="order"]', "thaumaturge"); const thaum = `order ${c.order}: cantrips ${cap0} → ${spellCap(c, "Cleric").cantrips}, Religion ${rel0} → ${skillOf(c, "religion")}`;
+  ksel('[data-clpick="order"]', "protector"); const prot = `order ${c.order}: cantrips ${spellCap(c, "Cleric").cantrips}, profs has it ${/Martial weapons, Heavy armor \(Protector\)/.test(c.story.profs)}, to the survey ${toSurvey(c).order}`;
+  return `${thaum} || ${prot}`;
+});

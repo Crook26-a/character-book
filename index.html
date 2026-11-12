@@ -485,7 +485,7 @@ function speedOf(c) { const e = exhOf(c); let s = (+c.speed || 30) + flatFor(c, 
 const saveOf = (c, ab) => mod(c, ab) + (c.saveProf.includes(ab) ? prof(c) : 0) + flatFor(c, { kind: "save", ab });
 const skillLv = (c, k) => +(c.skills[k] || 0); // 0, 1 proficient, 2 expertise, .5 half
 const joat = (c, k) => !skillLv(c, k) && bardLv(c) >= 2 ? Math.floor(prof(c) / 2) : 0;     // a Bard's Jack of All Trades: half the Proficiency Bonus on a skill they lack
-const skillOf = (c, k) => mod(c, SKILL[k].ab) + Math.floor(prof(c) * skillLv(c, k)) + joat(c, k) + flatFor(c, { kind: "check", ab: SKILL[k].ab, skill: k });
+const skillOf = (c, k) => mod(c, SKILL[k].ab) + Math.floor(prof(c) * skillLv(c, k)) + joat(c, k) + thaumOf(c, k) + flatFor(c, { kind: "check", ab: SKILL[k].ab, skill: k });
 const passiveOf = (c, k) => 10 + skillOf(c, k);
 function atkAb(c, a) { return a.ab === "best" ? (mod(c, "dex") > mod(c, "str") ? "dex" : "str") : (a.ab || "str"); }
 // an attack as written on a sheet: its own to-hit (or a save and DC) and its own damage, not worked out from the scores
@@ -584,7 +584,7 @@ function rollPlain(label, expr, note) { const r = rollExpr(expr); R = { type: "p
 function d20Parts(c, ab, extra) { const p = [{ name: AB_SHORT[ab], v: mod(c, ab) }]; return p.concat(extra || []); }
 function rollCheck(ab, skill) {
   const c = C(); const lv = skill ? skillLv(c, skill) : 0;
-  const parts = d20Parts(c, ab, lv ? [{ name: lv >= 2 ? "Expertise" : lv < 1 ? "Half prof" : "Prof", v: Math.floor(prof(c) * lv) }] : skill && joat(c, skill) ? [{ name: "Jack of All Trades", v: joat(c, skill) }] : []);
+  const parts = d20Parts(c, ab, lv ? [{ name: lv >= 2 ? "Expertise" : lv < 1 ? "Half prof" : "Prof", v: Math.floor(prof(c) * lv) }] : skill && joat(c, skill) ? [{ name: "Jack of All Trades", v: joat(c, skill) }] : []).concat(skill && thaumOf(c, skill) ? [{ name: "Thaumaturge", v: thaumOf(c, skill) }] : []);
   const ctx = { kind: "check", ab, skill };
   const f = flatFor(c, ctx); if (f) parts.push({ name: "Bonuses", v: f });
   rollD20({ label: skill ? SKILL[skill].name : AB_NAME[ab] + " check", sub: skill ? AB_SHORT[ab] : "", ctx, parts });
@@ -686,6 +686,9 @@ function cdButtonsHtml(c) {
   if (lifeDomain(c) && lv >= 3 && c.rules !== "2014") B.push(`<button class="btn small" data-act="cdpres">Preserve Life (${5 * lv} hit points)</button>`);
   return `<div class="acts" style="flex-wrap:wrap">${B.join("")}</div><p class="note" style="margin:2px 0 0">${left} of ${r ? r.max : 0} left${r && r.rest === "one" ? " (one back on a Short Rest, all on a Long Rest)" : ""}.</p>`;
 }
+const clPickHtml = (c, k, label, opts) => `<label class="fld" style="margin-top:6px"><span>${label}${c[k] ? "" : " (not picked yet)"}</span><select data-clpick="${k}"><option value="">Pick one</option>${opts.map(([v, l]) => `<option value="${v}" ${c[k] === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
+/* Thaumaturge: Wisdom (at least +1) on Arcana and Religion */
+const thaumOf = (c, k) => c.order === "thaumaturge" && clericLv(c) && (k === "arcana" || k === "religion") ? Math.max(1, mod(c, "wis")) : 0;
 const bardSecrets = (c, cls) => /^bard$/i.test(String(cls || "").trim()) && (bardLv(c) >= 10 || (lore(c) && bardLv(c) >= 6));
 /* Peerless Skill (Lore, 14): a failed ability check or attack roll, a Bardic Inspiration die added; the use isn't spent
    if it still fails (with a DC on the roll the app knows; without, the use comes back from the second button) */
@@ -1101,7 +1104,7 @@ function playHtml(c) {
     <div class="lines">${ABS.map(([k, n]) => `<button class="line" data-act="sv" data-ab="${k}"><span class="pf ${c.saveProf.includes(k) ? "on" : ""}"></span><span class="nm">${n}</span><span class="v">${sg(saveOf(c, k))}</span></button>`).join("")}</div>
     <div class="lab" style="margin-bottom:2px">Skills</div>
     <div class="lines">${SKILLS.map(([k, n, ab]) => `<button class="line" data-act="sk" data-k="${k}"><span class="pf ${skillLv(c, k) >= 2 ? "ex" : skillLv(c, k) ? "on" : ""}"></span><span class="nm">${n} <small>${AB_SHORT[ab]}</small></span><span class="v">${sg(skillOf(c, k))}</span></button>`).join("")}</div>`;
-  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Weapon Mastery" ? masteryPickHtml(c) : ""}${t.name === "Channel Divinity" && clericLv(c) ? cdButtonsHtml(c) : ""}${t.name === "Bardic Inspiration" && bardLv(c) ? `<div class="acts"><button class="btn small" data-act="bigive">Give a d${biDie(bardLv(c))} (a Bonus Action; ${resLeft(res(c, "Bardic Inspiration"))} left)</button>${bardLv(c) >= 5 && (+(res(c, "Bardic Inspiration") || {}).used || 0) > 0 && Object.keys(c.slots).some(k => c.slots[k].max > c.slots[k].used) ? `<button class="btn small" data-act="bifont" title="Font of Inspiration: no action needed">Spend a spell slot: one use back</button>` : ""}</div>` : ""}${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
+  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Weapon Mastery" ? masteryPickHtml(c) : ""}${t.name === "Channel Divinity" && clericLv(c) ? cdButtonsHtml(c) : ""}${t.name === "Divine Order" && clericLv(c) ? clPickHtml(c, "order", "Your Divine Order", [["protector", "Protector: Martial weapons, Heavy armor"], ["thaumaturge", "Thaumaturge: a cantrip more, Wisdom on Arcana and Religion"]]) : ""}${t.name === "Blessed Strikes" && clericLv(c) ? clPickHtml(c, "strikes", "Your Blessed Strikes", [["divine", "Divine Strike: +1d8 on a weapon hit, once a turn"], ["potent", "Potent Spellcasting: Wisdom on Cleric cantrip damage"]]) : ""}${t.name === "Bardic Inspiration" && bardLv(c) ? `<div class="acts"><button class="btn small" data-act="bigive">Give a d${biDie(bardLv(c))} (a Bonus Action; ${resLeft(res(c, "Bardic Inspiration"))} left)</button>${bardLv(c) >= 5 && (+(res(c, "Bardic Inspiration") || {}).used || 0) > 0 && Object.keys(c.slots).some(k => c.slots[k].max > c.slots[k].used) ? `<button class="btn small" data-act="bifont" title="Font of Inspiration: no action needed">Spend a spell slot: one use back</button>` : ""}</div>` : ""}${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
     ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return todoHtml(c) + hpPanel + effPanel + stats
@@ -1477,7 +1480,7 @@ function spellCap(c, cls) {
   const p14 = c.rules === "2014" && (k.cls === "Wizard" ? 6 + 2 * (K - 1) : PREPARE_2014[k.cls] ? Math.max(1, mod(c, PREPARE_2014[k.cls]) + K) : k.cls === "Paladin" && K >= 2 ? Math.max(1, mod(c, "cha") + Math.floor(K / 2)) : 0);
   const mine = c.spells.filter(s => s.tag !== "D" && !s.feat && (!isMulti(c) || !s.cls || s.cls === k.cls));
   // an SRD class with no Cantrips column has none (a Paladin); for one of your own it's not known
-  return { cls: k.cls, top, cantrips: col("Cantrips") || col("Cantrips Known") || (R && !R.mine ? 0 : null), spells: col("Prepared Spells") || col("Spells Known") || p14 || null,
+  return { cls: k.cls, top, cantrips: (col("Cantrips") || col("Cantrips Known") || (R && !R.mine ? 0 : null)) + (/^cleric$/i.test(k.cls) && c.order === "thaumaturge" && (col("Cantrips") || col("Cantrips Known")) ? 1 : 0),     // Thaumaturge: one more cantrip spells: col("Prepared Spells") || col("Spells Known") || p14 || null,
     hasC: mine.filter(s => !s.lvl).length, hasS: mine.filter(s => s.lvl > 0).length };
 }
 // the spell's own words, under its row in the picker
@@ -3095,7 +3098,7 @@ function toSurvey(c) {
     skills: [byLv(1) ? `Proficient: ${byLv(1)}.` : "", byLv(2) ? `Expertise: ${byLv(2)}.` : "", others ? `Also ${others}.` : ""].filter(Boolean).join(" "),
     senses: range ? `Darkvision ${range[1]} ft.` : "", langs: langs ? langs[1].trim() : "", looks: c.story.looks || "", persona,
     notes: [c.story.backstory, c.traits.length ? "Features: " + c.traits.map(t => t.name).join(", ") + "." : ""].filter(Boolean).join("\n\n"),
-    feats: c.traits.map(t => t.name).join(", "), rules: c.rules || "", giant: c.giant || "", mastery: (c.mastery || []).slice(), bi: c.bi ? { die: +c.bi } : null,
+    feats: c.traits.map(t => t.name).join(", "), rules: c.rules || "", order: c.order || "", strikes: c.strikes || "", giant: c.giant || "", mastery: (c.mastery || []).slice(), bi: c.bi ? { die: +c.bi } : null,
     purse: { ...c.purse }, death: { s: +c.death.ok || 0, f: +c.death.fail || 0 }, conds: c.conds.slice(), slots, attacks,
     res: c.res.map(r => ({ name: r.name, max: +r.max || 0, used: +r.used || 0, rest: r.rest })).concat(hdPools(c).map(p => ({ name: `Hit Point Dice (d${p.die})`, max: +p.max || 1, used: +p.used || 0, rest: "long" }))),
     spells: c.spells.map(s => ({ name: s.name, lv: s.lvl, time: s.time || "", range: s.range || "", dur: s.dur || "", conc: !!s.conc, save: s.roll && s.roll.kind === "save" ? saveWord[s.roll.save] : s.save ? saveWord[s.save] : "",
@@ -3109,6 +3112,7 @@ function fromSurvey(old, inc) {
   old.ab = { ...inc.ab }; old.saveProf = inc.saveProf.slice(); if (inc.giant) old.giant = inc.giant;     // a Goliath's giant, picked on the survey's card
   if (Array.isArray(inc.mastery) && inc.mastery.length) old.mastery = inc.mastery.slice();     // Weapon Mastery's kinds, picked there
   if (inc.bi !== undefined) { if (inc.bi) old.bi = String(inc.bi); else delete old.bi; }     // a Bardic Inspiration die they hold
+  if (inc.order) old.order = inc.order; if (inc.strikes) old.strikes = inc.strikes;     // a Cleric's Divine Order and Blessed Strikes, picked on the survey's card
   if (alertInit(old) && inc.initBonus !== undefined && inc.initBonus !== "") old.initBonus = (+inc.initBonus || 0) - alertInit(old);     // the survey's Initiative has Alert in it already (this sheet sent it)
   for (const [k, v] of Object.entries(inc.skills || {})) old.skills[k] = v; // a bard's half proficiency stays where the survey shows none
   old.hd = { ...old.hd, ...inc.hd }; old.death = { ...inc.death }; old.conds = inc.conds.slice(); old.purse = { ...inc.purse };
@@ -3432,6 +3436,10 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   const el = e.target; const c = (el.dataset && el.dataset.ch && db.chars.find(x => x.id === el.dataset.ch)) || C();
   if (el.dataset && el.dataset.lib) return;
+  if (el.dataset && el.dataset.clpick) { const k = el.dataset.clpick; if (el.value) c[k] = el.value; else delete c[k];     // a Cleric's Divine Order or Blessed Strikes
+    if (k === "order" && el.value === "protector" && !/Martial weapons, Heavy armor \(Protector\)/.test(c.story.profs || "")) c.story.profs = [String(c.story.profs || "").trim(), "Martial weapons, Heavy armor (Protector)"].filter(Boolean).join("\n");
+    if (k === "order" && el.value !== "protector") c.story.profs = String(c.story.profs || "").split("\n").filter(l => l.trim() !== "Martial weapons, Heavy armor (Protector)").join("\n");
+    save(); render(); return; }
   if (el.dataset && (el.dataset.tbl || el.dataset.bgf)) return;
   if (el.dataset && (el.dataset.sbf || el.dataset.ftf)) { if (el.tagName === "SELECT") { const o = el.dataset.sbf ? subObj() : featObj(); if (o) { o[el.dataset.sbf || el.dataset.ftf] = el.value; save(); reForm(); } } return; }
   if (el.dataset && el.dataset.sff) return;
