@@ -475,7 +475,7 @@ function hits(tok, ctx) {
 const modsFor = (c, ctx) => activeMods(c).filter(m => (m.to || []).some(t => hits(t, ctx)) && m.bonus);
 const flatFor = (c, ctx) => modsFor(c, ctx).reduce((a, m) => a + flatOf(m.bonus), 0);
 const diceFor = (c, ctx) => modsFor(c, ctx).filter(m => isDice(m.bonus));
-const acOf = c => (+c.ac || 10) + flatFor(c, { kind: "ac" });
+const acOf = c => (+c.ac || 10) + flatFor(c, { kind: "ac" }) + defenseOf(c);     // (Defense: +1 in armor)
 const castAb = c => c.castAb || "wis";
 const dcOf = (c, sp) => 8 + prof(c) + mod(c, castAbFor(c, sp)) + flatFor(c, { kind: "dc" });
 const satkOf = (c, sp) => prof(c) + mod(c, castAbFor(c, sp)) + flatFor(c, { kind: "atk", spell: true });
@@ -491,8 +491,9 @@ function atkAb(c, a) { return a.ab === "best" ? (mod(c, "dex") > mod(c, "str") ?
 // an attack as written on a sheet: its own to-hit (or a save and DC) and its own damage, not worked out from the scores
 const asWritten = a => (a.hit !== undefined && a.hit !== null && a.hit !== "") || !!a.save || !!a.dmgx;
 const rollsToHit = a => !asWritten(a) || (a.hit !== undefined && a.hit !== null && a.hit !== "" && !a.save);
-const atkOf = (c, a) => (asWritten(a) ? (+a.hit || 0) : mod(c, atkAb(c, a)) + (a.prof !== false ? prof(c) : 0) + (+a.bonus || 0)) + flatFor(c, { kind: "atk", spell: false });
-const dmgOfAtk = (c, a) => asWritten(a) ? String(a.dmgx || "") : tidyDice(addDice(a.dice, String(mod(c, atkAb(c, a)) + (+a.bonus || 0))));
+const atkOf = (c, a) => (asWritten(a) ? (+a.hit || 0) : mod(c, atkAb(c, a)) + (a.prof !== false ? prof(c) : 0) + (+a.bonus || 0) + archeryOf(c, a)) + flatFor(c, { kind: "atk", spell: false });     // (Archery: +2 with a Ranged weapon)
+/* Two-Weapon Fighting: an off-hand line written without its modifier gets it */
+const dmgOfAtk = (c, a) => asWritten(a) ? (styleIs(c, "twf") && /off-?hand/i.test(a.name || "") && !/[+\-−]\s*\d+\s*$/.test(String(a.dmgx || "")) && a.dmgx ? tidyDice(addDice(a.dmgx, String(mod(c, atkAb(c, a))))) : String(a.dmgx || "")) : tidyDice(addDice(a.dice, String(mod(c, atkAb(c, a)) + (+a.bonus || 0))));
 const res = (c, name) => c.res.find(r => r.name === name);
 const resLeft = r => r ? Math.max(0, (+r.max || 0) - (+r.used || 0)) : 0;
 const attunedCount = c => c.items.filter(i => !i.gone && i.attuned).length;
@@ -506,7 +507,8 @@ function autoMode(c, ctx) {
   for (const m of activeMods(c)) { if ((m.adv || []).some(t => hits(t, ctx))) adv.push(m.name); if ((m.dis || []).some(t => hits(t, ctx))) dis.push(m.name); }
   { const bl = barbLv(c), incap = ["Incapacitated", "Paralyzed", "Petrified", "Stunned", "Unconscious"].some(has);     // the Barbarian (2026-11-06)
     if (bl >= 2 && ctx.kind === "save" && ctx.ab === "dex" && !incap) adv.push("Danger Sense");
-    if (bl >= 7 && ctx.kind === "init") adv.push("Feral Instinct"); }
+    if (bl >= 7 && ctx.kind === "init") adv.push("Feral Instinct");
+    if (champion(c) && fighterLv(c) >= 3 && c.rules !== "2014" && (ctx.kind === "init" || (ctx.kind === "check" && ctx.skill === "athletics"))) adv.push("Remarkable Athlete"); }
   return { mode: adv.length && !dis.length ? "adv" : dis.length && !adv.length ? "dis" : "normal", adv, dis };
 }
 
@@ -540,7 +542,7 @@ function logIt(c, text, at) { c.log.unshift({ id: uid("lg"), at: at || today(), 
 let R = null; // the roll on screen
 function rollD20(spec) {
   const c = C(); const ctx = spec.ctx || { kind: "plain" };
-  const auto = ctx.kind === "plain" || ctx.kind === "death" ? { mode: "normal", adv: [], dis: [] } : autoMode(c, ctx);
+  const auto = ctx.kind === "plain" ? { mode: "normal", adv: [], dis: [] } : ctx.kind === "death" ? (defyAt(c) < 20 ? { mode: "adv", adv: ["Defy Death"], dis: [] } : { mode: "normal", adv: [], dis: [] }) : autoMode(c, ctx);     // a Champion's Defy Death: Advantage
   const dice = diceFor(c, ctx).map(m => ({ name: m.name, bonus: m.bonus, r: rollExpr(m.bonus) }));
   R = { type: "d20", label: spec.label, sub: spec.sub || "", ctx, d: [rnd(20), rnd(20)], luck: [], pick: null, real: null,
     mode: ui.next || auto.mode, auto, parts: spec.parts || [], dice, dmg: spec.dmg || null, dc: spec.dc || null, hint: spec.hint || "", conc: !!spec.conc, at: Date.now() };
@@ -573,7 +575,8 @@ function rollSummary(r) {
 }
 function rollDamage(label, expr, o = {}) {
   const c = C(); const crit = !!o.crit, dctx = { kind: "dmg", str: !!o.str };     // str: a Strength attack's damage (Rage adds to it)
-  const r = rollExpr(expr, crit); const extra = o.noMods ? [] : diceFor(c, dctx).map(m => ({ name: m.name, r: rollExpr(m.bonus, crit) }));
+  /* (Great Weapon Fighting on a two-handed weapon's damage) */
+  const r = o.weapon && !o.heal && gwfOf(c, label) ? rollExprGwf(expr, crit) : rollExpr(expr, crit); const extra = o.noMods ? [] : diceFor(c, dctx).map(m => ({ name: m.name, r: rollExpr(m.bonus, crit) }));
   const flat = o.noMods ? 0 : flatFor(c, dctx);
   R = { type: "dmg", label, expr, crit, base: r, extra, flat, dtype: o.dtype || "", heal: !!o.heal, self: !!o.self, save: o.save || null, at: Date.now(), from: o.from || null, str: !!o.str, weapon: !!o.weapon, life: +o.life || 0 };
   R.total = Math.max(0, r.total + extra.reduce((a, x) => a + x.r.total, 0) + flat);
@@ -646,6 +649,7 @@ function ensureOrigins(c) {
   if (has("Relentless Endurance")) want.push(["Relentless Endurance", 1, "long"]);
   if (has("Intimidating Presence")) want.push(["Intimidating Presence", 1, "long"]);     // a Berserker's, level 14 (once a Long Rest, or spend a Rage)
   if (has("Divine Intervention") && clericLv(c) >= 10) want.push(["Divine Intervention", 1, "long"]);     // a Cleric's, once a Long Rest
+  { const fl = fighterLv(c); if (c.rules !== "2014" && has("Action Surge")) want.push(["Action Surge", fl >= 17 ? 2 : 1, "short"]); if (c.rules !== "2014" && fl >= 9 && has("Indomitable")) want.push(["Indomitable", fl >= 17 ? 3 : fl >= 13 ? 2 : 1, "long"]); }     // a Fighter's (the SRD 5.2.1 table)
   /* a Life cleric's always-prepared spells (the Life Domain Spells table: 3, 5, 7, 9) */
   let lifeAdded = false;
   /* a Druid's (2026-11-12): Wild Shape's uses (the SRD 5.2.1 table: 2, 3 at 6, 4 at 17), Natural Recovery's free cast, Druidic's Speak with Animals, the land's Circle Spells */
@@ -729,6 +733,39 @@ function druidButtonsHtml(c, name) {
   if (name === "Nature's Ward" && c.land) return `<p class="note" style="margin:2px 0 0">Now: immune to Poisoned, Resistance to ${D_WARD[c.land]} damage.</p>`;
   return B.length ? `<div class="acts" style="flex-wrap:wrap">${B.join("")}</div>` : "";
 }
+/* the Fighter (Joseph, 2026-11-12, the SRD walk-through; his SRD 5.2.1): their Fighter level, the Champion; Action Surge and
+   Indomitable's uses; Tactical Mind and Indomitable as buttons on a failed roll; a Champion's 19-20 (18-20) crits, Advantage on
+   Initiative and Athletics, Defy Death; the Fighting Style feats (style1, and a Champion's style2) */
+const fighterLv = c => { const k = classesOf(c).find(x => /^fighter$/i.test(String(x.cls || "").trim())); return k ? +k.level || 1 : 0; };
+const champion = c => classesOf(c).some(x => /^fighter$/i.test(String(x.cls || "").trim()) && /champion/i.test(x.sub || "")) || (/^fighter$/i.test(String(c.cls || "").trim()) && /champion/i.test(c.subcls || ""));
+const styleIs = (c, k) => c.style1 === k || c.style2 === k;
+const defyAt = c => champion(c) && c.rules !== "2014" && fighterLv(c) >= 18 ? 18 : 20;     // Survivor's Defy Death: 18-20 counts as a 20
+const critAt = c => champion(c) && c.rules !== "2014" ? (fighterLv(c) >= 15 ? 18 : fighterLv(c) >= 3 ? 19 : 20) : 20;
+const RANGED_W = ["Blowgun", "Dart", "Hand Crossbow", "Heavy Crossbow", "Light Crossbow", "Longbow", "Musket", "Pistol", "Shortbow", "Sling"];
+const TWO_HAND_W = ["Glaive", "Greataxe", "Greatclub", "Greatsword", "Halberd", "Maul", "Pike"], VERSATILE_W = ["Battleaxe", "Longsword", "Quarterstaff", "Spear", "Trident", "Warhammer"];
+const wNamed = (name, list) => list.some(w => String(name || "").toLowerCase().includes(w.toLowerCase()));
+const archeryOf = (c, a) => styleIs(c, "archery") && wNamed(a.name, RANGED_W) ? 2 : 0;
+const defenseOf = c => styleIs(c, "defense") && !/no armor|unarmored/i.test(c.acNote || "") ? 1 : 0;
+const gwfOf = (c, name) => styleIs(c, "gwf") && (wNamed(name, TWO_HAND_W) || (wNamed(name, VERSATILE_W) && /two/i.test(name || "")));
+const STYLE_OPTS = [["archery", "Archery: +2 to hit with Ranged weapons"], ["defense", "Defense: +1 AC in armor"], ["gwf", "Great Weapon Fighting: 1s and 2s as 3s"], ["twf", "Two-Weapon Fighting: the modifier on the off-hand"]];
+/* Great Weapon Fighting's roll: the weapon's first dice, 1s and 2s as 3s */
+function rollExprGwf(expr, crit) {
+  let total = 0, first = true; const parts = [];
+  for (const t of parseDice(expr)) {
+    if (t.d) { const n = t.n * (crit ? 2 : 1); const rs = Array.from({ length: n }, () => rnd(t.d)), shown = rs.map(x => first && x < 3 ? `${x}→3` : String(x)), v = rs.reduce((a, b) => a + (first && b < 3 ? 3 : b), 0) * t.sign;
+      first = false; total += v; parts.push(`${t.sign < 0 ? "−" : ""}${n}d${t.d} [${shown.join(",")}]`); }
+    else { total += t.k * t.sign; parts.push(sg(t.k * t.sign)); }
+  }
+  return { total, text: parts.join(" ") };
+}
+/* the buttons on a d20 result: Tactical Mind (a failed check, a Second Wind for +1d10) and Indomitable (a failed save, rerolled + level) */
+function fighterRollHtml(c, r) {
+  if (!r || r.type !== "d20" || !fighterLv(c) || c.rules === "2014" || r.fighterUsed) return "";
+  const sw = res(c, "Second Wind"), ind = res(c, "Indomitable"), B = [];
+  if (r.ctx && r.ctx.kind === "check" && fighterLv(c) >= 2 && resLeft(sw) > 0) B.push(`<button class="btn wide" data-act="tactmind">Tactical Mind: +1d10 (a Second Wind; ${resLeft(sw)} left)</button>`);
+  if (r.ctx && r.ctx.kind === "save" && fighterLv(c) >= 9 && resLeft(ind) > 0) B.push(`<button class="btn wide" data-act="indom">Indomitable: reroll it +${fighterLv(c)} (${resLeft(ind)} left)</button>`);
+  return B.join("");
+}
 const thaumOf = (c, k) => (c.porder === "magician" && druidLv(c) && (k === "arcana" || k === "nature") ? Math.max(1, mod(c, "wis")) : 0) + (c.order === "thaumaturge" && clericLv(c) && (k === "arcana" || k === "religion") ? Math.max(1, mod(c, "wis")) : 0);
 const bardSecrets = (c, cls) => /^bard$/i.test(String(cls || "").trim()) && (bardLv(c) >= 10 || (lore(c) && bardLv(c) >= 6));
 /* Peerless Skill (Lore, 14): a failed ability check or attack roll, a Bardic Inspiration die added; the use isn't spent
@@ -794,15 +831,15 @@ function rollHtml() {
   const why = r.auto.adv.length || r.auto.dis.length ? `<p class="note">${r.auto.adv.length ? "Advantage from " + esc(listAnd(r.auto.adv)) : ""}${r.auto.adv.length && r.auto.dis.length ? "; " : ""}${r.auto.dis.length ? "Disadvantage from " + esc(listAnd(r.auto.dis)) : ""}</p>` : "";
   const lucky = res(c, "Lucky"); const wager = res(c, "Pious Wager");
   let verdict = "";
-  if (r.ctx.kind === "death") verdict = u === 20 ? `<p class="verdict ok">Natural 20: you're back with 1 hit point.</p>` : u === 1 ? `<p class="verdict bad">Natural 1: two failures.</p>` : u >= 10 ? `<p class="verdict ok">A success.</p>` : `<p class="verdict bad">A failure.</p>`;
+  if (r.ctx.kind === "death") verdict = u >= defyAt(c) ? `<p class="verdict ok">${u === 20 ? "Natural 20" : `${u === 18 ? "An" : "A"} ${u} (Defy Death: counts as a 20)`}: you're back with 1 hit point.</p>` : u === 1 ? `<p class="verdict bad">Natural 1: two failures.</p>` : u >= 10 ? `<p class="verdict ok">A success.</p>` : `<p class="verdict bad">A failure.</p>`;
   else if (r.dc) verdict = tot >= r.dc ? `<p class="verdict ok">Made it (DC ${r.dc}).</p>` : `<p class="verdict bad">Missed it (DC ${r.dc})${r.conc && c.conc ? `: concentration on ${esc(c.conc)} breaks` : ""}.</p>`;
-  else if (u === 20 && r.ctx.kind === "atk") verdict = `<p class="verdict ok">Natural 20: a critical hit.</p>`;
+  else if (r.ctx.kind === "atk" && (u === 20 || (!r.ctx.spell && u >= critAt(c)))) verdict = `<p class="verdict ok">${u === 20 ? "Natural 20" : `${u === 18 ? "An" : "A"} ${u} (${critAt(c) === 18 ? "Superior" : "Improved"} Critical)`}: a critical hit.</p>`;
   else if (u === 1 && r.ctx.kind === "atk") verdict = `<p class="verdict bad">Natural 1: a miss.</p>`;
   const ammo = r.ammo ? c.items.find(i => i.id === r.ammo) : null;
   return `<div class="rr-h">${esc(r.label)} <small>${esc(r.sub || "")}</small></div>
     <div class="dice">${chips}<span class="total">${tot}</span></div>
     <div class="brk">d20 ${r.real != null ? "(real die) " : ""}${u}${r.parts.map(p => ` ${sg(p.v)} ${esc(p.name)}`).join("")}${r.dice.map(x => ` ${x.r.total < 0 ? "−" : "+"} ${Math.abs(x.r.total)} ${esc(x.name)} (${esc(x.bonus)})`).join("")}</div>
-    ${c.bi ? `<button class="btn wide" data-act="biuse" title="For a failed roll; it's used up">Add your Bardic Inspiration (d${esc(c.bi)})</button>` : ""}${peerlessHtml(c, r)}
+    ${c.bi ? `<button class="btn wide" data-act="biuse" title="For a failed roll; it's used up">Add your Bardic Inspiration (d${esc(c.bi)})</button>` : ""}${peerlessHtml(c, r)}${fighterRollHtml(c, r)}
     ${verdict}${why}${mightOf(r) && d20Raw(r) < mightOf(r) ? `<p class="note">Indomitable Might: ${d20Raw(r)} counts as your Strength score, ${mightOf(r)}.</p>` : ""}${r.hint ? `<p class="note">${esc(r.hint)}</p>` : ""}${r.spent ? `<p class="note">Used up: ${esc(listAnd(r.spent))}.</p>` : ""}
     ${r.ctx.kind !== "death" ? `<div class="row" style="margin-bottom:10px"><div class="seg">${[["normal", "Normal"], ["adv", "Advantage"], ["dis", "Disadvantage"]].map(([k, l]) => `<button class="${r.mode === k ? "on" : ""}" data-act="rmode" data-m="${k}">${l}</button>`).join("")}</div></div>` : ""}
     <div class="row" style="margin-bottom:10px;align-items:center"><span class="lab">Rolled a real die?</span><input type="number" min="1" max="20" inputmode="numeric" style="width:80px" data-act="realdie" value="${r.real ?? ""}" placeholder="d20"></div>
@@ -1153,7 +1190,7 @@ function playHtml(c) {
     <div class="lines">${ABS.map(([k, n]) => `<button class="line" data-act="sv" data-ab="${k}"><span class="pf ${c.saveProf.includes(k) ? "on" : ""}"></span><span class="nm">${n}</span><span class="v">${sg(saveOf(c, k))}</span></button>`).join("")}</div>
     <div class="lab" style="margin-bottom:2px">Skills</div>
     <div class="lines">${SKILLS.map(([k, n, ab]) => `<button class="line" data-act="sk" data-k="${k}"><span class="pf ${skillLv(c, k) >= 2 ? "ex" : skillLv(c, k) ? "on" : ""}"></span><span class="nm">${n} <small>${AB_SHORT[ab]}</small></span><span class="v">${sg(skillOf(c, k))}</span></button>`).join("")}</div>`;
-  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Weapon Mastery" ? masteryPickHtml(c) : ""}${druidLv(c) && ["Wild Shape", "Wild Resurgence", "Wild Companion", "Archdruid", "Land's Aid", "Natural Recovery", "Nature's Sanctuary", "Nature's Ward"].includes(t.name) ? druidButtonsHtml(c, t.name) : ""}${t.name === "Primal Order" && druidLv(c) ? clPickHtml(c, "porder", "Your Primal Order", [["magician", "Magician: a cantrip more, Wisdom on Arcana and Nature"], ["warden", "Warden: Martial weapons, Medium armor"]]) : ""}${t.name === "Elemental Fury" && druidLv(c) ? clPickHtml(c, "fury", "Your Elemental Fury", [["potent", "Potent Spellcasting: Wisdom on Druid cantrips"], ["primal", "Primal Strike: +1d8 Cold, Fire, Lightning, or Thunder on a hit"]]) : ""}${t.name === "Circle of the Land Spells" && druidLv(c) ? clPickHtml(c, "land", "Your land (each Long Rest)", [["arid", "Arid"], ["polar", "Polar"], ["temperate", "Temperate"], ["tropical", "Tropical"]]) : ""}${t.name === "Channel Divinity" && clericLv(c) ? cdButtonsHtml(c) : ""}${t.name === "Divine Intervention" && clericLv(c) >= 10 ? (r => `<div class="acts"><button class="btn small" data-act="diuse" ${resLeft(r) ? "" : "disabled"}>Use it: a Cleric spell of level 5 or lower, no slot</button>${clericLv(c) >= 20 ? `<button class="btn small" data-act="diuse" data-k="wish" ${resLeft(r) ? "" : "disabled"}>Wish (then 2d4 Long Rests without it)</button>` : ""}</div><p class="note" style="margin:2px 0 0">${c.diWait ? `Back after ${c.diWait} more Long Rest${c.diWait === 1 ? "" : "s"}.` : resLeft(r) ? "Ready." : "Used: back on a Long Rest."}</p>`)(res(c, "Divine Intervention")) : ""}${t.name === "Divine Order" && clericLv(c) ? clPickHtml(c, "order", "Your Divine Order", [["protector", "Protector: Martial weapons, Heavy armor"], ["thaumaturge", "Thaumaturge: a cantrip more, Wisdom on Arcana and Religion"]]) : ""}${t.name === "Blessed Strikes" && clericLv(c) ? clPickHtml(c, "strikes", "Your Blessed Strikes", [["divine", "Divine Strike: +1d8 on a weapon hit, once a turn"], ["potent", "Potent Spellcasting: Wisdom on Cleric cantrip damage"]]) : ""}${t.name === "Bardic Inspiration" && bardLv(c) ? `<div class="acts"><button class="btn small" data-act="bigive">Give a d${biDie(bardLv(c))} (a Bonus Action; ${resLeft(res(c, "Bardic Inspiration"))} left)</button>${bardLv(c) >= 5 && (+(res(c, "Bardic Inspiration") || {}).used || 0) > 0 && Object.keys(c.slots).some(k => c.slots[k].max > c.slots[k].used) ? `<button class="btn small" data-act="bifont" title="Font of Inspiration: no action needed">Spend a spell slot: one use back</button>` : ""}</div>` : ""}${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
+  const feats = c.traits.map((t, i) => `<div class="card"><span class="nm">${esc(t.name)}${t.src ? `<span class="tag">${esc(t.src)}</span>` : ""}</span><div class="txt">${fmt(t.text)}</div>${t.name === "Weapon Mastery" ? masteryPickHtml(c) : ""}${t.name === "Fighting Style" && fighterLv(c) ? clPickHtml(c, "style1", "Your Fighting Style", STYLE_OPTS.filter(([v]) => v !== c.style2)) : ""}${t.name === "Additional Fighting Style" && fighterLv(c) ? clPickHtml(c, "style2", "Your second Fighting Style", STYLE_OPTS.filter(([v]) => v !== c.style1)) : ""}${t.name === "Heroic Warrior" && fighterLv(c) ? `<p class="note" style="margin:2px 0 0">In a fight: start your turn without Heroic Inspiration, and tick it (Inspiration, in Edit).</p>` : ""}${t.name === "Survivor" && fighterLv(c) ? `<p class="note" style="margin:2px 0 0">Death saves roll with Advantage here, and 18-20 counts as a 20. Heroic Rally: Bloodied at the start of your turn, regain ${5 + mod(c, "con")} hit points.</p>` : ""}${druidLv(c) && ["Wild Shape", "Wild Resurgence", "Wild Companion", "Archdruid", "Land's Aid", "Natural Recovery", "Nature's Sanctuary", "Nature's Ward"].includes(t.name) ? druidButtonsHtml(c, t.name) : ""}${t.name === "Primal Order" && druidLv(c) ? clPickHtml(c, "porder", "Your Primal Order", [["magician", "Magician: a cantrip more, Wisdom on Arcana and Nature"], ["warden", "Warden: Martial weapons, Medium armor"]]) : ""}${t.name === "Elemental Fury" && druidLv(c) ? clPickHtml(c, "fury", "Your Elemental Fury", [["potent", "Potent Spellcasting: Wisdom on Druid cantrips"], ["primal", "Primal Strike: +1d8 Cold, Fire, Lightning, or Thunder on a hit"]]) : ""}${t.name === "Circle of the Land Spells" && druidLv(c) ? clPickHtml(c, "land", "Your land (each Long Rest)", [["arid", "Arid"], ["polar", "Polar"], ["temperate", "Temperate"], ["tropical", "Tropical"]]) : ""}${t.name === "Channel Divinity" && clericLv(c) ? cdButtonsHtml(c) : ""}${t.name === "Divine Intervention" && clericLv(c) >= 10 ? (r => `<div class="acts"><button class="btn small" data-act="diuse" ${resLeft(r) ? "" : "disabled"}>Use it: a Cleric spell of level 5 or lower, no slot</button>${clericLv(c) >= 20 ? `<button class="btn small" data-act="diuse" data-k="wish" ${resLeft(r) ? "" : "disabled"}>Wish (then 2d4 Long Rests without it)</button>` : ""}</div><p class="note" style="margin:2px 0 0">${c.diWait ? `Back after ${c.diWait} more Long Rest${c.diWait === 1 ? "" : "s"}.` : resLeft(r) ? "Ready." : "Used: back on a Long Rest."}</p>`)(res(c, "Divine Intervention")) : ""}${t.name === "Divine Order" && clericLv(c) ? clPickHtml(c, "order", "Your Divine Order", [["protector", "Protector: Martial weapons, Heavy armor"], ["thaumaturge", "Thaumaturge: a cantrip more, Wisdom on Arcana and Religion"]]) : ""}${t.name === "Blessed Strikes" && clericLv(c) ? clPickHtml(c, "strikes", "Your Blessed Strikes", [["divine", "Divine Strike: +1d8 on a weapon hit, once a turn"], ["potent", "Potent Spellcasting: Wisdom on Cleric cantrip damage"]]) : ""}${t.name === "Bardic Inspiration" && bardLv(c) ? `<div class="acts"><button class="btn small" data-act="bigive">Give a d${biDie(bardLv(c))} (a Bonus Action; ${resLeft(res(c, "Bardic Inspiration"))} left)</button>${bardLv(c) >= 5 && (+(res(c, "Bardic Inspiration") || {}).used || 0) > 0 && Object.keys(c.slots).some(k => c.slots[k].max > c.slots[k].used) ? `<button class="btn small" data-act="bifont" title="Font of Inspiration: no action needed">Spend a spell slot: one use back</button>` : ""}</div>` : ""}${t.name === "Rage" && barbLv(c) ? `<div class="acts">${raging(c) ? `<button class="btn small" data-act="rageoff">End the Rage</button>` : `<button class="btn small" data-act="rageon">Rage (a Bonus Action; ${resLeft(res(c, "Rage"))} left)</button>`}</div>` : ""}${t.name === "Giant Ancestry" ? `<label class="fld" style="margin-top:6px"><span>Your giant ancestry${c.giant ? "" : " (not picked yet)"}</span><select data-f="giant"><option value="">Pick one</option>${GIANTS.map(([k, l]) => `<option value="${k}" ${c.giant === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}${(t.fx || []).length ? `<span class="sub">${esc(listAnd(t.fx.map(fxSummary)))}</span>` : ""}
     ${t.rollSkill ? `<div class="acts"><button class="btn small" data-act="traitroll" data-i="${i}">${esc(t.rollLabel || `Roll ${SKILL[t.rollSkill] ? SKILL[t.rollSkill].name : t.rollSkill}${t.rollExtra ? " + " + t.rollExtra : ""}`)}</button></div>` : ""}${t.effect ? `<div class="acts"><button class="btn small" data-act="traiteff" data-i="${i}">Put it on</button></div>` : ""}</div>`).join("");
   const recent = (c.rolls || []).slice(0, 15).map(r => `<div class="logl"><span class="d">${new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span><span class="t">${esc(rollSummary(r))}</span></div>`).join("") || `<p class="empty">Nothing rolled yet.</p>`;
   return todoHtml(c) + hpPanel + effPanel + stats
@@ -3141,7 +3178,8 @@ function toSurvey(c) {
   const saveWord = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
   return {
     cbId: c.id, name: c.name, short: c.short || "", player: c.player || "", species: c.species || "", cls: c.cls || "", subcls: c.subcls || "", level: +c.level || 1, bg: c.bg || "", align: c.align || "",
-    ac: String((+c.ac || 10) + activeMods(c).filter(m => m.src === "item" && (m.to || []).includes("ac")).reduce((a, m) => a + flatOf(m.bonus), 0)),
+    ac: String((+c.ac || 10) + activeMods(c).filter(m => m.src === "item" && (m.to || []).includes("ac")).reduce((a, m) => a + flatOf(m.bonus), 0) + defenseOf(c)),
+    style1: c.style1 || "", style2: c.style2 || "",
     hp: c.hp, hpMax: String(c.hpMax), temp: +c.temp || 0, speed: +c.speed || 30, init: asc(initOf(c)), pp: String(passiveOf(c, "perception")),
     dc: c.spells.length ? String(dcOf(c)) : "", satk: c.spells.length ? asc(satkOf(c)) : "",
     str: ab("str"), dex: ab("dex"), con: ab("con"), int: ab("int"), wis: ab("wis"), cha: ab("cha"),
@@ -3164,7 +3202,7 @@ function fromSurvey(old, inc) {
   if (Array.isArray(inc.mastery) && inc.mastery.length) old.mastery = inc.mastery.slice();     // Weapon Mastery's kinds, picked there
   if (inc.bi !== undefined) { if (inc.bi) old.bi = String(inc.bi); else delete old.bi; }     // a Bardic Inspiration die they hold
   if (inc.order) old.order = inc.order; if (inc.strikes) old.strikes = inc.strikes;
-  for (const k of ["porder", "fury", "land"]) if (inc[k]) old[k] = inc[k]; if (Array.isArray(inc.forms) && inc.forms.length) old.forms = inc.forms.slice();     // a Druid's picks and Wild Shape forms (by name)     // a Cleric's Divine Order and Blessed Strikes, picked on the survey's card
+  for (const k of ["porder", "fury", "land", "style1", "style2"]) if (inc[k]) old[k] = inc[k]; if (Array.isArray(inc.forms) && inc.forms.length) old.forms = inc.forms.slice();     // a Druid's picks and Wild Shape forms (by name)     // a Cleric's Divine Order and Blessed Strikes, picked on the survey's card
   if (alertInit(old) && inc.initBonus !== undefined && inc.initBonus !== "") old.initBonus = (+inc.initBonus || 0) - alertInit(old);     // the survey's Initiative has Alert in it already (this sheet sent it)
   for (const [k, v] of Object.entries(inc.skills || {})) old.skills[k] = v; // a bard's half proficiency stays where the survey shows none
   old.hd = { ...old.hd, ...inc.hd }; old.death = { ...inc.death }; old.conds = inc.conds.slice(); old.purse = { ...inc.purse };
@@ -3615,7 +3653,7 @@ document.addEventListener("click", e => {
     case "dsok": c.death.ok = +el.dataset.i < c.death.ok ? +el.dataset.i : +el.dataset.i + 1; save(); render(); break;
     case "dsfail": c.death.fail = +el.dataset.i < c.death.fail ? +el.dataset.i : +el.dataset.i + 1; save(); render(); break;
     case "deathsave": rollD20({ label: "Death save", ctx: { kind: "death" }, parts: [] }); break;
-    case "deathapply": { const u = usedD(R); if (u === 20) { c.hp = 1; c.death = { ok: 0, fail: 0 }; c.conds = c.conds.filter(k => k !== "Unconscious"); } else if (u === 1) c.death.fail = Math.min(3, c.death.fail + 2); else if (u >= 10) c.death.ok = Math.min(3, c.death.ok + 1); else c.death.fail = Math.min(3, c.death.fail + 1); save(); closeOv(); break; }
+    case "deathapply": { const u = usedD(R); if (u >= defyAt(c)) { c.hp = 1; c.death = { ok: 0, fail: 0 }; c.conds = c.conds.filter(k => k !== "Unconscious"); } else if (u === 1) c.death.fail = Math.min(3, c.death.fail + 2); else if (u >= 10) c.death.ok = Math.min(3, c.death.ok + 1); else c.death.fail = Math.min(3, c.death.fail + 1); save(); closeOv(); break; }
     case "healself": heal(c, +el.dataset.n); closeOv(); break;
     // concentration and effects
     case "concend": if (c.conc) { endConc(c); } if (ovKind) closeOv(); else render(); break;
@@ -3680,6 +3718,10 @@ document.addEventListener("click", e => {
       r.used = (+r.used || 0) + 1; save(); render(); toast(`A d${biDie(bardLv(c))} to someone within 60 feet who can see or hear you; they add it to a failed d20 roll within the hour.`); break; }
     case "bifont": { const r = res(c, "Bardic Inspiration"), L = Object.keys(c.slots).map(Number).sort((a, b) => a - b).find(k => c.slots[k].max > c.slots[k].used); if (!r || !L) break;
       c.slots[L].used = (+c.slots[L].used || 0) + 1; r.used = Math.max(0, (+r.used || 0) - 1); save(); render(); toast(`A ${ord(L)}-level slot spent: Bardic Inspiration ${resLeft(r)} of ${r.max}.`); break; }
+    case "tactmind": { if (!R || R.type !== "d20") break; const sw = res(c, "Second Wind"), n = rnd(10); R.parts.push({ name: "Tactical Mind", v: n }); R.fighterUsed = true;
+      const still = R.dc != null && d20Total(R) < +R.dc; if (!still && sw) sw.used = (+sw.used || 0) + 1; save(); showRoll(); toast(`Tactical Mind: +${n}${still ? ": still short, so the Second Wind isn't spent" : R.dc == null ? ". If it still fails, give the Second Wind back on the Rests card" : ""}.`); break; }
+    case "indom": { if (!R || R.type !== "d20") break; const r = res(c, "Indomitable"); if (!r || resLeft(r) <= 0) break; r.used = (+r.used || 0) + 1; const n = rnd(20);
+      R.d = [n, n]; R.mode = "normal"; R.pick = null; R.real = null; R.parts.push({ name: "Indomitable", v: fighterLv(c) }); R.fighterUsed = true; save(); showRoll(); toast(`Indomitable: rerolled a ${n}, +${fighterLv(c)}. The new roll stands.`); break; }
     case "peerless": { if (!R || R.type !== "d20") break; const u = res(c, "Bardic Inspiration"), n = rnd(biDie(bardLv(c))); R.parts.push({ name: "Peerless Skill", v: n }); R.peerless = true;
       const still = R.dc != null && d20Total(R) < +R.dc; if (!still) u.used = (+u.used || 0) + 1; save(); showRoll(); toast(`Peerless Skill: +${n}${still ? ": still short, so the use isn't spent" : R.dc == null ? ". If it still fails, give the use back on the Rests card" : ""}.`); break; }
     case "biuse": { if (!R || R.type !== "d20" || !c.bi) break; const n = rnd(+c.bi); R.parts.push({ name: `Bardic Inspiration d${c.bi}`, v: n }); delete c.bi; save(); showRoll(); toast(`Bardic Inspiration: +${n}.`); break; }
@@ -3714,7 +3756,7 @@ document.addEventListener("click", e => {
       R.d[i] = rnd(20); R.pick = i; R.hlr = `Halfling Luck: the 1 rerolled, ${R.d[i]}; that roll stands.`; { const keep = R; logRoll(c, `${R.label}: ${R.hlr}`); R = keep; } save(); showRoll(); break; }
     case "luckvs": { const r = res(c, "Lucky"); if (!resLeft(r)) { toast("No Luck points left."); break; } r.used++; logRoll(c, `Luck point (${resLeft(r)} left): the attacker has Disadvantage`); save(); render(); toast("Luck point spent: the attack roll against you has Disadvantage (the attacker rolls two d20s and uses the lower).", 5000); break; }
     case "ammoback": { const it = c.items.find(i => i.id === R.ammo); if (it) it.qty++; R.ammo = null; save(); showRoll(); break; }
-    case "rolldmg": { const u = usedD(R); const d = R.dmg; rollDamage(d.label.endsWith("damage") ? d.label : d.label + " damage", d.expr, { dtype: d.dtype, crit: u === 20, str: !!d.str, weapon: !!d.weapon }); break; }
+    case "rolldmg": { const u = usedD(R); const d = R.dmg; rollDamage(d.label.endsWith("damage") ? d.label : d.label + " damage", d.expr, { dtype: d.dtype, crit: u === 20 || (!!d.weapon && u >= critAt(c)), str: !!d.str, weapon: !!d.weapon }); break; }
     case "rerolldmg": rollDamage(R.label, R.expr, { dtype: R.dtype, crit: R.crit, heal: R.heal, save: R.save, noMods: !R.extra.length && !R.flat, str: !!R.str, weapon: !!R.weapon }); break;
     case "wagerfrom": ui.wager = { roll: String(d20Total(R)), dc: "" }; ui.tab = "items"; closeOv(); toast("Put in the AC or DC it was against."); setTimeout(() => { const i = document.querySelector('[data-wager="dc"]'); if (i) { i.scrollIntoView({ block: "center" }); i.focus(); } }, 60); break;
     case "wagerapply": applyWager(c, el.dataset.slot); break;
