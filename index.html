@@ -326,7 +326,7 @@
 /* ══ Character Book — the sheet you play from, beside Ordinate Survey (the DM's app) and the Field Book.
    Everything stays on this device (localStorage; pictures in IndexedDB) until you save a backup from the character menu.
    Rules are the ones on your sheet: Gnick is a 2014 character, so his spells and features read as he has them written. ══ */
-const VERSION = 64;
+const VERSION = 65;
 let offlineReady = false; // set once the offline cache for this version is in place
 const STORE = "character-book";
 const $ = s => document.querySelector(s);
@@ -579,6 +579,7 @@ function rollDamage(label, expr, o = {}) {
   const r = o.weapon && !o.heal && gwfOf(c, label) ? rollExprGwf(expr, crit) : rollExpr(expr, crit); const extra = o.noMods ? [] : diceFor(c, dctx).map(m => ({ name: m.name, r: rollExpr(m.bonus, crit) }));
   const flat = o.noMods ? 0 : flatFor(c, dctx);
   if (o.weapon && !o.heal && pal24(c) && palLv(c) >= 11 && hasT(c, "Radiant Strikes") && !wNamed(label, RANGED_W)) extra.push({ name: "Radiant Strikes (radiant)", r: rollExpr("1d8", crit) });     // a Paladin's, on a melee weapon hit
+  if (o.weapon && !o.heal && pal24(c) && fallen(c) && wrathUp(c) && mod(c, "cha") > 0) extra.push({ name: "Wrath of the Fallen (radiant)", r: rollExpr(String(mod(c, "cha"))) });     /* the Fallen Crown's, while it's up */
   R = { type: "dmg", label, expr, crit, base: r, extra, flat, dtype: o.dtype || "", heal: !!o.heal, self: !!o.self, save: o.save || null, at: Date.now(), from: o.from || null, str: !!o.str, weapon: !!o.weapon, life: +o.life || 0 };
   R.total = Math.max(0, r.total + extra.reduce((a, x) => a + x.r.total, 0) + flat);
   pushRoll(c); save(); showRoll();
@@ -672,6 +673,10 @@ function ensureOrigins(c) {
     if (pl >= 5 && hasT(c, "Faithful Steed")) { want.push(["Find Steed, free (Faithful Steed)", 1, "long"]); addSp("Find Steed", "D"); }
     if (devotion(c)) for (const [lv, names] of D_DEVOTION) if (pl >= lv) for (const n of names) addSp(n, "D");
     if (pl >= 20 && devotion(c) && hasT(c, "Holy Nimbus")) want.push(["Holy Nimbus", 1, "long"]);
+    /* the Oath of the Fallen Crown's spells, Aura of Never Again (Charisma modifier a Long Rest), Spectral Court */
+    if (fallen(c)) for (const [lv, names] of D_FALLEN) if (pl >= lv) for (const n of names) addSp(n, "D");
+    if (pl >= 7 && fallen(c) && hasT(c, "Aura of Never Again")) want.push(["Aura of Never Again", Math.max(1, mod(c, "cha")), "long"]);
+    if (pl >= 20 && fallen(c) && hasT(c, "Spectral Court")) want.push(["Spectral Court", 1, "long"]);
     if ((c.style1 === "blessed" || c.style2 === "blessed") && !(c.spells || []).some(s => s.tag === "BW")) for (const n of ["Guidance", "Sacred Flame"]) addSp(n, "BW"); }
   if (monk24(c)) { const ml = monkLv(c);
     if (ml >= 2 && has("Uncanny Metabolism")) want.push(["Uncanny Metabolism", 1, "long"]);
@@ -847,6 +852,22 @@ const hasT = (c, n) => (c.traits || []).some(t => String(t.name || "").toLowerCa
 /* Aura of Protection (6): + Charisma (at least 1) on your own saves, not while Incapacitated */
 const auraOf = c => pal24(c) && palLv(c) >= 6 && hasT(c, "Aura of Protection") && !["Incapacitated", "Paralyzed", "Petrified", "Stunned", "Unconscious"].some(k => (c.conds || []).includes(k)) ? Math.max(1, mod(c, "cha")) : 0;
 const D_DEVOTION = [[3, ["Protection from Evil and Good", "Shield of Faith"]], [5, ["Aid", "Zone of Truth"]], [9, ["Beacon of Hope", "Dispel Magic"]], [13, ["Freedom of Movement", "Guardian of Faith"]], [17, ["Commune", "Flame Strike"]]];
+/* the Oath of the Fallen Crown (Joseph's own oath, 2026-11-12: "build the subclass, and build the mechanics into the
+   apps"; not in the SRD): built in (HOUSE_SUBS), offered at the level-up like the SRD's oath; its spells always prepared,
+   Aura of Never Again's uses, Spectral Court, and buttons for Kneel Before the Crown, Wrath of the Fallen, and the rest.
+   The survey plays the aura, the Wrath, and the Court out in a fight */
+const fallen = c => classesOf(c).some(x => /^paladin$/i.test(String(x.cls || "").trim()) && /fallen crown/i.test(x.sub || "")) || (/^paladin$/i.test(String(c.cls || "").trim()) && /fallen crown/i.test(c.subcls || ""));
+const D_FALLEN = [[3, ["Command", "Heroism"]], [5, ["Calm Emotions", "Zone of Truth"]], [9, ["Spirit Guardians", "Beacon of Hope"]], [13, ["Compulsion", "Guardian of Faith"]], [17, ["Flame Strike", "Antilife Shell"]]];
+const HOUSE_SUBS = [{ id: "house-fallen-crown", name: "Oath of the Fallen Crown", of: "Paladin", house: true,
+  desc: "A paladin sworn to a king or queen who fell. The oath didn't end with them. Tenets: Remember (speak their name, and keep their laws where no one else does). Never Again (no one under your protection falls while you stand). Guard the Line (find and keep safe the heir, the relic, or the rightful claim). Bear the Shame (don't hide your failure; answer for it).",
+  features: [
+    { level: 3, name: "Oath of the Fallen Crown Spells", text: "The magic of your oath ensures you always have certain spells ready; when you reach a Paladin level listed here, you thereafter always have those spells prepared. Level 3: Command, Heroism. Level 5: Calm Emotions, Zone of Truth. Level 9: Spirit Guardians, Beacon of Hope. Level 13: Compulsion, Guardian of Faith. Level 17: Flame Strike, Antilife Shell." },
+    { level: 3, name: "Kneel Before the Crown", text: "As a Magic action, you can expend one use of your Channel Divinity to speak with the voice of your fallen monarch. Each creature of your choice within 30 feet of you makes a Wisdom saving throw against your spell save DC. On a failed save, a creature has the Prone condition and can't stand up until the end of its next turn." },
+    { level: 5, name: "Wrath of the Fallen", text: "When a creature within 10 feet of you (within your Aura of Protection, once you have it) drops to 0 Hit Points, or when you use Aura of Never Again, your weapon hits deal extra Radiant damage equal to your Charisma modifier until the end of your next turn. If this happens again while it's active, the duration starts over, but the extra damage doesn't stack." },
+    { level: 7, name: "Aura of Never Again", text: "When a creature in your Aura of Protection drops to 0 Hit Points and isn't killed outright, you can take a Reaction to make it drop to 1 Hit Point instead. You can use this feature a number of times equal to your Charisma modifier (minimum of once), and you regain all expended uses when you finish a Long Rest." },
+    { level: 15, name: "Vengeance of the Crown", text: "When you use Aura of Never Again, you can also teleport up to 30 feet to an unoccupied space you can see next to the creature that dropped the target, and make one attack with a weapon against that creature, as part of the same Reaction." },
+    { level: 20, name: "Spectral Court", text: "As a Bonus Action, you call up the court of your fallen monarch, a ghostly crown and honor guard around you, for 10 minutes. For the duration, at the start of each of your turns, one ally in your Aura of Protection can take a Reaction to make one attack, and enemies in your aura have Disadvantage on saving throws against your Kneel Before the Crown. Once you use this feature, you can't use it again until you finish a Long Rest. You can also restore your use of it by expending a level 5 spell slot (no action required)." }] }];
+const wrathUp = c => (c.effects || []).some(e => e.name === "Wrath of the Fallen" && e.on !== false);
 const RESTORE_CONDS = ["Blinded", "Charmed", "Deafened", "Frightened", "Paralyzed", "Stunned"];
 function palButtonsHtml(c, name) {
   if (!pal24(c)) return ""; const lv = palLv(c), n = String(name).toLowerCase(), B = [], note = s => `<p class="note" style="margin:2px 0 0">${s}</p>`, aura = lv >= 18 ? 30 : 10;
@@ -854,7 +875,7 @@ function palButtonsHtml(c, name) {
   if (n === "lay on hands") { const r = res(c, "Lay on Hands"), left = resLeft(r); b("palloh", "Heal from the pool", "heal", !left); b("palloh", "End Poisoned (5)", "poison", left < 5); if (lv >= 14 && hasT(c, "Restoring Touch")) b("palloh", "Restoring Touch (5 each)", "restore", left < 5);
     return `<div class="acts" style="flex-wrap:wrap">${B.join("")}</div>${note(`${left} of ${r ? r.max : 0} hit points in the pool (a Long Rest refills it). A Bonus Action and a touch.`)}`; }
   if (n === "paladin's smite") return note(`Divine Smite is always prepared, and once a Long Rest it's free (a use). On a weapon hit's damage, the Divine Smite button spends the slot.`);
-  if (n === "channel divinity" && lv >= 3) { const r = res(c, "Channel Divinity"); b("palcd", "Divine Sense (a Bonus Action)", "sense", !resLeft(r)); if (lv >= 9 && hasT(c, "Abjure Foes")) b("palcd", `Abjure Foes (Wisdom save, DC ${dcOf(c)})`, "abjure", !resLeft(r)); if (devotion(c) && hasT(c, "Sacred Weapon")) b("palcd", `Sacred Weapon: +${Math.max(1, mod(c, "cha"))} to hit`, "sacred", !resLeft(r));
+  if (n === "channel divinity" && lv >= 3) { const r = res(c, "Channel Divinity"); b("palcd", "Divine Sense (a Bonus Action)", "sense", !resLeft(r)); if (lv >= 9 && hasT(c, "Abjure Foes")) b("palcd", `Abjure Foes (Wisdom save, DC ${dcOf(c)})`, "abjure", !resLeft(r)); if (devotion(c) && hasT(c, "Sacred Weapon")) b("palcd", `Sacred Weapon: +${Math.max(1, mod(c, "cha"))} to hit`, "sacred", !resLeft(r)); if (fallen(c) && hasT(c, "Kneel Before the Crown")) b("palcd", `Kneel Before the Crown (Wisdom save, DC ${dcOf(c)})`, "kneel", !resLeft(r));
     return `<div class="acts" style="flex-wrap:wrap">${B.join("")}</div>${note(`${resLeft(r)} of ${r ? r.max : 0} left (one back on a Short Rest, all on a Long Rest).`)}`; }
   if (n === "aura of protection") return note(`You and allies within ${aura} feet: +${Math.max(1, mod(c, "cha"))} on saves (on your own save rolls here; the survey does the allies'). Not while you're Incapacitated.`);
   if (n === "aura of courage") return note(`You and allies in your ${aura}-foot aura can't be Frightened.`);
@@ -863,9 +884,19 @@ function palButtonsHtml(c, name) {
   if (n === "faithful steed") return note("Find Steed is always prepared, and once a Long Rest it's free (a use).");
   if (n === "smite of protection") return note(`After a Divine Smite: you and allies in your aura have Half Cover until the start of your next turn.`);
   if (n === "holy nimbus") { const r = res(c, "Holy Nimbus"), s5 = c.slots[5] && c.slots[5].max > c.slots[5].used; b("palnim", "Holy Nimbus (a Bonus Action, 10 minutes)", "use", !resLeft(r)); if (r && !resLeft(r) && s5) b("palnim", "A 5th-level slot: Holy Nimbus back", "slot"); }
+  /* the Oath of the Fallen Crown's */
+  if (!fallen(c)) return B.length ? `<div class="acts" style="flex-wrap:wrap">${B.join("")}</div>` : "";
+  if (n === "oath of the fallen crown spells") return note(`Always prepared: ${D_FALLEN.filter(([L]) => lv >= L).flatMap(([, s]) => s).join(", ")}.`);
+  if (n === "kneel before the crown") return note(`On the Channel Divinity card: creatures you choose within 30 feet make a Wisdom save, DC ${dcOf(c)}, or are Prone and can't stand up until the end of their next turn.`);
+  if (n === "wrath of the fallen") { const on = wrathUp(c); b("palwrath", on ? "Another one dropped: start it over" : `A creature within ${lv >= 6 ? aura : 10} ft dropped: Wrath on`, "on"); if (on) b("palwrath", "It's over (after your next turn)", "off");
+    return `<div class="acts" style="flex-wrap:wrap">${B.join("")}</div>${note(on ? `Up: +${Math.max(0, mod(c, "cha"))} Radiant is added to your weapon damage rolls here, until the end of your next turn.` : `+${Math.max(0, mod(c, "cha"))} Radiant on your weapon hits until the end of your next turn (Never Again turns it on too).`)}`; }
+  if (n === "aura of never again") { const r = res(c, "Aura of Never Again"); b("palna", "Use it: they drop to 1 instead (your Reaction)", "", !resLeft(r));
+    return `<div class="acts" style="flex-wrap:wrap">${B.join("")}</div>${note(`A creature in your ${aura}-foot aura dropping to 0 (and not killed outright). ${resLeft(r)} of ${r ? r.max : 0} left (a Long Rest brings them back).`)}`; }
+  if (n === "vengeance of the crown") return note("With Aura of Never Again, in the same Reaction: teleport up to 30 feet next to the creature that did it and make one weapon attack against it.");
+  if (n === "spectral court") { const r = res(c, "Spectral Court"), s5 = c.slots[5] && c.slots[5].max > c.slots[5].used; b("palcourt", "Spectral Court (a Bonus Action, 10 minutes)", "use", !resLeft(r)); if (r && !resLeft(r) && s5) b("palcourt", "A 5th-level slot: Spectral Court back", "slot"); }
   return B.length ? `<div class="acts" style="flex-wrap:wrap">${B.join("")}</div>` : "";
 }
-const PAL_CARDS = ["lay on hands", "paladin's smite", "channel divinity", "aura of protection", "aura of courage", "aura of devotion", "radiant strikes", "faithful steed", "smite of protection", "holy nimbus"];
+const PAL_CARDS = ["lay on hands", "paladin's smite", "channel divinity", "aura of protection", "aura of courage", "aura of devotion", "radiant strikes", "faithful steed", "smite of protection", "holy nimbus", "oath of the fallen crown spells", "kneel before the crown", "wrath of the fallen", "aura of never again", "vengeance of the crown", "spectral court"];
 /* the Ranger (Joseph, 2026-11-12, the SRD walk-through; his SRD 5.2.1): their Ranger level, the Hunter; on a 2024 sheet,
    Favored Enemy's free Hunter's Mark (2/3/4/5/6 at 1/5/9/13/17) and the spell always prepared, Druidic Warrior's cantrips,
    Roving in the Speed, Tireless and Nature's Veil, the Hunter's picks (c.prey, c.tactics), Hunter's Mark and Colossus
@@ -2118,7 +2149,7 @@ function vfeatReadHtml(bg) {
 }
 const miLeft = () => bldMI().some(m => !m.st.list || !m.st.ab || m.st.c.length < 2 || !m.st.s);
 const featsFor = c => [...(HAS_RULES ? [...ED(edOf(c)).feats, ...(c.mixed ? ED(otherEd(edOf(c))).feats : [])] : []), ...ownFeats().filter(f => f.name).map(f => ({ ...f, type: f.type || "General", desc: f.text || "" }))];
-const subOffers = (c, cls = c.cls) => [...new Set([(rSubOf(cls, edOf(c)) || {}).name || SUBCLASSES[cls], c.mixed ? (rSubOf(cls, otherEd(edOf(c))) || {}).name : "", ...ownSubs().filter(s => s.of === cls && s.name).map(s => s.name)].filter(Boolean))];
+const subOffers = (c, cls = c.cls) => [...new Set([(rSubOf(cls, edOf(c)) || {}).name || SUBCLASSES[cls], c.mixed ? (rSubOf(cls, otherEd(edOf(c))) || {}).name : "", ...ownSubs().filter(s => s.of === cls && s.name).map(s => s.name), ...HOUSE_SUBS.filter(s => s.of === cls).map(s => s.name)].filter(Boolean))];
 const STD_ARRAY = [15, 14, 13, 12, 10, 8];
 const BUY_COST = { 8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9 };
 const CAST_OF = { Bard: "cha", Cleric: "wis", Druid: "wis", Paladin: "cha", Ranger: "wis", Sorcerer: "cha", Warlock: "cha", Wizard: "int" };
@@ -2168,7 +2199,7 @@ const e14 = x => !!x && x.ed === "2014";
 // the backgrounds to pick from: the SRD's, then yours (the library's and the Field Book's), marked
 const bldBgs = () => [...bldLists(BLD.ed).backgrounds, ...libBackgrounds().map(x => ({ ...bgShape(x), ed: "yours", key: "hb:" + x.id, label: yoursLabel(x) }))];
 const bldClasses = () => [...bldLists(BLD.ed).classes, ...ownClasses().filter(x => x.name).map(x => ({ ...classShape(x), ed: "yours", key: "hb:" + x.id, label: `${x.name} (yours)` }))];
-const bldSubs = n => [...bldLists(BLD.ed).subclasses.filter(s => s.of === n), ...ownSubs().filter(s => s.of === n && s.name).map(s => ({ ...subShape(s), ed: "yours", key: "hb:" + s.id, label: `${s.name} (yours)` }))];
+const bldSubs = n => [...bldLists(BLD.ed).subclasses.filter(s => s.of === n), ...ownSubs().filter(s => s.of === n && s.name).map(s => ({ ...subShape(s), ed: "yours", key: "hb:" + s.id, label: `${s.name} (yours)` })), ...HOUSE_SUBS.filter(s => s.of === n).map(s => ({ ...subShape(s), ed: "house", key: "house:" + s.id, label: `${s.name} (house)` }))];
 const bgGivesAsi = bg => !!bg && (bg.ed === "2024" || (bg.ed === "yours" && bg.abilities.length > 0));
 const subAt1 = cls => !!cls && (cls.mine ? +cls.subAt === 1 : e14(cls) && subclassAt({ rules: "2014", cls: cls.name }) === 1);   // 2014 clerics, sorcerers, and warlocks
 // where the ability increases come from: a 2014 race, a 2024 background, both (you pick; the 2024 book says the
@@ -2846,7 +2877,7 @@ const myFeats = () => (db.lib && db.lib.feats) || [];
 const ownFeats = () => mergeHb(myFeats(), fromFB("feats"));
 // shaped like the SRD's: features with lv [level] and desc, plus their fx; mine marks them as yours
 const subShape = s => ({ ...s, mine: true, features: (s.features || []).filter(f => String(f.name || "").trim()).map(f => ({ name: f.name, lv: [+f.level || 1], desc: f.text || "", fx: f.fx || [], mine: true })) });
-const ownSubShape = n => { const s = n && ownSubs().find(x => x.name === n); return s ? subShape(s) : null; };
+const ownSubShape = n => { const s = n && (ownSubs().find(x => x.name === n) || HOUSE_SUBS.find(x => x.name === n)); return s ? subShape(s) : null; };     /* (the house oath too: Fallen Crown) */
 const ownFeatShape = n => { const f = n && ownFeats().find(x => x.name === String(n).trim()); return f ? { ...f, desc: f.text || "", fx: f.fx || [], mine: true } : null; };
 // a third caster's slots: none before 3rd level, then the full casters' table at a third of the level, rounded up
 const thirdSlots = L => L < 3 ? {} : Object.fromEntries(FULL_SLOTS[Math.ceil(L / 3)].map((n, i) => [i + 1, n]));
@@ -3870,7 +3901,19 @@ document.addEventListener("click", e => {
       if (k === "sacred") { c.effects = c.effects.filter(e => e.name !== "Sacred Weapon"); addEffect(c, { name: "Sacred Weapon", to: ["watk"], bonus: String(Math.max(1, mod(c, "cha"))), note: "Your melee weapon, 10 minutes: Radiant damage if you like; Bright Light 20 ft. Turn it off for a ranged attack; it ends if you put the weapon down" }); }
       save(); render(); toast({ sense: "Divine Sense (a Bonus Action): for 10 minutes you know where any Celestial, Fiend, or Undead within 60 feet is, and its type, and any consecrated or desecrated place.",
         abjure: `Abjure Foes (an action): up to ${Math.max(1, mod(c, "cha"))} creatures within 60 feet make a Wisdom save, DC ${dcOf(c)}, or are Frightened for 1 minute (until they take damage), and can only move, act, or take a Bonus Action on their turns.`,
-        sacred: `Sacred Weapon: +${Math.max(1, mod(c, "cha"))} to hit with it for 10 minutes (an effect is on).` }[k] + ` ${resLeft(r)} Channel Divinity left.`, 6000); break; }
+        sacred: `Sacred Weapon: +${Math.max(1, mod(c, "cha"))} to hit with it for 10 minutes (an effect is on).`,
+        kneel: `Kneel Before the Crown (a Magic action): creatures you choose within 30 feet make a Wisdom save, DC ${dcOf(c)}, or are Prone and can't stand up until the end of their next turn.` }[k] + ` ${resLeft(r)} Channel Divinity left.`, 6000); break; }
+    /* the Oath of the Fallen Crown's (2026-11-12): Wrath of the Fallen on or off, Aura of Never Again, Spectral Court */
+    case "palwrath": { c.effects = c.effects.filter(e => e.name !== "Wrath of the Fallen");
+      if (el.dataset.k === "on") addEffect(c, { name: "Wrath of the Fallen", note: `+${Math.max(0, mod(c, "cha"))} Radiant on your weapon hits until the end of your next turn (take it off then)` });
+      save(); render(); toast(el.dataset.k === "on" ? `Wrath of the Fallen: +${Math.max(0, mod(c, "cha"))} Radiant on your weapon damage until the end of your next turn.` : "Wrath of the Fallen is over."); break; }
+    case "palna": { const r = res(c, "Aura of Never Again"); if (!resLeft(r)) break; r.used = (+r.used || 0) + 1; const said = [`Aura of Never Again (your Reaction): they drop to 1 hit point instead of 0. ${resLeft(r)} left.`];
+      if (palLv(c) >= 5 && hasT(c, "Wrath of the Fallen")) { c.effects = c.effects.filter(e => e.name !== "Wrath of the Fallen"); addEffect(c, { name: "Wrath of the Fallen", note: `+${Math.max(0, mod(c, "cha"))} Radiant on your weapon hits until the end of your next turn (take it off then)` }); said.push("Wrath of the Fallen is on."); }
+      if (palLv(c) >= 15 && hasT(c, "Vengeance of the Crown")) said.push("Vengeance of the Crown: teleport up to 30 feet next to the one who did it and make one weapon attack (same Reaction).");
+      logIt(c, "Aura of Never Again"); save(); render(); toast(said.join(" "), 7000); break; }
+    case "palcourt": { const r = res(c, "Spectral Court"); if (!r) break;
+      if (el.dataset.k === "slot") { if (!(c.slots[5] && c.slots[5].max > c.slots[5].used)) break; c.slots[5].used++; r.used = Math.max(0, (+r.used || 0) - 1); save(); render(); toast("A 5th-level slot spent: Spectral Court is back."); break; }
+      if (!resLeft(r)) break; r.used = (+r.used || 0) + 1; save(); render(); toast("Spectral Court, 10 minutes: at the start of each of your turns, one ally in your aura can use their Reaction to make one attack; enemies in your aura save against Kneel Before the Crown with Disadvantage.", 7000); break; }
     case "palnim": { const r = res(c, "Holy Nimbus"); if (!r) break;
       if (el.dataset.k === "slot") { if (!(c.slots[5] && c.slots[5].max > c.slots[5].used)) break; c.slots[5].used++; r.used = Math.max(0, (+r.used || 0) - 1); save(); render(); toast("A 5th-level slot spent: Holy Nimbus is back."); break; }
       if (!resLeft(r)) break; r.used = (+r.used || 0) + 1; save(); render(); toast(`Holy Nimbus, 10 minutes: Advantage on saves a Fiend or Undead forces; an enemy that starts its turn in your aura takes ${Math.max(0, mod(c, "cha")) + prof(c)} Radiant; your aura is sunlight.`, 6000); break; }
